@@ -1,108 +1,119 @@
 {% extends "base.html" %}
 {% block content %}
-  <div class="card" style="max-width: 760px;">
+  <div class="card smtp-settings" style="max-width: 1100px; width: 100%;">
     <h2>SMTP Settings</h2>
-    <form method="post" class="form-grid">
-      <div class="checkbox-row">
-        <input id="enabled" name="enabled" type="checkbox" {% if config and config.enabled %}checked{% endif %}>
+    <form method="post" class="smtp-grid">
+      <div class="smtp-section">
+      <div class="smtp-toggle">
         <label for="enabled">Enable notifications</label>
-      </div>
-      <div>
-        <label for="host">SMTP Server</label>
-        <input id="host" name="host" type="text" value="{{ config.host if config else '' }}" placeholder="smtp.example.com">
-      </div>
-      <div>
-        <label for="port">Port</label>
-        <input id="port" name="port" type="number" value="{{ config.port if config else '' }}" placeholder="587">
-      </div>
-      <div>
-        <label for="encryption">Encryption</label>
-        <select id="encryption" name="encryption">
-          {% set enc = config.encryption if config else 'none' %}
-          <option value="none" {% if enc == 'none' %}selected{% endif %}>None</option>
-          <option value="ssl" {% if enc == 'ssl' %}selected{% endif %}>SSL</option>
-          <option value="starttls" {% if enc == 'starttls' %}selected{% endif %}>STARTTLS</option>
-        </select>
-      </div>
-      <div>
-        <label for="username">Username</label>
-        <input id="username" name="username" type="text" value="{{ config.username if config else '' }}">
-      </div>
-      <div>
-        <label for="password">Password</label>
-        <input id="password" name="password" type="password" value="" placeholder="Leave blank to keep existing">
-      </div>
-      <div class="checkbox-row">
-        <input id="skip_auth" name="skip_auth" type="checkbox" {% if config and config.skip_auth %}checked{% endif %}>
+        <input id="enabled" name="enabled" type="checkbox" {% if config and config.enabled %}checked{% endif %}>
+        </div>
+        <div class="smtp-field">
+          <label for="host">SMTP Server</label>
+          <input id="host" name="host" type="text" value="{{ config.host if config else '' }}" placeholder="smtp.example.com">
+        </div>
+        <div class="smtp-field">
+          <label for="port">Port</label>
+          <input id="port" name="port" type="number" value="{{ config.port if config else '' }}" placeholder="587">
+        </div>
+        <div class="smtp-field">
+          <label for="encryption">Encryption</label>
+          <select id="encryption" name="encryption">
+            {% set enc = config.encryption if config else 'none' %}
+            <option value="none" {% if enc == 'none' %}selected{% endif %}>None</option>
+            <option value="ssl" {% if enc == 'ssl' %}selected{% endif %}>SSL</option>
+            <option value="starttls" {% if enc == 'starttls' %}selected{% endif %}>STARTTLS</option>
+          </select>
+        </div>
+        <div class="smtp-field">
+          <label for="username">Username</label>
+          <input id="username" name="username" type="text" value="{{ config.username if config else '' }}">
+        </div>
+        <div class="smtp-field">
+          <label for="password">Password</label>
+          <input id="password" name="password" type="password" value="" placeholder="Leave blank to keep existing">
+        </div>
+      <div class="smtp-toggle">
         <label for="skip_auth">Skip authentication</label>
+        <input id="skip_auth" name="skip_auth" type="checkbox" {% if config and config.skip_auth %}checked{% endif %}>
+        </div>
+        <div class="smtp-field">
+          <label for="sender_email">Sender Email</label>
+          <input id="sender_email" name="sender_email" type="text" value="{{ config.sender_email if config else '' }}" placeholder="no-reply@example.com">
+        </div>
       </div>
-      <div>
-        <label for="sender_email">Sender Email</label>
-        <input id="sender_email" name="sender_email" type="text" value="{{ config.sender_email if config else '' }}" placeholder="no-reply@example.com">
-      </div>
-      <div class="checkbox-row">
-        <input id="monthly_report_enabled" name="monthly_report_enabled" type="checkbox" {% if config and config.monthly_report_enabled %}checked{% endif %}>
+      <div class="smtp-section">
+      <div class="smtp-toggle">
         <label for="monthly_report_enabled">Enable monthly report</label>
-      </div>
-      <div>
-        <label for="monthly_report_day">Monthly report day (1-28)</label>
-        <input id="monthly_report_day" name="monthly_report_day" type="number" min="1" max="28" value="{{ config.monthly_report_day if config else 1 }}">
-      </div>
-      <div class="checkbox-row">
-        <input id="low_stock_enabled" name="low_stock_enabled" type="checkbox" {% if config and config.low_stock_enabled %}checked{% endif %}>
+        <input id="monthly_report_enabled" name="monthly_report_enabled" type="checkbox" {% if config and config.monthly_report_enabled %}checked{% endif %}>
+        </div>
+        <div class="smtp-field">
+          <label for="monthly_report_day">Monthly report day (1-28)</label>
+          <input id="monthly_report_day" name="monthly_report_day" type="number" min="1" max="28" value="{{ config.monthly_report_day if config else 1 }}">
+        </div>
+      <div class="smtp-toggle">
         <label for="low_stock_enabled">Enable low stock alerts</label>
+        <input id="low_stock_enabled" name="low_stock_enabled" type="checkbox" {% if config and config.low_stock_enabled %}checked{% endif %}>
+        </div>
+        <div class="smtp-field">
+          <label for="low_stock_threshold">Low stock threshold</label>
+          <input id="low_stock_threshold" name="low_stock_threshold" type="number" min="1" value="{{ config.low_stock_threshold if config else 5 }}">
+        </div>
+        <div class="smtp-field">
+          <label for="low_stock_frequency_days">Low stock email frequency (days)</label>
+          <input id="low_stock_frequency_days" name="low_stock_frequency_days" type="number" min="1" value="{{ config.low_stock_frequency_days if config else 1 }}">
+        </div>
+        <button class="button" type="submit">Save</button>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px;">
+          <form method="post" action="{{ url_for('smtp_send_monthly') }}">
+            <button class="button secondary" type="submit">Send monthly report now</button>
+          </form>
+          <form method="post" action="{{ url_for('smtp_send_low_stock') }}">
+            <button class="button secondary" type="submit">Send low stock report now</button>
+          </form>
+        </div>
       </div>
-      <div>
-        <label for="low_stock_threshold">Low stock threshold</label>
-        <input id="low_stock_threshold" name="low_stock_threshold" type="number" min="1" value="{{ config.low_stock_threshold if config else 5 }}">
-      </div>
-      <div>
-        <label for="low_stock_frequency_days">Low stock email frequency (days)</label>
-        <input id="low_stock_frequency_days" name="low_stock_frequency_days" type="number" min="1" value="{{ config.low_stock_frequency_days if config else 1 }}">
-      </div>
-      <button class="button" type="submit">Save</button>
     </form>
-    <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px;">
-      <form method="post" action="{{ url_for('smtp_send_monthly') }}">
-        <button class="button secondary" type="submit">Send monthly report now</button>
-      </form>
-      <form method="post" action="{{ url_for('smtp_send_low_stock') }}">
-        <button class="button secondary" type="submit">Send low stock report now</button>
-      </form>
-    </div>
   </div>
 
-  <div class="card" style="max-width: 760px; margin-top: 18px;">
+  <div class="card smtp-settings" style="max-width: 1100px; width: 100%; margin-top: 18px;">
     <h2>Recipients</h2>
-    <form method="post" action="{{ url_for('smtp_add_recipient') }}" class="form-grid">
-      <div>
+    <form method="post" action="{{ url_for('smtp_add_recipient') }}" class="smtp-recipient-grid">
+      <div class="smtp-field">
         <label for="email">Recipient Email</label>
-        <input id="email" name="email" type="text" required>
+        <input id="email" name="email" type="text" placeholder="name@company.com" required>
+        <p class="muted" style="margin-top: 6px;">Choose which events this address should receive.</p>
+        <div style="display: flex; justify-content: flex-start; margin-top: 10px;">
+          <button class="button" type="submit">Add Recipient</button>
+        </div>
       </div>
-      <div class="checkbox-row">
-        <label><input name="notify_create" type="checkbox"> Create</label>
-        <label><input name="notify_update" type="checkbox"> Update</label>
-        <label><input name="notify_delete" type="checkbox"> Delete</label>
-        <label><input name="notify_bulk_delete" type="checkbox"> Bulk delete</label>
-        <label><input name="notify_monthly" type="checkbox"> Monthly report</label>
-        <label><input name="notify_low_stock" type="checkbox"> Low stock</label>
+      <div>
+        <label>Notifications</label>
+        <div class="smtp-checks">
+          <label><input name="notify_create" type="checkbox"> Create</label>
+          <label><input name="notify_update" type="checkbox"> Update</label>
+          <label><input name="notify_delete" type="checkbox"> Delete</label>
+          <label><input name="notify_bulk_delete" type="checkbox"> Bulk delete</label>
+          <label><input name="notify_monthly" type="checkbox"> Monthly report</label>
+          <label><input name="notify_low_stock" type="checkbox"> Low stock</label>
+        </div>
       </div>
-      <button class="button" type="submit">Add Recipient</button>
     </form>
 
-    <table style="margin-top: 18px;">
-      <thead>
-        <tr>
-          <th>Email</th>
-          <th>Create</th>
-          <th>Update</th>
-          <th>Delete</th>
-          <th>Bulk delete</th>
-          <th>Monthly</th>
-          <th>Low stock</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
+    <div style="overflow-x: auto; margin-top: 18px;">
+      <table style="min-width: 900px;">
+        <thead>
+          <tr>
+            <th>Email</th>
+            <th>Create</th>
+            <th>Update</th>
+            <th>Delete</th>
+            <th>Bulk delete</th>
+            <th>Monthly</th>
+            <th>Low stock</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
       <tbody>
         {% for recipient in recipients %}
           <tr>
@@ -128,6 +139,50 @@
           </tr>
         {% endfor %}
       </tbody>
-    </table>
+      </table>
+    </div>
   </div>
+  <style>
+    .smtp-settings input,
+    .smtp-settings select,
+    .smtp-settings textarea {
+      width: 100%;
+    }
+    .smtp-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(280px, 1fr));
+      gap: 20px 28px;
+      align-items: start;
+    }
+    .smtp-section {
+      display: grid;
+      gap: 12px;
+    }
+    .smtp-field label {
+      display: block;
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+    .smtp-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      justify-content: flex-start;
+    }
+    .smtp-recipient-grid {
+      display: grid;
+      grid-template-columns: 1fr 1.2fr;
+      gap: 18px 24px;
+      align-items: start;
+    }
+    .smtp-checks {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px 18px;
+      align-items: center;
+    }
+    .smtp-recipient-grid > div:last-child {
+      grid-column: 1 / -1;
+    }
+  </style>
 {% endblock %}
