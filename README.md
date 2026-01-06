@@ -38,7 +38,7 @@
 
 ```bash
 git clone https://github.com/tayyabtahir143/AssetManager.git
-cd postgres-deploy
+cd AssetManager
 sudo docker compose up -d --build
 ```
 
