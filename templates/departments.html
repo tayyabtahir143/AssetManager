@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block content %}
+  <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+    <div>
+      <h2>Departments</h2>
+      <p class="muted">Manage department options used in asset assignments.</p>
+    </div>
+  </div>
+
+  <div class="card" style="max-width: 520px; margin-top: 12px;">
+    <form method="post" class="form-grid">
+      <div>
+        <label for="name">Department Name</label>
+        <input id="name" name="name" type="text" required>
+      </div>
+      <button class="button" type="submit">Add Department</button>
+    </form>
+  </div>
+
+  <div class="card" style="margin-top: 18px;">
+    <table>
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Department</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for dept in departments %}
+          <tr>
+            <td>{{ loop.index }}</td>
+            <td>{{ dept.name }}</td>
+            <td>
+              <form class="inline" method="post" action="{{ url_for('delete_department', dept_id=dept.id) }}" onsubmit="return confirm('Delete this department?');">
+                <button class="button secondary" type="submit">Delete</button>
+              </form>
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="3">No departments yet.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endblock %}

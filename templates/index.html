@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block content %}
+  <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+    <div>
+      <h2>Asset Dashboard</h2>
+      <p class="muted">Monitor asset distribution and jump into management.</p>
+    </div>
+  </div>
+
+  <div class="card-grid" style="margin-top: 12px;">
+    <div class="card">
+      <h3>Total Assets</h3>
+      <p class="muted">All assets in the system</p>
+      <div style="font-size: 28px; font-weight: 700;">{{ total_assets }}</div>
+    </div>
+    <div class="card">
+      <h3>Assigned</h3>
+      <p class="muted">Currently in use</p>
+      <div style="font-size: 28px; font-weight: 700;">{{ total_assigned }}</div>
+    </div>
+    <div class="card">
+      <h3>Available</h3>
+      <p class="muted">Ready to allocate</p>
+      <div style="font-size: 28px; font-weight: 700;">{{ total_available }}</div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top: 18px;">
+    <h3 style="margin-top: 0;">Assets by Department</h3>
+    <p class="muted">Assigned vs available totals by department.</p>
+    {% if dept_summary %}
+      <table>
+        <thead>
+          <tr>
+            <th>Department</th>
+            <th>Assigned</th>
+            <th>Available</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for dept in dept_summary %}
+            {% set is_stock = dept.dept == "In Stock" %}
+            {% set is_broken = dept.dept == "Broken" %}
+            {% set is_write_off = dept.dept == "Write Off" %}
+            {% set dept_param = "in_stock" if is_stock else ("all" if is_broken or is_write_off else dept.dept) %}
+            {% set status_param = "in_stock" if is_stock else ("broken" if is_broken else ("write_off" if is_write_off else "assigned")) %}
+            <tr>
+              <td>
+                <a class="button secondary" href="{{ url_for('reports', dept=dept_param, asset='all', status=status_param) }}">
+                  {{ dept.dept }}
+                </a>
+              </td>
+              <td>{{ dept.assigned }}</td>
+              <td>{{ dept.available }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p>No department data yet.</p>
+    {% endif %}
+  </div>
+
+  <div class="card" style="margin-top: 18px;">
+    <h3 style="margin-top: 0;">Asset Types</h3>
+    <p class="muted">Jump into a specific asset type.</p>
+    <div class="card-grid">
+      {% for asset in assets %}
+        <div class="card">
+          <h3>{{ asset.label }}</h3>
+          <p class="muted">{{ asset.count }} items</p>
+          <a class="button" href="{{ asset.url }}">View</a>
+        </div>
+      {% else %}
+        <div class="card">
+          <h3>No access</h3>
+          <p class="muted">No readable asset types for your role.</p>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+{% endblock %}

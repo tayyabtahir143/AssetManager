@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block content %}
+  <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+    <div>
+      <h2>User Asset Assignment</h2>
+      <p class="muted">Search a user to see everything assigned to them.</p>
+    </div>
+    <form method="get" class="inline">
+      <input type="text" name="user" placeholder="Search by username or email..." value="{{ query }}" list="ldap-users">
+      <button class="button secondary" type="submit">Search</button>
+    </form>
+  </div>
+
+  {% if query %}
+    <div class="card" style="margin-top: 12px;">
+      <h3 style="margin-top: 0;">Results for {{ query }}</h3>
+      <p class="muted">Items assigned: {{ total_items }}{% if total_quantity %} · Quantity assigned: {{ total_quantity }}{% endif %}</p>
+    </div>
+  {% endif %}
+
+  {% if sections %}
+    {% for section in sections %}
+      <div class="card" style="margin-top: 16px;">
+        <h3 style="margin-top: 0;">{{ section.label }}</h3>
+        <p class="muted">
+          Assigned: {{ section.count }}{% if section.consumable %} units{% endif %}
+        </p>
+        {% if section.columns and section.rows %}
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                {% for field in section.columns %}
+                  <th>{{ field[1] }}</th>
+                {% endfor %}
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in section.rows %}
+                <tr>
+                  <td>{{ loop.index }}</td>
+                  {% for field in section.columns %}
+                    <td>{{ row[field[0]] or "-" }}</td>
+                  {% endfor %}
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        {% endif %}
+      </div>
+    {% endfor %}
+  {% elif query %}
+    <div class="card" style="margin-top: 16px;">
+      <p>No assets found for this user.</p>
+    </div>
+  {% endif %}
+{% endblock %}

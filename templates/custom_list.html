@@ -1,0 +1,262 @@
+{% extends "base.html" %}
+{% block content %}
+  <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+    <div>
+      <h2>{{ asset_title }}</h2>
+      <p class="muted">Total items: {{ total_items }}</p>
+    </div>
+    <form method="get" class="inline" style="display: flex; gap: 10px; flex-wrap: wrap;">
+      <input type="text" name="q" placeholder="Search..." value="{{ query or '' }}">
+      <select name="status">
+        <option value="all" {% if status_filter == "all" %}selected{% endif %}>All</option>
+        <option value="assigned" {% if status_filter == "assigned" %}selected{% endif %}>Assigned only</option>
+        <option value="in_stock" {% if status_filter == "in_stock" %}selected{% endif %}>In Stock only</option>
+        <option value="broken" {% if status_filter == "broken" %}selected{% endif %}>Broken only</option>
+        <option value="write_off" {% if status_filter == "write_off" %}selected{% endif %}>Write Off only</option>
+      </select>
+      <button class="button secondary" type="submit">Search</button>
+    </form>
+    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+      {% if asset_perms.can_bulk_delete %}
+        <button class="button secondary" type="button" id="toggle-custom-bulk">Bulk delete</button>
+        <button class="button secondary bulk-toggle-custom" id="bulk-delete-submit" type="submit" form="bulk-delete-form" onclick="return confirm('Delete selected items?');" style="display: none;">Delete selected</button>
+      {% endif %}
+      {% if asset_perms.can_add %}
+        <a class="button" href="{{ url_for('add_custom_asset', asset_key=asset_type.key) }}">Add {{ asset_type.label }}</a>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if app_admin %}
+    <div class="card" style="margin-top: 14px;">
+      <h3 style="margin-top: 0;">Import / Export</h3>
+      <p class="muted">Upload an .xlsx file using this header format: {{ import_headers | join(", ") }}</p>
+      <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
+        <a class="button secondary" href="{{ url_for('export_custom_assets_excel', asset_key=asset_type.key) }}">Export Excel</a>
+        {% if asset_perms.can_add %}
+          <form method="post" action="{{ url_for('import_custom_assets_excel', asset_key=asset_type.key) }}" enctype="multipart/form-data" style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+            <input type="file" name="file" accept=".xlsx" required>
+            <button class="button" type="submit">Import Excel</button>
+          </form>
+        {% endif %}
+      </div>
+    </div>
+  {% endif %}
+
+  <form method="post" action="{{ url_for('bulk_delete_custom_assets', asset_key=asset_type.key) }}" id="bulk-delete-form">
+    <input type="hidden" name="bulk_delete_intent" id="bulk-delete-intent" value="">
+    <table class="sticky-header">
+      <thead>
+        <tr>
+          {% if asset_perms.can_bulk_delete %}
+            <th>
+              <input type="checkbox" id="select-all-custom" class="bulk-toggle-custom" style="display: none;">
+            </th>
+          {% endif %}
+          <th>#</th>
+          {% for field in fields %}
+            <th>{{ field.label }}</th>
+          {% endfor %}
+          {% if asset_perms.can_delete or asset_perms.can_add %}
+            <th>Actions</th>
+          {% endif %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in items %}
+          <tr>
+            {% if asset_perms.can_bulk_delete %}
+              <td><input type="checkbox" class="custom-checkbox bulk-toggle-custom" name="selected_ids" value="{{ item.id }}" style="display: none;"></td>
+            {% endif %}
+            <td>{{ loop.index }}</td>
+            {% for field in fields %}
+              <td>
+                {% if field.field_type == "checkbox" %}
+                  {% if field.options %}
+                    {{ item.data.get(field.name) | join(", ") if item.data.get(field.name) else "-" }}
+                  {% else %}
+                    {{ "Yes" if item.data.get(field.name) else "No" }}
+                  {% endif %}
+                {% else %}
+                  {% if field.name in assigned_fields %}
+                    {% set value = item.data.get(field.name) %}
+                    {{ display_assignee(value) }}
+                  {% else %}
+                    {{ item.data.get(field.name, "") or "-" }}
+                  {% endif %}
+                {% endif %}
+              </td>
+            {% endfor %}
+            {% if asset_perms.can_delete or asset_perms.can_add %}
+              <td>
+                {% if asset_perms.can_add %}
+                  <a class="button secondary" href="{{ url_for('view_custom_asset', asset_key=asset_type.key, item_id=item.id) }}">View</a>
+                  <a class="button secondary" href="{{ url_for('edit_custom_asset', asset_key=asset_type.key, item_id=item.id) }}">Edit</a>
+                {% endif %}
+                {% if asset_perms.can_delete %}
+                  <button class="button secondary" type="submit" formaction="{{ url_for('delete_custom_asset', asset_key=asset_type.key, item_id=item.id) }}" formmethod="post" onclick="return confirm('Delete this item?');">Delete</button>
+                {% endif %}
+              </td>
+            {% endif %}
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="{{ fields|length + (4 if asset_perms.can_delete or asset_perms.can_add else 3) }}">No items found.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </form>
+  <div id="bulk-delete-overlay" style="display: none; position: fixed; inset: 0; background: rgba(3, 6, 12, 0.7); z-index: 999; align-items: center; justify-content: center;">
+    <div class="card" style="min-width: 280px; text-align: center;">
+      <h3 style="margin-top: 0;">Deleting…</h3>
+      <p class="muted">Please wait while we process your request.</p>
+    </div>
+  </div>
+  <div id="infinite-status" class="muted" style="margin-top: 14px;">Loading more items…</div>
+  {% if asset_perms.can_bulk_delete %}
+    <script>
+      const selectAllCustom = document.getElementById('select-all-custom');
+      const toggleCustomBulk = document.getElementById('toggle-custom-bulk');
+      const customBulkItems = document.querySelectorAll('.bulk-toggle-custom');
+      const bulkDeleteForm = document.getElementById('bulk-delete-form');
+      const bulkDeleteOverlay = document.getElementById('bulk-delete-overlay');
+      const bulkDeleteSubmit = document.getElementById('bulk-delete-submit');
+      const bulkDeleteIntent = document.getElementById('bulk-delete-intent');
+      if (toggleCustomBulk) {
+        toggleCustomBulk.addEventListener('click', () => {
+          customBulkItems.forEach((item) => {
+            item.style.display = item.style.display === 'none' ? '' : 'none';
+            if (item.type === 'checkbox') {
+              item.checked = false;
+            }
+          });
+        });
+      }
+      if (selectAllCustom) {
+        selectAllCustom.addEventListener('change', () => {
+          document.querySelectorAll('.custom-checkbox').forEach((box) => {
+            box.checked = selectAllCustom.checked;
+          });
+        });
+      }
+      if (bulkDeleteSubmit && bulkDeleteIntent) {
+        bulkDeleteSubmit.addEventListener('click', () => {
+          bulkDeleteIntent.value = '1';
+        });
+      }
+      if (bulkDeleteForm && bulkDeleteOverlay) {
+        bulkDeleteForm.addEventListener('submit', () => {
+          if (bulkDeleteIntent && bulkDeleteIntent.value === '1') {
+            bulkDeleteOverlay.style.display = 'flex';
+          }
+        });
+      }
+    </script>
+  {% endif %}
+  <script>
+    const customTableBody = document.querySelector('tbody');
+    const infiniteStatus = document.getElementById('infinite-status');
+    const totalPages = {{ total_pages }};
+    const assetKey = "{{ asset_type.key }}";
+    const assetQuery = "{{ query or '' | e }}";
+    const assetStatus = "{{ status_filter or 'all' }}";
+    const fields = {{ fields | tojson }};
+    const canAdd = {{ 'true' if asset_perms.can_add else 'false' }};
+    const canDelete = {{ 'true' if asset_perms.can_delete else 'false' }};
+    const canBulk = {{ 'true' if asset_perms.can_bulk_delete else 'false' }};
+    const bulkToggleVisible = () => {
+      const first = document.querySelector('.bulk-toggle-custom');
+      return first && first.style.display !== 'none';
+    };
+    let currentPage = {{ page }};
+    let loading = false;
+    let hasMore = currentPage < totalPages;
+
+    const buildActionCell = (itemId) => {
+      const cell = document.createElement('td');
+      if (canAdd) {
+        const view = document.createElement('a');
+        view.className = 'button secondary';
+        view.href = `/custom/${assetKey}/view/${itemId}`;
+        view.textContent = 'View';
+        cell.appendChild(view);
+        view.style.marginRight = '6px';
+        const edit = document.createElement('a');
+        edit.className = 'button secondary';
+        edit.href = `/custom/${assetKey}/edit/${itemId}`;
+        edit.textContent = 'Edit';
+        edit.style.marginRight = '6px';
+        cell.appendChild(edit);
+      }
+      if (canDelete) {
+        const form = document.createElement('form');
+        form.method = 'post';
+        form.action = `/custom/${assetKey}/delete/${itemId}`;
+        form.style.display = 'inline';
+        const button = document.createElement('button');
+        button.className = 'button secondary';
+        button.type = 'submit';
+        button.textContent = 'Delete';
+        button.onclick = () => confirm('Delete this item?');
+        form.appendChild(button);
+        cell.appendChild(form);
+      }
+      return cell;
+    };
+
+    const appendRow = (rowData) => {
+      const row = document.createElement('tr');
+      if (canBulk) {
+        const checkCell = document.createElement('td');
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.name = 'selected_ids';
+        checkbox.value = rowData.id;
+        checkbox.className = 'custom-checkbox bulk-toggle-custom';
+        checkbox.style.display = bulkToggleVisible() ? '' : 'none';
+        checkCell.appendChild(checkbox);
+        row.appendChild(checkCell);
+      }
+      const indexCell = document.createElement('td');
+      indexCell.textContent = customTableBody.children.length + 1;
+      row.appendChild(indexCell);
+      fields.forEach((field) => {
+        const cell = document.createElement('td');
+        cell.textContent = rowData.fields[field.name] || '-';
+        row.appendChild(cell);
+      });
+      if (canDelete || canAdd) {
+        row.appendChild(buildActionCell(rowData.id));
+      }
+      customTableBody.appendChild(row);
+    };
+
+    const loadMore = async () => {
+      if (!hasMore || loading) return;
+      loading = true;
+      infiniteStatus.textContent = 'Loading more items…';
+      const nextPage = currentPage + 1;
+      const params = new URLSearchParams({ page: nextPage, q: assetQuery, status: assetStatus });
+      const resp = await fetch(`/custom/${assetKey}/page?${params.toString()}`);
+      if (resp.ok) {
+        const data = await resp.json();
+        data.rows.forEach(appendRow);
+        currentPage = data.page;
+        hasMore = data.has_more;
+      }
+      loading = false;
+      infiniteStatus.textContent = hasMore ? 'Scroll to load more.' : 'All items loaded.';
+    };
+
+    const onScroll = () => {
+      const threshold = 200;
+      if ((window.innerHeight + window.scrollY) >= (document.body.offsetHeight - threshold)) {
+        loadMore();
+      }
+    };
+
+    infiniteStatus.textContent = hasMore ? 'Scroll to load more.' : 'All items loaded.';
+    window.addEventListener('scroll', onScroll);
+  </script>
+{% endblock %}

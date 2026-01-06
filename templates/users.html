@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block content %}
+  <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+    <div>
+      <h2>Users</h2>
+      <p class="muted">Manage application users and roles.</p>
+    </div>
+    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+      <form method="get" class="inline">
+        <input type="text" name="q" placeholder="Search..." value="{{ query or '' }}">
+        <button class="button secondary" type="submit">Search</button>
+      </form>
+      {% if app_admin and permissions.can_bulk_delete %}
+        <button class="button secondary" type="button" id="toggle-users-bulk">Bulk delete</button>
+        <button class="button secondary bulk-toggle-users" type="submit" onclick="return confirm('Delete selected users?');" style="display: none;">Delete selected</button>
+      {% endif %}
+      <form method="post" action="{{ url_for('ldap_sync_users') }}">
+        <button class="button secondary" type="submit">Sync LDAP Users</button>
+      </form>
+      <a class="button" href="{{ url_for('add_user') }}">Add User</a>
+    </div>
+  </div>
+
+  <form method="post" action="{{ url_for('bulk_delete_users') }}">
+    <table>
+      <thead>
+        <tr>
+          {% if app_admin and permissions.can_bulk_delete %}
+            <th><input type="checkbox" id="select-all-users" class="bulk-toggle-users" style="display: none;"></th>
+          {% endif %}
+          <th>#</th>
+          <th>Username</th>
+          <th>Email</th>
+          <th>Roles</th>
+          <th>Groups</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for user in users %}
+          <tr>
+            {% if app_admin and permissions.can_bulk_delete %}
+              <td><input type="checkbox" class="user-checkbox bulk-toggle-users" name="selected_ids" value="{{ user.id }}" style="display: none;"></td>
+            {% endif %}
+              <td>{{ loop.index }}</td>
+            <td>{{ user.username }}</td>
+            <td>{{ user.email or "—" }}</td>
+            <td>{{ (user_roles.get(user.id) or [])|join(", ") or "—" }}</td>
+            <td>{{ (user_groups.get(user.id) or [])|join(", ") or "—" }}</td>
+            <td>
+              <a class="button secondary" href="{{ url_for('user_assets', user=user.username) }}">Assets</a>
+              <a class="button secondary" href="{{ url_for('edit_user', user_id=user.id) }}">Edit</a>
+              <button class="button secondary" type="submit" formaction="{{ url_for('delete_user', user_id=user.id) }}" formmethod="post" onclick="return confirm('Delete this user?');">Delete</button>
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="7">No users found.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </form>
+  {% if app_admin and permissions.can_bulk_delete %}
+    <script>
+      const selectAllUsers = document.getElementById('select-all-users');
+      const toggleUsersBulk = document.getElementById('toggle-users-bulk');
+      const usersBulkItems = document.querySelectorAll('.bulk-toggle-users');
+      if (toggleUsersBulk) {
+        toggleUsersBulk.addEventListener('click', () => {
+          usersBulkItems.forEach((item) => {
+            item.style.display = item.style.display === 'none' ? '' : 'none';
+            if (item.type === 'checkbox') {
+              item.checked = false;
+            }
+          });
+        });
+      }
+      if (selectAllUsers) {
+        selectAllUsers.addEventListener('change', () => {
+          document.querySelectorAll('.user-checkbox').forEach((box) => {
+            box.checked = selectAllUsers.checked;
+          });
+        });
+      }
+    </script>
+  {% endif %}
+{% endblock %}

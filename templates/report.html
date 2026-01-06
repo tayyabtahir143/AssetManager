@@ -1,0 +1,192 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="report-header">
+    <div>
+      <h2>Asset Reports</h2>
+      <p class="muted">Generate printable, department-focused reports with full asset details.</p>
+      <p class="muted">Generated: {{ generated_at.strftime("%Y-%m-%d %H:%M:%S") }}</p>
+    </div>
+    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+      <a class="button secondary" href="{{ url_for('export_report', dept=dept_filter, asset=asset_filter, status=status_filter) }}">Export Excel</a>
+      <button class="button" type="button" onclick="window.print()">Print report</button>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top: 18px;">
+    <h3 style="margin-top: 0;">Filters</h3>
+    <form method="get" class="filter-grid">
+      <div>
+        <label for="dept">Department</label>
+        <select id="dept" name="dept">
+          {% for dept in dept_options %}
+            {% set label = "All departments" if dept == "all" else ("In Stock" if dept == "in_stock" else dept) %}
+            <option value="{{ dept }}" {% if dept == dept_filter %}selected{% endif %}>{{ label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="asset">Asset Type</label>
+        <select id="asset" name="asset">
+          {% for asset in asset_options %}
+            <option value="{{ asset.key }}" {% if asset.key == asset_filter %}selected{% endif %}>{{ asset.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="status">Status</label>
+        <select id="status" name="status">
+          <option value="all_status" {% if status_filter == "all_status" %}selected{% endif %}>All (Assigned + In Stock + Broken + Write Off)</option>
+          <option value="all" {% if status_filter == "all" %}selected{% endif %}>Assigned + In Stock</option>
+          <option value="assigned" {% if status_filter == "assigned" %}selected{% endif %}>Assigned only</option>
+          <option value="in_stock" {% if status_filter == "in_stock" %}selected{% endif %}>In Stock only</option>
+          <option value="broken" {% if status_filter == "broken" %}selected{% endif %}>Broken only</option>
+          <option value="write_off" {% if status_filter == "write_off" %}selected{% endif %}>Write Off only</option>
+        </select>
+      </div>
+      <div style="display: flex; align-items: flex-end;">
+        <button class="button" type="submit">Generate</button>
+      </div>
+    </form>
+  </div>
+
+  <div class="card" style="margin-top: 18px;">
+    <h3 style="margin-top: 0;">Assets by Type</h3>
+    <p class="muted">Assigned vs available totals for the selected filters.</p>
+    {% if asset_summary %}
+      <table>
+        <thead>
+          <tr>
+            <th>Asset</th>
+            <th>Assigned</th>
+            <th>Available</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for item in asset_summary %}
+            <tr>
+              <td>{{ item.label }}</td>
+              <td>{{ item.assigned }}</td>
+              <td>{{ item.available }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p>No asset data for this filter.</p>
+    {% endif %}
+  </div>
+
+  <div class="card" style="margin-top: 18px;">
+    <h3 style="margin-top: 0;">Detailed Asset List</h3>
+    <p class="muted">Includes asset tags, specs, assigned user, and department.</p>
+    {% if report_rows %}
+      <table>
+        <thead>
+          <tr>
+            <th>Asset</th>
+            <th>Asset Tag</th>
+            <th>Vendor</th>
+            <th>Model</th>
+            <th>Processor</th>
+            <th>RAM</th>
+            <th>Hard Disk</th>
+            <th>User</th>
+            <th>Department</th>
+            <th>Status</th>
+            <th>Qty</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in report_rows %}
+            <tr>
+              <td>{{ row.asset }}</td>
+              <td>{{ row.asset_tag }}</td>
+              <td>{{ row.vendor }}</td>
+              <td>{{ row.model }}</td>
+              <td>{{ row.processor }}</td>
+              <td>{{ row.ram }}</td>
+              <td>{{ row.hard_disk }}</td>
+              <td>{{ row.user }}</td>
+              <td>{{ row.dept }}</td>
+              <td>{{ row.status }}</td>
+              <td>{{ row.quantity or "-" }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p>No assets match this filter.</p>
+    {% endif %}
+  </div>
+
+  <style>
+    .report-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+    .filter-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+      margin-top: 10px;
+    }
+    @media print {
+      body {
+        background: #ffffff !important;
+        color: #111827 !important;
+        font-family: "Times New Roman", Times, serif;
+      }
+      .sidebar,
+      .topbar,
+      .back-row,
+      .report-header button,
+      .filter-grid,
+      .report-header a {
+        display: none !important;
+      }
+      main {
+        max-width: 100%;
+        padding: 0;
+      }
+      .card {
+        box-shadow: none !important;
+        border: 1px solid #cbd5e1 !important;
+        border-radius: 0 !important;
+        background: #ffffff !important;
+        page-break-inside: avoid;
+      }
+      h2, h3, p, th, td {
+        color: #111827 !important;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        background: #ffffff !important;
+        font-size: 13px;
+        line-height: 1.4;
+      }
+      th, td {
+        border: 1px solid #cbd5e1;
+        padding: 7px 9px !important;
+        vertical-align: top;
+        word-break: break-word;
+      }
+      th {
+        background: #e2e8f0 !important;
+        text-transform: uppercase;
+        letter-spacing: 0.4px;
+        font-size: 11px;
+      }
+      tbody tr:nth-child(even) {
+        background: #f8fafc !important;
+      }
+      @page {
+        size: A4;
+        margin: 12mm;
+      }
+    }
+  </style>
+{% endblock %}

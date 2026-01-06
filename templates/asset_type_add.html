@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="card" style="max-width: 720px;">
+    <h2>Add Asset Type</h2>
+    <p class="muted">Define fields (name + label + type). Use a field named "assigned_to" to enable free inventory.</p>
+    <form method="post" class="form-grid">
+      <div>
+        <label for="label">Display Label</label>
+        <input id="label" name="label" type="text" required>
+      </div>
+      <div>
+        <label for="key">Key (optional)</label>
+        <input id="key" name="key" type="text">
+      </div>
+      <div>
+        <label>Fields</label>
+        {% for idx in range(1, 11) %}
+          <div class="field-row" style="margin-top: 10px;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr 160px; gap: 10px;">
+              <input name="field_name_{{ idx }}" type="text" placeholder="field_name">
+              <input name="field_label_{{ idx }}" type="text" placeholder="Field Label">
+              <select name="field_type_{{ idx }}" class="field-type-select">
+                <option value="text">Text</option>
+                <option value="checkbox">Checkbox</option>
+              </select>
+            </div>
+            <div class="field-options" style="display: none; margin-top: 8px;">
+              <div class="muted" style="font-size: 13px;">Checkbox options (leave blank to make it a single true/false)</div>
+              <div style="display: grid; grid-template-columns: repeat(3, minmax(120px, 1fr)); gap: 8px; margin-top: 6px;">
+                {% for opt_idx in range(1, 6) %}
+                  <input name="field_options_{{ idx }}_{{ opt_idx }}" type="text" placeholder="Option {{ opt_idx }}">
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+      <button class="button" type="submit">Save</button>
+      <a class="button secondary" href="{{ url_for('list_asset_types') }}">Cancel</a>
+    </form>
+    <script>
+      const rows = document.querySelectorAll('.field-row');
+      rows.forEach((row) => {
+        const select = row.querySelector('.field-type-select');
+        const options = row.querySelector('.field-options');
+        const toggle = () => {
+          if (select.value === 'checkbox') {
+            options.style.display = 'block';
+          } else {
+            options.style.display = 'none';
+          }
+        };
+        select.addEventListener('change', toggle);
+        toggle();
+      });
+    </script>
+  </div>
+{% endblock %}

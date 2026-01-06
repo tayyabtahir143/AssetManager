@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="card" style="max-width: 720px;">
+    <h2>LDAP Connection</h2>
+    <form method="post" class="form-grid">
+      <div>
+        <label for="server">LDAP Server</label>
+        <input id="server" name="server" type="text" value="{{ config.server }}" placeholder="ldap://ldap.example.com:389">
+      </div>
+      <div>
+        <label for="base_dn">Base DN</label>
+        <input id="base_dn" name="base_dn" type="text" value="{{ config.base_dn }}" placeholder="dc=example,dc=com">
+      </div>
+      <div>
+        <label for="bind_dn">Bind DN</label>
+        <input id="bind_dn" name="bind_dn" type="text" value="{{ config.bind_dn }}" placeholder="cn=admin,dc=example,dc=com">
+      </div>
+      <div>
+        <label for="bind_password">Bind Password</label>
+        <input id="bind_password" name="bind_password" type="password" value="" placeholder="Leave blank to keep existing">
+      </div>
+      <div>
+        <label for="user_filter">User Filter</label>
+        <input id="user_filter" name="user_filter" type="text" value="{{ config.user_filter }}" placeholder="(uid={username})">
+      </div>
+      <div>
+        <label for="list_filter">User List Filter</label>
+        <input id="list_filter" name="list_filter" type="text" value="{{ config.list_filter }}" placeholder="(&(objectClass=person)(uid=*))">
+      </div>
+      <div>
+        <label for="user_attribute">User Attribute</label>
+        <input id="user_attribute" name="user_attribute" type="text" value="{{ config.user_attribute }}" placeholder="uid">
+      </div>
+      <div>
+        <label for="email_attribute">Email Attribute</label>
+        <input id="email_attribute" name="email_attribute" type="text" value="{{ config.email_attribute }}" placeholder="mail">
+        <div class="muted" style="margin-top: 6px;">Use userPrincipalName if you want UPN (email-style) addresses.</div>
+      </div>
+      <div>
+        <label for="group_filter">Group List Filter</label>
+        <input id="group_filter" name="group_filter" type="text" value="{{ config.group_filter }}" placeholder="(&(objectClass=group)(cn=*))">
+      </div>
+      <div>
+        <label for="group_attribute">Group Attribute</label>
+        <input id="group_attribute" name="group_attribute" type="text" value="{{ config.group_attribute }}" placeholder="cn">
+      </div>
+      <div>
+        <label for="group_member_attribute">Group Member Attribute</label>
+        <input id="group_member_attribute" name="group_member_attribute" type="text" value="{{ config.group_member_attribute }}" placeholder="member">
+      </div>
+      <div>
+        <label for="user_dn_template">User DN Template</label>
+        <input id="user_dn_template" name="user_dn_template" type="text" value="{{ config.user_dn_template }}" placeholder="uid={username},ou=Users,dc=example,dc=com">
+      </div>
+      <div class="checkbox-row">
+        <input id="use_ssl" name="use_ssl" type="checkbox" {% if config.use_ssl %}checked{% endif %}>
+        <label for="use_ssl">Use SSL</label>
+      </div>
+      <div class="checkbox-row">
+        <input id="start_tls" name="start_tls" type="checkbox" {% if config.start_tls %}checked{% endif %}>
+        <label for="start_tls">StartTLS</label>
+      </div>
+      <div>
+        <label for="cache_seconds">User Cache Seconds</label>
+        <input id="cache_seconds" name="cache_seconds" type="text" value="{{ config.cache_seconds }}">
+      </div>
+      <div>
+        <label for="list_limit">User List Limit</label>
+        <input id="list_limit" name="list_limit" type="text" value="{{ config.list_limit }}">
+      </div>
+      <div>
+        <label for="default_role">Default Role</label>
+        <input id="default_role" name="default_role" type="text" value="{{ config.default_role }}" placeholder="reader">
+      </div>
+      <div>
+        <label for="admin_users">Admin Users (comma-separated)</label>
+        <input id="admin_users" name="admin_users" type="text" value="{{ config.admin_users }}" placeholder="alice,bob">
+      </div>
+      <div style="display: flex; gap: 12px;">
+        <button class="button" type="submit" name="action" value="save">Save</button>
+        <button class="button secondary" type="submit" name="action" value="test">Test connection</button>
+      </div>
+    </form>
+  </div>
+{% endblock %}

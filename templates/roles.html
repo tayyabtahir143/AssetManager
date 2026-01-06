@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block content %}
+  <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+    <div>
+      <h2>Roles</h2>
+      <p class="muted">Create roles by selecting permissions.</p>
+    </div>
+    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+      {% if app_admin and permissions.can_bulk_delete %}
+        <button class="button secondary" type="button" id="toggle-roles-bulk">Bulk delete</button>
+        <button class="button secondary bulk-toggle-roles" type="submit" onclick="return confirm('Delete selected roles?');" style="display: none;">Delete selected</button>
+      {% endif %}
+      <a class="button" href="{{ url_for('add_role') }}">Add Role</a>
+    </div>
+  </div>
+
+  <form method="post" action="{{ url_for('bulk_delete_roles') }}">
+    <table>
+      <thead>
+        <tr>
+          {% if app_admin and permissions.can_bulk_delete %}
+            <th><input type="checkbox" id="select-all-roles" class="bulk-toggle-roles" style="display: none;"></th>
+          {% endif %}
+          <th>#</th>
+          <th>Name</th>
+          <th>Dept</th>
+          {% for asset in assets %}
+            <th>{{ asset.label }}</th>
+          {% endfor %}
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for role in roles %}
+          <tr>
+            {% if app_admin and permissions.can_bulk_delete %}
+              <td><input type="checkbox" class="role-checkbox bulk-toggle-roles" name="selected_ids" value="{{ role.id }}" style="display: none;"></td>
+            {% endif %}
+              <td>{{ loop.index }}</td>
+            <td>{{ role.name }}</td>
+            <td>{{ "Yes" if role.can_manage_depts else "-" }}</td>
+            {% for asset in assets %}
+              {% set perm = perms_map.get(role.id, {}).get(asset.key) %}
+              <td>
+                {% if perm %}
+                  {{ "R" if perm.can_read else "-" }} / {{ "A" if perm.can_add else "-" }} / {{ "D" if perm.can_delete else "-" }} / {{ "B" if perm.can_bulk_delete else "-" }}
+                {% else %}
+                  - / - / - / -
+                {% endif %}
+              </td>
+            {% endfor %}
+            <td>
+              <a class="button secondary" href="{{ url_for('edit_role', role_id=role.id) }}">Edit</a>
+              <button class="button secondary" type="submit" formaction="{{ url_for('delete_role', role_id=role.id) }}" formmethod="post" onclick="return confirm('Delete this role?');">Delete</button>
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="{{ assets|length + (5 if app_admin and permissions.can_bulk_delete else 4) }}">No roles found.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </form>
+  {% if app_admin and permissions.can_bulk_delete %}
+    <script>
+      const selectAllRoles = document.getElementById('select-all-roles');
+      const toggleRolesBulk = document.getElementById('toggle-roles-bulk');
+      const rolesBulkItems = document.querySelectorAll('.bulk-toggle-roles');
+      if (toggleRolesBulk) {
+        toggleRolesBulk.addEventListener('click', () => {
+          rolesBulkItems.forEach((item) => {
+            item.style.display = item.style.display === 'none' ? '' : 'none';
+            if (item.type === 'checkbox') {
+              item.checked = false;
+            }
+          });
+        });
+      }
+      if (selectAllRoles) {
+        selectAllRoles.addEventListener('change', () => {
+          document.querySelectorAll('.role-checkbox').forEach((box) => {
+            box.checked = selectAllRoles.checked;
+          });
+        });
+      }
+    </script>
+  {% endif %}
+{% endblock %}

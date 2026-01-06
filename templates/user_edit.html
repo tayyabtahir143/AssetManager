@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="card" style="max-width: 520px;">
+    <h2>Edit User</h2>
+    <form method="post" class="form-grid">
+      <div>
+        <label for="username">Username</label>
+        <input id="username" name="username" type="text" value="{{ user.username }}" required>
+      </div>
+      <div>
+        <label for="email">Email (optional)</label>
+        <input id="email" name="email" type="text" value="{{ user.email or '' }}">
+      </div>
+      <div>
+        <label for="password">New Password (optional)</label>
+        <input id="password" name="password" type="password">
+      </div>
+      <div>
+        <label for="roles">Roles</label>
+        <select id="roles" name="roles" multiple size="6" required>
+          {% for role in roles %}
+            <option value="{{ role.name }}" {% if role.id in existing_roles %}selected{% endif %}>{{ role.name }}</option>
+          {% endfor %}
+        </select>
+        <div class="muted" style="margin-top: 6px;">Hold Ctrl (Cmd on Mac) to select multiple roles.</div>
+      </div>
+      <button class="button" type="submit">Save</button>
+      <a class="button secondary" href="{{ url_for('list_users') }}">Cancel</a>
+    </form>
+  </div>
+{% endblock %}

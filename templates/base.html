@@ -1,0 +1,472 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <title>{{ branding_name or "Asset" }} Manager</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+      :root {
+        color-scheme: light;
+        --bg-deep: #070a12;
+        --bg-mid: #101623;
+        --bg-glow: #1a2233;
+        --panel: rgba(12, 16, 26, 0.92);
+        --panel-strong: rgba(18, 24, 38, 0.98);
+        --ink: #ecf4ff;
+        --accent: #44f2c2;
+        --accent-dark: #1a9f7b;
+        --muted: #8da1b8;
+        --danger: #ff7a7a;
+        --edge: rgba(76, 244, 199, 0.35);
+        --shadow: 0 24px 45px rgba(3, 6, 12, 0.75);
+        --glow: 0 0 20px rgba(76, 244, 199, 0.25);
+        --bevel: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+        --panel-border: rgba(255, 255, 255, 0.08);
+        --panel-border-strong: rgba(255, 255, 255, 0.14);
+      }
+      [data-theme="light"] {
+        color-scheme: light;
+        --bg-deep: #eef2f7;
+        --bg-mid: #f7f9fc;
+        --bg-glow: #dde7f5;
+        --panel: rgba(255, 255, 255, 0.9);
+        --panel-strong: rgba(255, 255, 255, 0.98);
+        --ink: #0d1520;
+        --accent: #008f6b;
+        --accent-dark: #00654d;
+        --muted: #4e5a6b;
+        --danger: #b43a3a;
+        --edge: rgba(0, 143, 107, 0.28);
+        --shadow: 0 18px 40px rgba(50, 60, 80, 0.2);
+        --glow: 0 0 14px rgba(0, 143, 107, 0.18);
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: "Space Grotesk", "Segoe UI", sans-serif;
+        background:
+          radial-gradient(900px 500px at 15% 10%, rgba(76, 244, 199, 0.12), transparent 60%),
+          radial-gradient(900px 520px at 85% 18%, rgba(92, 170, 255, 0.18), transparent 70%),
+          linear-gradient(160deg, var(--bg-deep) 0%, var(--bg-mid) 45%, var(--bg-glow) 100%);
+        color: var(--ink);
+        min-height: 100vh;
+      }
+      .layout {
+        display: flex;
+        min-height: 100vh;
+      }
+      .sidebar {
+        width: 240px;
+        background: linear-gradient(180deg, rgba(8, 12, 20, 0.98) 0%, rgba(11, 16, 26, 0.92) 100%);
+        border-right: 1px solid var(--panel-border);
+        padding: 22px 18px;
+        display: flex;
+        flex-direction: column;
+        gap: 18px;
+        box-shadow: 6px 0 24px rgba(3, 6, 12, 0.55);
+        position: sticky;
+        top: 0;
+        height: 100vh;
+        overflow-y: auto;
+      }
+      [data-theme="light"] .sidebar {
+        background: rgba(255, 255, 255, 0.95);
+        border-right: 1px solid rgba(13, 21, 32, 0.1);
+      }
+      .brand {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+      }
+      .brand img {
+        height: 40px;
+        width: auto;
+        border-radius: 8px;
+      }
+      .brand-title {
+        font-size: 18px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+      .brand-subtitle {
+        font-size: 12px;
+        color: var(--muted);
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+      }
+      .badge-row {
+        margin-top: 4px;
+      }
+      .side-nav {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .side-nav a.nav-link {
+        padding: 10px 12px;
+        border-radius: 12px;
+        color: var(--ink);
+        text-decoration: none;
+        font-weight: 600;
+        border: 1px solid transparent;
+        background: rgba(10, 14, 22, 0.7);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+      }
+      .side-nav a.nav-link:hover {
+        border-color: var(--edge);
+        background: linear-gradient(135deg, rgba(76, 244, 199, 0.12), rgba(76, 244, 199, 0.03));
+        color: var(--accent);
+        box-shadow: var(--glow);
+      }
+      .side-nav a.nav-link.active {
+        border-color: rgba(76, 244, 199, 0.6);
+        background: linear-gradient(135deg, rgba(76, 244, 199, 0.22), rgba(76, 244, 199, 0.06));
+        color: var(--accent);
+        box-shadow: var(--glow);
+      }
+      .nav-section {
+        margin-top: 12px;
+        font-size: 12px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: var(--muted);
+      }
+      .side-footer {
+        margin-top: auto;
+      }
+      .content-wrap {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+      }
+      .topbar {
+        display: flex;
+        justify-content: flex-end;
+        align-items: center;
+        padding: 16px 28px 0 28px;
+      }
+      .theme-toggle {
+        margin-left: 12px;
+        padding: 8px 12px;
+        border-radius: 999px;
+        border: 1px solid rgba(255, 255, 255, 0.18);
+        background: rgba(10, 15, 24, 0.65);
+        color: var(--ink);
+        font-weight: 600;
+        cursor: pointer;
+      }
+      [data-theme="light"] .theme-toggle {
+        background: rgba(255, 255, 255, 0.8);
+        border-color: rgba(13, 21, 32, 0.12);
+      }
+      main {
+        padding: 18px 28px 28px 28px;
+        max-width: 1200px;
+        width: 100%;
+        margin: 0 auto;
+      }
+      .card-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 18px;
+      }
+      .card {
+        background: linear-gradient(160deg, rgba(16, 22, 34, 0.95), rgba(9, 13, 22, 0.95));
+        padding: 18px;
+        border-radius: 16px;
+        border: 1px solid var(--panel-border-strong);
+        box-shadow: var(--shadow), var(--bevel), inset 0 0 0 1px rgba(76, 244, 199, 0.05);
+        position: relative;
+        overflow: hidden;
+      }
+      [data-theme="light"] .card {
+        background: linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(238, 244, 252, 0.96));
+        border: 1px solid rgba(13, 21, 32, 0.08);
+        box-shadow: var(--shadow);
+      }
+      .card::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(circle at top right, rgba(76, 244, 199, 0.12), transparent 55%);
+        pointer-events: none;
+      }
+      [data-theme="light"] .card::after {
+        background: radial-gradient(circle at top right, rgba(0, 143, 107, 0.12), transparent 55%);
+      }
+      .card h3 {
+        margin-top: 0;
+        font-size: 18px;
+      }
+      .button {
+        display: inline-block;
+        padding: 10px 14px;
+        border-radius: 10px;
+        background: linear-gradient(135deg, var(--accent), #64b5ff);
+        color: #08121c;
+        text-decoration: none;
+        font-weight: 600;
+        border: 1px solid rgba(255, 255, 255, 0.22);
+        box-shadow: var(--glow), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+      }
+      .button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 8px 24px rgba(76, 244, 199, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+      }
+      .button.secondary {
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.04));
+        color: var(--ink);
+        border: 1px solid rgba(255, 255, 255, 0.14);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+      }
+      [data-theme="light"] .button.secondary {
+        background: linear-gradient(135deg, rgba(255, 255, 255, 0.9), rgba(234, 240, 249, 0.9));
+        border: 1px solid rgba(13, 21, 32, 0.12);
+      }
+      table {
+        width: 100%;
+        border-collapse: separate;
+        border-spacing: 0;
+        margin-top: 18px;
+        background: rgba(9, 13, 22, 0.65);
+        border-radius: 14px;
+        overflow: hidden;
+        border: 1px solid var(--panel-border);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+      }
+      table.sticky-header {
+        overflow: visible;
+      }
+      [data-theme="light"] table {
+        background: rgba(255, 255, 255, 0.9);
+      }
+      th, td {
+        padding: 12px 14px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        text-align: left;
+        font-size: 14px;
+      }
+      [data-theme="light"] th,
+      [data-theme="light"] td {
+        border-bottom: 1px solid rgba(13, 21, 32, 0.08);
+      }
+      th {
+        text-transform: uppercase;
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        color: var(--muted);
+        background: linear-gradient(180deg, rgba(18, 25, 38, 0.9), rgba(12, 17, 27, 0.9));
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+      }
+      table.sticky-header thead th {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: linear-gradient(180deg, rgba(18, 25, 38, 0.98), rgba(12, 17, 27, 0.98));
+        box-shadow: 0 2px 0 rgba(0, 0, 0, 0.25);
+      }
+      tbody tr:hover {
+        background: rgba(76, 244, 199, 0.08);
+      }
+      form.inline { display: inline; }
+      .badge {
+        display: inline-block;
+        padding: 3px 10px;
+        border-radius: 999px;
+        background: rgba(76, 244, 199, 0.16);
+        font-size: 12px;
+        color: var(--accent);
+        border: 1px solid var(--edge);
+      }
+      .flash {
+        padding: 10px 14px;
+        border-radius: 10px;
+        margin-bottom: 16px;
+      }
+      .flash.error {
+        background: rgba(255, 122, 122, 0.15);
+        color: var(--danger);
+        border: 1px solid rgba(255, 122, 122, 0.35);
+      }
+      .flash.success {
+        background: rgba(76, 244, 199, 0.16);
+        color: var(--accent);
+        border: 1px solid var(--edge);
+      }
+      .form-grid {
+        display: grid;
+        gap: 14px;
+        max-width: 520px;
+      }
+      label { font-weight: 600; }
+      input[type="text"], input[type="password"], input[type="number"] {
+        padding: 10px;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        width: 100%;
+        background: rgba(9, 13, 22, 0.92);
+        color: var(--ink);
+        box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.35);
+      }
+      input.field-error {
+        border-color: rgba(255, 122, 122, 0.85);
+        box-shadow: 0 0 0 1px rgba(255, 122, 122, 0.4);
+      }
+      [data-theme="light"] input.field-error {
+        border-color: rgba(180, 58, 58, 0.75);
+        box-shadow: 0 0 0 1px rgba(180, 58, 58, 0.25);
+      }
+      [data-theme="light"] input[type="text"],
+      [data-theme="light"] input[type="password"] {
+        background: rgba(255, 255, 255, 0.95);
+        border: 1px solid rgba(13, 21, 32, 0.12);
+      }
+      select {
+        padding: 10px;
+        border-radius: 8px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        width: 100%;
+        background: rgba(9, 13, 22, 0.92);
+        font-family: inherit;
+        color: var(--ink);
+        box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.35);
+      }
+      [data-theme="light"] select {
+        background: rgba(255, 255, 255, 0.95);
+        border: 1px solid rgba(13, 21, 32, 0.12);
+      }
+      .checkbox-row {
+        display: flex;
+        gap: 18px;
+        align-items: center;
+      }
+      .muted { color: var(--muted); }
+      .back-row {
+        margin: 6px 0 14px 0;
+      }
+      @media (max-width: 600px) {
+        .layout { flex-direction: column; }
+        .sidebar { width: 100%; flex-direction: row; flex-wrap: wrap; }
+        .side-nav { flex-direction: row; flex-wrap: wrap; }
+        .topbar { justify-content: flex-start; }
+        main { padding: 18px; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="layout">
+      <aside class="sidebar">
+        <div class="brand">
+          {% if branding_logo_url %}
+            <img src="{{ branding_logo_url }}" alt="Logo">
+          {% endif %}
+          <div>
+            <div class="brand-title">{{ branding_name or "Asset" }}</div>
+            <div class="brand-subtitle">Asset Manager</div>
+          </div>
+        </div>
+        {% if current_user %}
+          <div class="badge-row">
+            <span class="badge">Role: {{ current_user.role }}</span>
+          </div>
+          {% set ep = request.endpoint %}
+          <nav class="side-nav">
+            <a class="nav-link {% if ep in ['index'] %}active{% endif %}" href="{{ url_for('index') }}">Dashboard</a>
+            <a class="nav-link {% if ep in ['free_inventory'] %}active{% endif %}" href="{{ url_for('free_inventory') }}">Available Assets</a>
+            <a class="nav-link {% if ep in ['user_assets'] %}active{% endif %}" href="{{ url_for('user_assets') }}">User Assets</a>
+            <a class="nav-link {% if ep in ['reports', 'export_report'] %}active{% endif %}" href="{{ url_for('reports') }}">Reports</a>
+            {% if app_admin or permissions.can_manage_depts %}
+              <div class="nav-section">Administration</div>
+              {% if app_admin %}
+                <a class="nav-link {% if ep in ['list_users', 'add_user', 'edit_user'] %}active{% endif %}" href="{{ url_for('list_users') }}">Users</a>
+                <a class="nav-link {% if ep in ['list_groups', 'add_group', 'edit_group'] %}active{% endif %}" href="{{ url_for('list_groups') }}">Groups</a>
+                <a class="nav-link {% if ep in ['list_roles', 'add_role', 'edit_role'] %}active{% endif %}" href="{{ url_for('list_roles') }}">Roles</a>
+                <a class="nav-link {% if ep in ['list_asset_types', 'add_asset_type', 'edit_asset_type', 'edit_builtin_asset_type'] %}active{% endif %}" href="{{ url_for('list_asset_types') }}">Asset Types</a>
+              {% endif %}
+              {% if permissions.can_manage_depts %}
+                <a class="nav-link {% if ep in ['manage_departments'] %}active{% endif %}" href="{{ url_for('manage_departments') }}">Departments</a>
+              {% endif %}
+              {% if app_admin %}
+                <a class="nav-link {% if ep in ['branding_settings'] %}active{% endif %}" href="{{ url_for('branding_settings') }}">Branding</a>
+                <a class="nav-link {% if ep in ['ldap_settings'] %}active{% endif %}" href="{{ url_for('ldap_settings') }}">LDAP</a>
+                <a class="nav-link {% if ep in ['smtp_settings'] %}active{% endif %}" href="{{ url_for('smtp_settings') }}">SMTP</a>
+                <a class="nav-link {% if ep in ['audit_log'] %}active{% endif %}" href="{{ url_for('audit_log') }}">Audit Log</a>
+                <a class="nav-link {% if ep in ['view_logs', 'logs_tail'] %}active{% endif %}" href="{{ url_for('view_logs') }}">Logs</a>
+                <a class="nav-link {% if ep in ['backup_settings', 'backup_config_download', 'restore_config_backup'] %}active{% endif %}" href="{{ url_for('backup_settings') }}">Backups</a>
+              {% endif %}
+            {% endif %}
+          </nav>
+          <div class="side-footer">
+            <a class="button secondary" href="{{ url_for('logout') }}">Logout</a>
+          </div>
+        {% endif %}
+      </aside>
+      <div class="content-wrap">
+        <header class="topbar">
+          <div></div>
+          <div style="display: flex; gap: 10px; align-items: center;">
+            <button class="theme-toggle" type="button" id="theme-toggle">Light mode</button>
+            {% if current_user %}
+              <a class="button secondary" href="{{ url_for('logout') }}">Logout</a>
+            {% endif %}
+          </div>
+        </header>
+        <main>
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="flash {{ category }}">{{ message }}</div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+      {% if current_user %}
+        {% set current_path = request.full_path.rstrip('?') %}
+        {% set back_target = session.get("last_section_url") %}
+        {% if back_target == current_path %}
+          {% set back_target = url_for('index') %}
+        {% endif %}
+        <div class="back-row">
+          <a class="button secondary" href="{{ back_target or url_for('index') }}">Back</a>
+        </div>
+      {% endif %}
+      {% block content %}{% endblock %}
+        </main>
+      </div>
+    </div>
+    {% if ldap_users %}
+      <datalist id="ldap-users">
+        {% for ldap_user in ldap_users %}
+          <option value="{{ ldap_user }}"></option>
+        {% endfor %}
+      </datalist>
+    {% endif %}
+  </body>
+  <script>
+    const root = document.documentElement;
+    const toggle = document.getElementById('theme-toggle');
+    const stored = localStorage.getItem('theme');
+    if (stored === 'light') {
+      root.setAttribute('data-theme', 'light');
+    }
+    const updateLabel = () => {
+      const isLight = root.getAttribute('data-theme') === 'light';
+      toggle.textContent = isLight ? 'Dark mode' : 'Light mode';
+    };
+    if (toggle) {
+      toggle.addEventListener('click', () => {
+        const isLight = root.getAttribute('data-theme') === 'light';
+        if (isLight) {
+          root.removeAttribute('data-theme');
+          localStorage.setItem('theme', 'dark');
+        } else {
+          root.setAttribute('data-theme', 'light');
+          localStorage.setItem('theme', 'light');
+        }
+        updateLabel();
+      });
+      updateLabel();
+    }
+  </script>
+</html>

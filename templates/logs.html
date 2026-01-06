@@ -1,0 +1,75 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="logs-full">
+    <div class="logs-header">
+      <div>
+        <h2>Realtime Logs</h2>
+        <p class="muted">Shows the latest application logs. Auto-refreshes every 5 seconds.</p>
+      </div>
+      <div class="inline">
+        <input type="number" id="log-lines" min="50" max="2000" value="{{ lines }}">
+        <button class="button secondary" type="button" id="log-refresh">Refresh</button>
+      </div>
+    </div>
+    <div class="logs-body card" id="logs-body">
+      <pre id="logs-pre">{{ log_text or "No logs yet." }}</pre>
+    </div>
+  </div>
+  <style>
+    .logs-full {
+      min-height: calc(100vh - 180px);
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .logs-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+    .logs-body {
+      flex: 1;
+      padding: 0;
+      overflow: auto;
+    }
+    .logs-body pre {
+      margin: 0;
+      padding: 16px;
+      min-height: 100%;
+      height: auto;
+      overflow: visible;
+      font-size: 12px;
+    }
+  </style>
+  <script>
+    const logsBody = document.getElementById('logs-body');
+    const logsPre = document.getElementById('logs-pre');
+    const logLinesInput = document.getElementById('log-lines');
+    const refreshButton = document.getElementById('log-refresh');
+
+    const refreshLogs = async () => {
+      const lines = Math.max(50, Math.min(2000, Number(logLinesInput.value || 200)));
+      const wasAtBottom = logsBody.scrollTop + logsBody.clientHeight >= logsBody.scrollHeight - 12;
+      const prevScrollTop = logsBody.scrollTop;
+      try {
+        const resp = await fetch(`/logs/tail?lines=${lines}`, { cache: 'no-store' });
+        if (resp.ok) {
+          const text = await resp.text();
+          logsPre.textContent = text || 'No logs yet.';
+          if (wasAtBottom) {
+            logsBody.scrollTop = logsBody.scrollHeight;
+          } else {
+            logsBody.scrollTop = prevScrollTop;
+          }
+        }
+      } catch (err) {
+        // Keep the current logs when refresh fails.
+      }
+    };
+
+    refreshButton.addEventListener('click', refreshLogs);
+    setInterval(refreshLogs, 5000);
+  </script>
+{% endblock %}

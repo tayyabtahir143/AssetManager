@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="card" style="max-width: 720px;">
+    <h2>Configuration Backup</h2>
+    <p class="muted">
+      Download a ZIP containing all configuration data (roles, permissions, asset types,
+      LDAP/SMTP settings, departments, branding). Asset records are not included.
+    </p>
+    <a class="button" href="{{ url_for('backup_config_download') }}">Download Config Backup</a>
+  </div>
+
+  <div class="card" style="max-width: 720px; margin-top: 18px;">
+    <h2>Restore Configuration</h2>
+    <p class="muted">
+      Restoring will replace current configuration (roles, permissions, asset types,
+      departments, LDAP/SMTP, branding) and role/group assignments. Asset data is untouched.
+    </p>
+    <form method="post" action="{{ url_for('restore_config_backup') }}" enctype="multipart/form-data" style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+      <input type="file" name="file" accept=".zip" required>
+      <button class="button" type="submit" onclick="return confirm('Restore configuration from this backup? This will replace current configuration.');">Restore Backup</button>
+    </form>
+  </div>
+{% endblock %}

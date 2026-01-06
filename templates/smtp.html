@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="card" style="max-width: 760px;">
+    <h2>SMTP Settings</h2>
+    <form method="post" class="form-grid">
+      <div class="checkbox-row">
+        <input id="enabled" name="enabled" type="checkbox" {% if config and config.enabled %}checked{% endif %}>
+        <label for="enabled">Enable notifications</label>
+      </div>
+      <div>
+        <label for="host">SMTP Server</label>
+        <input id="host" name="host" type="text" value="{{ config.host if config else '' }}" placeholder="smtp.example.com">
+      </div>
+      <div>
+        <label for="port">Port</label>
+        <input id="port" name="port" type="number" value="{{ config.port if config else '' }}" placeholder="587">
+      </div>
+      <div>
+        <label for="encryption">Encryption</label>
+        <select id="encryption" name="encryption">
+          {% set enc = config.encryption if config else 'none' %}
+          <option value="none" {% if enc == 'none' %}selected{% endif %}>None</option>
+          <option value="ssl" {% if enc == 'ssl' %}selected{% endif %}>SSL</option>
+          <option value="starttls" {% if enc == 'starttls' %}selected{% endif %}>STARTTLS</option>
+        </select>
+      </div>
+      <div>
+        <label for="username">Username</label>
+        <input id="username" name="username" type="text" value="{{ config.username if config else '' }}">
+      </div>
+      <div>
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" value="" placeholder="Leave blank to keep existing">
+      </div>
+      <div class="checkbox-row">
+        <input id="skip_auth" name="skip_auth" type="checkbox" {% if config and config.skip_auth %}checked{% endif %}>
+        <label for="skip_auth">Skip authentication</label>
+      </div>
+      <div>
+        <label for="sender_email">Sender Email</label>
+        <input id="sender_email" name="sender_email" type="text" value="{{ config.sender_email if config else '' }}" placeholder="no-reply@example.com">
+      </div>
+      <div class="checkbox-row">
+        <input id="monthly_report_enabled" name="monthly_report_enabled" type="checkbox" {% if config and config.monthly_report_enabled %}checked{% endif %}>
+        <label for="monthly_report_enabled">Enable monthly report</label>
+      </div>
+      <div>
+        <label for="monthly_report_day">Monthly report day (1-28)</label>
+        <input id="monthly_report_day" name="monthly_report_day" type="number" min="1" max="28" value="{{ config.monthly_report_day if config else 1 }}">
+      </div>
+      <div class="checkbox-row">
+        <input id="low_stock_enabled" name="low_stock_enabled" type="checkbox" {% if config and config.low_stock_enabled %}checked{% endif %}>
+        <label for="low_stock_enabled">Enable low stock alerts</label>
+      </div>
+      <div>
+        <label for="low_stock_threshold">Low stock threshold</label>
+        <input id="low_stock_threshold" name="low_stock_threshold" type="number" min="1" value="{{ config.low_stock_threshold if config else 5 }}">
+      </div>
+      <div>
+        <label for="low_stock_frequency_days">Low stock email frequency (days)</label>
+        <input id="low_stock_frequency_days" name="low_stock_frequency_days" type="number" min="1" value="{{ config.low_stock_frequency_days if config else 1 }}">
+      </div>
+      <button class="button" type="submit">Save</button>
+    </form>
+    <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px;">
+      <form method="post" action="{{ url_for('smtp_send_monthly') }}">
+        <button class="button secondary" type="submit">Send monthly report now</button>
+      </form>
+      <form method="post" action="{{ url_for('smtp_send_low_stock') }}">
+        <button class="button secondary" type="submit">Send low stock report now</button>
+      </form>
+    </div>
+  </div>
+
+  <div class="card" style="max-width: 760px; margin-top: 18px;">
+    <h2>Recipients</h2>
+    <form method="post" action="{{ url_for('smtp_add_recipient') }}" class="form-grid">
+      <div>
+        <label for="email">Recipient Email</label>
+        <input id="email" name="email" type="text" required>
+      </div>
+      <div class="checkbox-row">
+        <label><input name="notify_create" type="checkbox"> Create</label>
+        <label><input name="notify_update" type="checkbox"> Update</label>
+        <label><input name="notify_delete" type="checkbox"> Delete</label>
+        <label><input name="notify_bulk_delete" type="checkbox"> Bulk delete</label>
+        <label><input name="notify_monthly" type="checkbox"> Monthly report</label>
+        <label><input name="notify_low_stock" type="checkbox"> Low stock</label>
+      </div>
+      <button class="button" type="submit">Add Recipient</button>
+    </form>
+
+    <table style="margin-top: 18px;">
+      <thead>
+        <tr>
+          <th>Email</th>
+          <th>Create</th>
+          <th>Update</th>
+          <th>Delete</th>
+          <th>Bulk delete</th>
+          <th>Monthly</th>
+          <th>Low stock</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for recipient in recipients %}
+          <tr>
+            <td>{{ recipient.email }}</td>
+            <td><input type="checkbox" name="notify_create" form="recipient-{{ recipient.id }}" {% if recipient.notify_create %}checked{% endif %}></td>
+            <td><input type="checkbox" name="notify_update" form="recipient-{{ recipient.id }}" {% if recipient.notify_update %}checked{% endif %}></td>
+            <td><input type="checkbox" name="notify_delete" form="recipient-{{ recipient.id }}" {% if recipient.notify_delete %}checked{% endif %}></td>
+            <td><input type="checkbox" name="notify_bulk_delete" form="recipient-{{ recipient.id }}" {% if recipient.notify_bulk_delete %}checked{% endif %}></td>
+            <td><input type="checkbox" name="notify_monthly" form="recipient-{{ recipient.id }}" {% if recipient.notify_monthly %}checked{% endif %}></td>
+            <td><input type="checkbox" name="notify_low_stock" form="recipient-{{ recipient.id }}" {% if recipient.notify_low_stock %}checked{% endif %}></td>
+            <td>
+              <form id="recipient-{{ recipient.id }}" method="post" action="{{ url_for('smtp_update_recipient', recipient_id=recipient.id) }}">
+                <button class="button secondary" type="submit">Save</button>
+              </form>
+              <form class="inline" method="post" action="{{ url_for('smtp_delete_recipient', recipient_id=recipient.id) }}" onsubmit="return confirm('Delete this recipient?');">
+                <button class="button secondary" type="submit">Delete</button>
+              </form>
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="8">No recipients configured.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endblock %}

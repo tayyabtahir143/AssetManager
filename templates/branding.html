@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="card" style="max-width: 640px;">
+    <h2>Branding</h2>
+    <p class="muted">Set your company name and logo.</p>
+    <form method="post" class="form-grid" enctype="multipart/form-data">
+      <div>
+        <label for="company_name">Company Name</label>
+        <input id="company_name" name="company_name" type="text" value="{{ branding.company_name if branding else '' }}" placeholder="Your Company">
+      </div>
+      <div>
+        <label for="logo">Logo (PNG/JPG/GIF)</label>
+        <input id="logo" name="logo" type="file" accept=".png,.jpg,.jpeg,.gif">
+      </div>
+      {% if branding and branding.logo_filename %}
+        <div class="checkbox-row">
+          <input id="remove_logo" name="remove_logo" type="checkbox" value="1">
+          <label for="remove_logo">Remove current logo</label>
+        </div>
+      {% endif %}
+      <button class="button" type="submit">Save</button>
+    </form>
+  </div>
+{% endblock %}

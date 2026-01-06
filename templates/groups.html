@@ -1,0 +1,85 @@
+{% extends "base.html" %}
+{% block content %}
+  <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+    <div>
+      <h2>Groups</h2>
+      <p class="muted">Assign roles to groups and manage membership.</p>
+    </div>
+    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+      <form method="get" class="inline">
+        <input type="text" name="q" placeholder="Search..." value="{{ query or '' }}">
+        <button class="button secondary" type="submit">Search</button>
+      </form>
+      {% if app_admin and permissions.can_bulk_delete %}
+        <button class="button secondary" type="button" id="toggle-groups-bulk">Bulk delete</button>
+        <button class="button secondary bulk-toggle-groups" type="submit" onclick="return confirm('Delete selected groups?');" style="display: none;">Delete selected</button>
+      {% endif %}
+      <form method="post" action="{{ url_for('ldap_sync_groups') }}">
+        <button class="button secondary" type="submit">Sync LDAP Groups</button>
+      </form>
+      <a class="button" href="{{ url_for('add_group') }}">Add Group</a>
+    </div>
+  </div>
+
+  <form method="post" action="{{ url_for('bulk_delete_groups') }}">
+    <table>
+      <thead>
+        <tr>
+          {% if app_admin and permissions.can_bulk_delete %}
+            <th><input type="checkbox" id="select-all-groups" class="bulk-toggle-groups" style="display: none;"></th>
+          {% endif %}
+          <th>#</th>
+          <th>Group</th>
+          <th>Roles</th>
+          <th>Members</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for group in groups %}
+          <tr>
+            {% if app_admin and permissions.can_bulk_delete %}
+              <td><input type="checkbox" class="group-checkbox bulk-toggle-groups" name="selected_ids" value="{{ group.id }}" style="display: none;"></td>
+            {% endif %}
+              <td>{{ loop.index }}</td>
+            <td>{{ group.name }}</td>
+            <td>{{ (group_roles.get(group.id) or [])|join(", ") or "—" }}</td>
+            <td>{{ member_counts.get(group.id, 0) }}</td>
+            <td>
+              <a class="button secondary" href="{{ url_for('edit_group', group_id=group.id) }}">Edit</a>
+              <button class="button secondary" type="submit" formaction="{{ url_for('delete_group', group_id=group.id) }}" formmethod="post" onclick="return confirm('Delete this group?');">Delete</button>
+            </td>
+          </tr>
+        {% else %}
+          <tr>
+            <td colspan="6">No groups found.</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </form>
+  {% if app_admin and permissions.can_bulk_delete %}
+    <script>
+      const selectAllGroups = document.getElementById('select-all-groups');
+      const toggleGroupsBulk = document.getElementById('toggle-groups-bulk');
+      const groupsBulkItems = document.querySelectorAll('.bulk-toggle-groups');
+      if (toggleGroupsBulk) {
+        toggleGroupsBulk.addEventListener('click', () => {
+          groupsBulkItems.forEach((item) => {
+            item.style.display = item.style.display === 'none' ? '' : 'none';
+            if (item.type === 'checkbox') {
+              item.checked = false;
+            }
+          });
+        });
+      }
+      if (selectAllGroups) {
+        selectAllGroups.addEventListener('change', () => {
+          document.querySelectorAll('.group-checkbox').forEach((box) => {
+            box.checked = selectAllGroups.checked;
+          });
+        });
+      }
+    </script>
+  {% endif %}
+{% endblock %}

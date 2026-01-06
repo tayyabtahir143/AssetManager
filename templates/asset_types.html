@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block content %}
+  <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+    <div>
+      <h2>Asset Types</h2>
+      <p class="muted">Create custom asset types with custom fields.</p>
+    </div>
+    <a class="button" href="{{ url_for('add_asset_type') }}">Add Asset Type</a>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Label</th>
+        <th>Key</th>
+        <th>Fields</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if builtin_types %}
+        {% for asset_type in builtin_types %}
+          <tr>
+            <td>—</td>
+            <td>{{ asset_type.label }}</td>
+            <td>{{ asset_type.key }}</td>
+            <td>{{ asset_type.fields_count }}</td>
+            <td>
+              <a class="button secondary" href="{{ url_for('edit_builtin_asset_type', asset_key=asset_type.key) }}">Edit</a>
+            </td>
+          </tr>
+        {% endfor %}
+        <tr>
+          <td colspan="5" class="muted">Built-in asset types are listed above. Custom types are listed below.</td>
+        </tr>
+      {% endif %}
+      {% for asset_type in asset_types %}
+        <tr>
+            <td>{{ loop.index }}</td>
+          <td>{{ asset_type.label }}</td>
+          <td>{{ asset_type.key }}</td>
+          <td>{{ asset_type.fields|length }}</td>
+          <td>
+            <a class="button secondary" href="{{ url_for('edit_asset_type', asset_type_id=asset_type.id) }}">Edit</a>
+            <form class="inline" method="post" action="{{ url_for('delete_asset_type', asset_type_id=asset_type.id) }}" onsubmit="return confirm('Delete this asset type?');">
+              <button class="button secondary" type="submit">Delete</button>
+            </form>
+          </td>
+        </tr>
+      {% else %}
+        <tr>
+          <td colspan="5">No custom asset types yet.</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

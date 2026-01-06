@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="card" style="max-width: 700px;">
+    <h2>Edit Group</h2>
+    <form method="post" class="form-grid">
+      <div>
+        <label for="name">Group name</label>
+        <input id="name" name="name" type="text" value="{{ group.name }}" required>
+      </div>
+      <div>
+        <label for="roles">Roles</label>
+        <select id="roles" name="roles" multiple size="6">
+          {% for role in roles %}
+            <option value="{{ role.name }}" {% if role.id in existing_roles %}selected{% endif %}>{{ role.name }}</option>
+          {% endfor %}
+        </select>
+        <div class="muted" style="margin-top: 6px;">Hold Ctrl (Cmd on Mac) to select multiple roles.</div>
+      </div>
+      <div>
+        <label for="members">Members</label>
+        <select id="members" name="members" multiple size="10">
+          {% for user in users %}
+            <option value="{{ user.id }}" {% if user.id in existing_members %}selected{% endif %}>{{ user.username }}</option>
+          {% endfor %}
+        </select>
+        <div class="muted" style="margin-top: 6px;">Hold Ctrl (Cmd on Mac) to select multiple users.</div>
+      </div>
+      <button class="button" type="submit">Save</button>
+      <a class="button secondary" href="{{ url_for('list_groups') }}">Cancel</a>
+    </form>
+  </div>
+{% endblock %}

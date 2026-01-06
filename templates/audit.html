@@ -1,0 +1,126 @@
+{% extends "base.html" %}
+{% block content %}
+  <style>
+    .audit-summary {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+    .audit-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+      border: 1px solid transparent;
+    }
+    .audit-action {
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .action-create { background: rgba(76, 244, 199, 0.18); color: #5af0c7; border-color: rgba(76, 244, 199, 0.35); }
+    .action-update { background: rgba(100, 181, 255, 0.18); color: #79b8ff; border-color: rgba(100, 181, 255, 0.35); }
+    .action-delete { background: rgba(255, 122, 122, 0.2); color: #ff9a9a; border-color: rgba(255, 122, 122, 0.4); }
+    .action-bulk { background: rgba(255, 183, 77, 0.18); color: #ffc77a; border-color: rgba(255, 183, 77, 0.4); }
+    .action-auth { background: rgba(174, 128, 255, 0.18); color: #c4a0ff; border-color: rgba(174, 128, 255, 0.35); }
+    .action-sync { background: rgba(76, 244, 199, 0.12); color: #7dd3fc; border-color: rgba(76, 244, 199, 0.25); }
+    .action-default { background: rgba(255, 255, 255, 0.1); color: var(--ink); border-color: rgba(255, 255, 255, 0.15); }
+    .status-ok { background: rgba(76, 244, 199, 0.16); color: var(--accent); border-color: var(--edge); }
+    .status-bad { background: rgba(255, 122, 122, 0.2); color: var(--danger); border-color: rgba(255, 122, 122, 0.4); }
+    .audit-row-fail { background: rgba(255, 122, 122, 0.05); }
+    .audit-meta { font-size: 12px; color: var(--muted); }
+    .audit-details {
+      white-space: pre-wrap;
+      margin: 8px 0 0 0;
+      font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+    }
+    [data-theme="light"] .action-create { color: #0a7b5d; }
+    [data-theme="light"] .action-update { color: #2a6db4; }
+    [data-theme="light"] .action-delete { color: #b43a3a; }
+    [data-theme="light"] .action-bulk { color: #b46a1f; }
+    [data-theme="light"] .action-auth { color: #6c3fb5; }
+    [data-theme="light"] .action-default { color: #1b2430; }
+  </style>
+  <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+    <div>
+      <h2>Audit Log</h2>
+      <p class="muted">Track who did what and when.</p>
+    </div>
+    <form method="get" class="inline">
+      <input type="text" name="q" placeholder="Search..." value="{{ query or '' }}">
+      <button class="button secondary" type="submit">Search</button>
+    </form>
+  </div>
+  <div class="audit-summary">
+    <span class="audit-pill audit-action action-default">Events: {{ logs|length }}</span>
+    {% if query %}
+      <span class="audit-pill action-default">Filter: "{{ query }}"</span>
+    {% endif %}
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Time</th>
+        <th>User</th>
+        <th>Action</th>
+        <th>Entity</th>
+        <th>Success</th>
+        <th>IP</th>
+        <th>Asset Tag</th>
+        <th>Details</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for entry in logs %}
+        {% set action = entry.action or "" %}
+        {% if "create" in action %}
+          {% set action_class = "action-create" %}
+        {% elif "update" in action %}
+          {% set action_class = "action-update" %}
+        {% elif "delete" in action %}
+          {% set action_class = "action-delete" %}
+        {% elif "bulk" in action %}
+          {% set action_class = "action-bulk" %}
+        {% elif "login" in action or "auth" in action %}
+          {% set action_class = "action-auth" %}
+        {% elif "sync" in action %}
+          {% set action_class = "action-sync" %}
+        {% else %}
+          {% set action_class = "action-default" %}
+        {% endif %}
+        <tr class="{% if not entry.success %}audit-row-fail{% endif %}">
+          <td>{{ entry.created_at }}</td>
+          <td>{{ entry.username or "—" }}</td>
+          <td><span class="audit-pill audit-action {{ action_class }}">{{ entry.action }}</span></td>
+          <td><span class="audit-pill action-default">{{ entry.entity_type }}</span></td>
+          <td><span class="audit-pill {% if entry.success %}status-ok{% else %}status-bad{% endif %}">{{ "Success" if entry.success else "Failed" }}</span></td>
+          <td class="audit-meta">{{ entry.ip_address or "—" }}</td>
+          <td>
+            {% if entry.details and "asset_tag=" in entry.details %}
+              {{ entry.details.split("asset_tag=")[1].split(" ")[0] }}
+            {% else %}
+              —
+            {% endif %}
+          </td>
+          <td>
+            {% if entry.details %}
+              <pre class="audit-details">{{ entry.details|replace("=free", "=-") }}</pre>
+            {% else %}
+              —
+            {% endif %}
+          </td>
+        </tr>
+      {% else %}
+        <tr>
+          <td colspan="8">No audit entries found.</td>
+        </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+{% endblock %}

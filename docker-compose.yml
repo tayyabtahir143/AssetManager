@@ -1,0 +1,18 @@
+services:
+  web:
+    build: .
+    ports:
+      - "5001:5000"
+    environment:
+      - DATABASE_URL=postgresql://inventory:inventory@db:5432/inventory
+      - SECRET_KEY=change-this-to-a-strong-secret
+    volumes:
+      - ./data:/data
+  db:
+    image: postgres:16
+    environment:
+      - POSTGRES_DB=inventory
+      - POSTGRES_USER=inventory
+      - POSTGRES_PASSWORD=inventory
+    volumes:
+      - ./data/postgres:/var/lib/postgresql/data

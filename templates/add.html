@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="card" style="max-width: 600px;">
+    <h2>Add {{ definition.label }}</h2>
+    <form method="post" class="form-grid" {% if form_action %}action="{{ form_action }}"{% endif %}>
+      {% if definition.bulk_add %}
+        <div>
+          <label for="bulk_quantity">Quantity</label>
+          <input id="bulk_quantity" name="bulk_quantity" type="number" min="1" value="{{ bulk_quantity if bulk_quantity is defined else 1 }}" required>
+        </div>
+      {% endif %}
+      {% for field_name, label, field_type in definition.fields %}
+        <div>
+          <label for="{{ field_name }}">{{ label }}</label>
+          {% if field_type == "checkbox" %}
+            <div class="checkbox-row">
+              <input id="{{ field_name }}" name="{{ field_name }}" type="checkbox" {% if form_data and form_data.get(field_name) %}checked{% endif %}>
+              <span class="muted">Toggle to set</span>
+            </div>
+          {% elif field_type == "number" %}
+            <input id="{{ field_name }}" name="{{ field_name }}" type="number" min="0" value="{{ form_data.get(field_name, 0) if form_data else 0 }}" required>
+          {% elif field_type == "select" %}
+            {% set options = definition.get('field_options', {}).get(field_name, []) %}
+            {% if field_name == "dept" and dept_options %}
+              {% set options = dept_options %}
+            {% endif %}
+            <select id="{{ field_name }}" name="{{ field_name }}" {% if field_name != "assigned_to" %}required{% endif %}>
+              {% if field_name == "dept" %}
+                <option value="">-</option>
+              {% endif %}
+              {% if form_data and form_data.get(field_name) and form_data.get(field_name) not in options %}
+                <option value="{{ form_data.get(field_name) }}" selected>{{ form_data.get(field_name) }}</option>
+              {% endif %}
+              {% for option in options %}
+                <option value="{{ option }}" {% if form_data and form_data.get(field_name) == option %}selected{% endif %}>{{ option }}</option>
+              {% endfor %}
+            </select>
+          {% else %}
+            {% if field_name == "dept" and dept_options %}
+              <select id="{{ field_name }}" name="{{ field_name }}" {% if field_name != "assigned_to" %}required{% endif %}>
+                <option value="">-</option>
+                {% if form_data and form_data.get(field_name) and form_data.get(field_name) not in dept_options %}
+                  <option value="{{ form_data.get(field_name) }}" selected>{{ form_data.get(field_name) }}</option>
+                {% endif %}
+                {% for option in dept_options %}
+                  <option value="{{ option }}" {% if form_data and form_data.get(field_name) == option %}selected{% endif %}>{{ option }}</option>
+                {% endfor %}
+              </select>
+            {% else %}
+              <input id="{{ field_name }}" name="{{ field_name }}" type="text" value="{{ form_data.get(field_name, '') if form_data else '' }}" class="{% if invalid_fields and field_name in invalid_fields %}field-error{% endif %}" {% if field_name == "assigned_to" %}list="ldap-users"{% endif %} {% if field_name != "assigned_to" %}required{% endif %}>
+            {% endif %}
+          {% endif %}
+        </div>
+      {% endfor %}
+      <button class="button" type="submit">Save</button>
+      <a class="button secondary" href="{{ url_for('list_assets', asset_type=asset_type) }}">Cancel</a>
+    </form>
+  </div>
+  <script>
+    (() => {
+      const statusEl = document.getElementById('status');
+      const deptEl = document.getElementById('dept');
+      if (!statusEl || !deptEl) return;
+      const normalize = (value) => (value || '').toString().toLowerCase().replace('_', ' ').trim();
+      const toggle = () => {
+        const status = normalize(statusEl.value);
+        const disableDept = status === 'broken' || status === 'write off' || status === 'in stock';
+        deptEl.disabled = disableDept;
+        deptEl.required = !disableDept;
+        if (disableDept) {
+          deptEl.value = '';
+        }
+      };
+      statusEl.addEventListener('change', toggle);
+      toggle();
+    })();
+  </script>
+{% endblock %}

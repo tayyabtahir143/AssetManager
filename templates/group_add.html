@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="card" style="max-width: 600px;">
+    <h2>Add Group</h2>
+    <form method="post" class="form-grid">
+      <div>
+        <label for="name">Group name</label>
+        <input id="name" name="name" type="text" required>
+      </div>
+      <div>
+        <label for="roles">Roles</label>
+        <select id="roles" name="roles" multiple size="6">
+          {% for role in roles %}
+            <option value="{{ role.name }}">{{ role.name }}</option>
+          {% endfor %}
+        </select>
+        <div class="muted" style="margin-top: 6px;">Hold Ctrl (Cmd on Mac) to select multiple roles.</div>
+      </div>
+      <button class="button" type="submit">Save</button>
+      <a class="button secondary" href="{{ url_for('list_groups') }}">Cancel</a>
+    </form>
+  </div>
+{% endblock %}

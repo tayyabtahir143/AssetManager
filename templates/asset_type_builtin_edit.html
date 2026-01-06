@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="card" style="max-width: 720px;">
+    <h2>Edit Built-in Asset Type</h2>
+    <form method="post" class="form-grid">
+      <div>
+        <label for="label">Label</label>
+        <input id="label" name="label" type="text" value="{{ label }}" required>
+      </div>
+      <div>
+        <h3 style="margin: 0 0 6px 0;">Fields</h3>
+        <p class="muted">Field names are fixed. You can change the display label.</p>
+      </div>
+      {% for field in fields %}
+        <div>
+          <label for="field_label_{{ field.name }}">{{ field.name }}</label>
+          <input id="field_label_{{ field.name }}" name="field_label_{{ field.name }}" type="text" value="{{ field.label }}" required>
+        </div>
+        <div>
+          <label for="field_options_{{ field.name }}">Options (comma-separated)</label>
+          <input id="field_options_{{ field.name }}" name="field_options_{{ field.name }}" type="text" value="{{ field.options or '' }}" placeholder="e.g. Dell, HP, Lenovo">
+        </div>
+      {% endfor %}
+      <button class="button" type="submit">Save</button>
+      <a class="button secondary" href="{{ url_for('list_asset_types') }}">Cancel</a>
+    </form>
+  </div>
+{% endblock %}

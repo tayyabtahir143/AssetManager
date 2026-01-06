@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="card" style="max-width: 720px;">
+    <h2>Edit Role</h2>
+    <form method="post" class="form-grid">
+      <div>
+        <label for="name">Role Name</label>
+        <input id="name" name="name" type="text" value="{{ role.name }}" required>
+      </div>
+      <div>
+        <label>Permissions by Asset</label>
+        <div style="margin-top: 10px;">
+          <strong>Administration</strong>
+          <div class="checkbox-row">
+            <label><input name="can_manage_depts" type="checkbox" {% if role.can_manage_depts %}checked{% endif %}> Manage departments</label>
+          </div>
+        </div>
+        {% for asset in assets %}
+          {% set perm = perms_map.get(asset.key) %}
+          <div style="margin-top: 10px;">
+            <strong>{{ asset.label }}</strong>
+            <div class="checkbox-row">
+              <label><input name="perm_{{ asset.key }}_read" type="checkbox" {% if perm and perm.can_read %}checked{% endif %}> Read</label>
+              <label><input name="perm_{{ asset.key }}_add" type="checkbox" {% if perm and perm.can_add %}checked{% endif %}> Add</label>
+              <label><input name="perm_{{ asset.key }}_delete" type="checkbox" {% if perm and perm.can_delete %}checked{% endif %}> Delete</label>
+              <label><input name="perm_{{ asset.key }}_bulk_delete" type="checkbox" {% if perm and perm.can_bulk_delete %}checked{% endif %}> Bulk delete</label>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+      <button class="button" type="submit">Save</button>
+      <a class="button secondary" href="{{ url_for('list_roles') }}">Cancel</a>
+    </form>
+  </div>
+{% endblock %}
