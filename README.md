@@ -37,7 +37,7 @@
 ## 🚀 Quick Start (Postgres)
 
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/tayyabtahir143/AssetManager.git
 cd postgres-deploy
 sudo docker compose up -d --build
 ```
