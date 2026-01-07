@@ -23,21 +23,42 @@
                 <span class="muted">Toggle to set</span>
               </div>
             {% endif %}
+          {% elif field.field_type == "select" %}
+            {% if field.name == "dept" and dept_options %}
+              <select id="{{ field.name }}" name="{{ field.name }}" {% if field.name != "assigned_to" %}required{% endif %}>
+                <option value="">-</option>
+                {% if item.data.get(field.name) and item.data.get(field.name) not in dept_options %}
+                  <option value="{{ item.data.get(field.name) }}" selected>{{ item.data.get(field.name) }}</option>
+                {% endif %}
+                {% for option in dept_options %}
+                  <option value="{{ option }}" {% if item.data.get(field.name) == option %}selected{% endif %}>{{ option }}</option>
+                {% endfor %}
+              </select>
             {% else %}
-              {% if field.name == "dept" and dept_options %}
-                <select id="{{ field.name }}" name="{{ field.name }}" {% if field.name != "assigned_to" %}required{% endif %}>
-                  <option value="">-</option>
-                  {% if item.data.get(field.name) and item.data.get(field.name) not in dept_options %}
-                    <option value="{{ item.data.get(field.name) }}" selected>{{ item.data.get(field.name) }}</option>
-                  {% endif %}
-                  {% for option in dept_options %}
-                    <option value="{{ option }}" {% if item.data.get(field.name) == option %}selected{% endif %}>{{ option }}</option>
-                  {% endfor %}
-                </select>
-              {% else %}
-                <input id="{{ field.name }}" name="{{ field.name }}" type="text" value="{{ item.data.get(field.name, '') }}" {% if field.name in assigned_fields %}list="ldap-users"{% endif %} {% if field.name != "assigned_to" %}required{% endif %}>
-              {% endif %}
+              <select id="{{ field.name }}" name="{{ field.name }}" {% if field.name != "assigned_to" %}required{% endif %}>
+                {% if item.data.get(field.name) and item.data.get(field.name) not in field.options %}
+                  <option value="{{ item.data.get(field.name) }}" selected>{{ item.data.get(field.name) }}</option>
+                {% endif %}
+                {% for opt in field.options %}
+                  <option value="{{ opt }}" {% if item.data.get(field.name) == opt %}selected{% endif %}>{{ opt }}</option>
+                {% endfor %}
+              </select>
             {% endif %}
+          {% else %}
+            {% if field.name == "dept" and dept_options %}
+              <select id="{{ field.name }}" name="{{ field.name }}" {% if field.name != "assigned_to" %}required{% endif %}>
+                <option value="">-</option>
+                {% if item.data.get(field.name) and item.data.get(field.name) not in dept_options %}
+                  <option value="{{ item.data.get(field.name) }}" selected>{{ item.data.get(field.name) }}</option>
+                {% endif %}
+                {% for option in dept_options %}
+                  <option value="{{ option }}" {% if item.data.get(field.name) == option %}selected{% endif %}>{{ option }}</option>
+                {% endfor %}
+              </select>
+            {% else %}
+              <input id="{{ field.name }}" name="{{ field.name }}" type="text" value="{{ item.data.get(field.name, '') }}" {% if field.name in assigned_fields %}list="ldap-users"{% endif %} {% if field.name != "assigned_to" %}required{% endif %}>
+            {% endif %}
+          {% endif %}
         </div>
       {% endfor %}
       <button class="button" type="submit">Save</button>

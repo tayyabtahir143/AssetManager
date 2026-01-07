@@ -119,6 +119,18 @@
         color: var(--accent);
         box-shadow: var(--glow);
       }
+      .spinner {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        border: 4px solid rgba(255, 255, 255, 0.12);
+        border-top-color: var(--accent);
+        animation: spin 0.9s linear infinite;
+        margin: 12px auto 0;
+      }
+      @keyframes spin {
+        to { transform: rotate(360deg); }
+      }
       .side-nav a.nav-link.active {
         border-color: rgba(76, 244, 199, 0.6);
         background: linear-gradient(135deg, rgba(76, 244, 199, 0.22), rgba(76, 244, 199, 0.06));

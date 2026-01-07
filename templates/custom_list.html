@@ -19,7 +19,7 @@
     <div style="display: flex; gap: 10px; flex-wrap: wrap;">
       {% if asset_perms.can_bulk_delete %}
         <button class="button secondary" type="button" id="toggle-custom-bulk">Bulk delete</button>
-        <button class="button secondary bulk-toggle-custom" id="bulk-delete-submit" type="submit" form="bulk-delete-form" onclick="return confirm('Delete selected items?');" style="display: none;">Delete selected</button>
+        <button class="button secondary bulk-toggle-custom" id="bulk-delete-submit" type="button" style="display: none;">Delete selected</button>
       {% endif %}
       {% if asset_perms.can_add %}
         <a class="button" href="{{ url_for('add_custom_asset', asset_key=asset_type.key) }}">Add {{ asset_type.label }}</a>
@@ -45,6 +45,22 @@
 
   <form method="post" action="{{ url_for('bulk_delete_custom_assets', asset_key=asset_type.key) }}" id="bulk-delete-form">
     <input type="hidden" name="bulk_delete_intent" id="bulk-delete-intent" value="">
+    {% set ns = namespace(has_asset_tag=false) %}
+    {% for field in fields %}
+      {% if field.name == "asset_tag" %}
+        {% set ns.has_asset_tag = true %}
+      {% endif %}
+    {% endfor %}
+    {% if asset_perms.can_bulk_delete and ns.has_asset_tag %}
+      <div class="bulk-toggle-custom" style="display: none; margin: 12px 0; padding: 12px; border-radius: 12px; border: 1px dashed var(--panel-border-strong); background: rgba(10, 16, 26, 0.6);">
+        <label for="bulk-tags" class="muted" style="font-weight: 600;">Delete by Asset Tags</label>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 8px;">
+          <textarea id="bulk-tags" name="bulk_tags" rows="2" placeholder="Enter asset tags separated by commas or new lines" style="flex: 1; min-width: 240px;"></textarea>
+          <button class="button secondary" id="bulk-tags-submit" type="button">Delete tags</button>
+        </div>
+      </div>
+    {% endif %}
+    <div id="bulk-delete-error" class="flash error" style="display: none; margin-top: 10px;"></div>
     <table class="sticky-header">
       <thead>
         <tr>
@@ -113,6 +129,16 @@
       <p class="muted">Please wait while we process your request.</p>
     </div>
   </div>
+  <div id="bulk-confirm-overlay" style="display: none; position: fixed; inset: 0; background: rgba(3, 6, 12, 0.75); z-index: 1000; align-items: center; justify-content: center;">
+    <div class="card" style="min-width: 320px; text-align: center;">
+      <h3 style="margin-top: 0;">Confirm deletion</h3>
+      <p class="muted" id="bulk-confirm-message">Are you sure?</p>
+      <div style="display: flex; gap: 10px; justify-content: center; margin-top: 14px;">
+        <button class="button secondary" id="bulk-confirm-cancel" type="button">Cancel</button>
+        <button class="button" id="bulk-confirm-ok" type="button">Delete</button>
+      </div>
+    </div>
+  </div>
   <div id="infinite-status" class="muted" style="margin-top: 14px;">Loading more items…</div>
   {% if asset_perms.can_bulk_delete %}
     <script>
@@ -123,14 +149,60 @@
       const bulkDeleteOverlay = document.getElementById('bulk-delete-overlay');
       const bulkDeleteSubmit = document.getElementById('bulk-delete-submit');
       const bulkDeleteIntent = document.getElementById('bulk-delete-intent');
+      const bulkTagsSubmit = document.getElementById('bulk-tags-submit');
+      const bulkDeleteError = document.getElementById('bulk-delete-error');
+      const confirmOverlay = document.getElementById('bulk-confirm-overlay');
+      const confirmMessage = document.getElementById('bulk-confirm-message');
+      const confirmCancel = document.getElementById('bulk-confirm-cancel');
+      const confirmOk = document.getElementById('bulk-confirm-ok');
+      let bulkModeEnabled = false;
+      let confirmAction = null;
+      const showError = (message) => {
+        if (!bulkDeleteError) return;
+        bulkDeleteError.textContent = message;
+        bulkDeleteError.style.display = 'block';
+      };
+      const clearError = () => {
+        if (bulkDeleteError) {
+          bulkDeleteError.textContent = '';
+          bulkDeleteError.style.display = 'none';
+        }
+      };
+      const openConfirm = (message, action) => {
+        if (!confirmOverlay || !confirmMessage || !confirmOk) return;
+        confirmMessage.textContent = message;
+        confirmAction = action;
+        confirmOverlay.style.display = 'flex';
+      };
+      const closeConfirm = () => {
+        if (confirmOverlay) {
+          confirmOverlay.style.display = 'none';
+        }
+        confirmAction = null;
+      };
+      if (confirmCancel) {
+        confirmCancel.addEventListener('click', closeConfirm);
+      }
+      if (confirmOk) {
+        confirmOk.addEventListener('click', () => {
+          if (typeof confirmAction === 'function') {
+            confirmAction();
+          }
+          closeConfirm();
+        });
+      }
       if (toggleCustomBulk) {
         toggleCustomBulk.addEventListener('click', () => {
+          bulkModeEnabled = !bulkModeEnabled;
           customBulkItems.forEach((item) => {
-            item.style.display = item.style.display === 'none' ? '' : 'none';
+            item.style.display = bulkModeEnabled ? '' : 'none';
             if (item.type === 'checkbox') {
               item.checked = false;
             }
           });
+          if (selectAllCustom) {
+            selectAllCustom.checked = false;
+          }
         });
       }
       if (selectAllCustom) {
@@ -140,9 +212,33 @@
           });
         });
       }
-      if (bulkDeleteSubmit && bulkDeleteIntent) {
+      if (bulkDeleteSubmit && bulkDeleteIntent && bulkDeleteForm) {
         bulkDeleteSubmit.addEventListener('click', () => {
-          bulkDeleteIntent.value = '1';
+          clearError();
+          const selected = document.querySelectorAll('.custom-checkbox:checked');
+          if (!selected.length) {
+            showError('No items selected.');
+            return;
+          }
+          openConfirm(`Delete ${selected.length} selected item(s)?`, () => {
+            bulkDeleteIntent.value = '1';
+            bulkDeleteForm.submit();
+          });
+        });
+      }
+      if (bulkTagsSubmit && bulkDeleteIntent && bulkDeleteForm) {
+        bulkTagsSubmit.addEventListener('click', () => {
+          clearError();
+          const raw = (document.getElementById('bulk-tags') || {}).value || '';
+          const tags = raw.split(/[,\\n]+/).map((tag) => tag.trim()).filter(Boolean);
+          if (!tags.length) {
+            showError('Enter at least one asset tag.');
+            return;
+          }
+          openConfirm(`Delete ${tags.length} asset tag(s)?`, () => {
+            bulkDeleteIntent.value = '1';
+            bulkDeleteForm.submit();
+          });
         });
       }
       if (bulkDeleteForm && bulkDeleteOverlay) {
@@ -152,6 +248,19 @@
           }
         });
       }
+      const rowClickGuard = (target) => {
+        if (!target) return false;
+        return target.closest('a, button, input, textarea, select, label');
+      };
+      document.addEventListener('click', (event) => {
+        if (!bulkModeEnabled) return;
+        if (rowClickGuard(event.target)) return;
+        const row = event.target.closest('tr');
+        if (!row) return;
+        const checkbox = row.querySelector('.custom-checkbox');
+        if (!checkbox || checkbox.style.display === 'none') return;
+        checkbox.checked = !checkbox.checked;
+      });
     </script>
   {% endif %}
   <script>
@@ -161,14 +270,11 @@
     const assetKey = "{{ asset_type.key }}";
     const assetQuery = "{{ query or '' | e }}";
     const assetStatus = "{{ status_filter or 'all' }}";
-    const fields = {{ fields | tojson }};
+    const fields = {{ fields_json | tojson }};
     const canAdd = {{ 'true' if asset_perms.can_add else 'false' }};
     const canDelete = {{ 'true' if asset_perms.can_delete else 'false' }};
     const canBulk = {{ 'true' if asset_perms.can_bulk_delete else 'false' }};
-    const bulkToggleVisible = () => {
-      const first = document.querySelector('.bulk-toggle-custom');
-      return first && first.style.display !== 'none';
-    };
+    const bulkToggleVisible = () => (typeof bulkModeEnabled !== 'undefined' ? bulkModeEnabled : false);
     let currentPage = {{ page }};
     let loading = false;
     let hasMore = currentPage < totalPages;
@@ -215,6 +321,9 @@
         checkbox.value = rowData.id;
         checkbox.className = 'custom-checkbox bulk-toggle-custom';
         checkbox.style.display = bulkToggleVisible() ? '' : 'none';
+        if (bulkToggleVisible() && selectAllCustom && selectAllCustom.checked) {
+          checkbox.checked = true;
+        }
         checkCell.appendChild(checkbox);
         row.appendChild(checkCell);
       }

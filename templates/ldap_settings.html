@@ -21,15 +21,15 @@
       </div>
       <div>
         <label for="user_filter">User Filter</label>
-        <input id="user_filter" name="user_filter" type="text" value="{{ config.user_filter }}" placeholder="(uid={username})">
+        <input id="user_filter" name="user_filter" type="text" value="{{ config.user_filter }}" placeholder="(sAMAccountName={username})">
       </div>
       <div>
         <label for="list_filter">User List Filter</label>
-        <input id="list_filter" name="list_filter" type="text" value="{{ config.list_filter }}" placeholder="(&(objectClass=person)(uid=*))">
+        <input id="list_filter" name="list_filter" type="text" value="{{ config.list_filter }}" placeholder="(&(objectClass=user)(!(objectClass=computer))(sAMAccountName=*))">
       </div>
       <div>
         <label for="user_attribute">User Attribute</label>
-        <input id="user_attribute" name="user_attribute" type="text" value="{{ config.user_attribute }}" placeholder="uid">
+        <input id="user_attribute" name="user_attribute" type="text" value="{{ config.user_attribute }}" placeholder="sAMAccountName">
       </div>
       <div>
         <label for="email_attribute">Email Attribute</label>

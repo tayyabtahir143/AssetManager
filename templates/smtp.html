@@ -4,9 +4,9 @@
     <h2>SMTP Settings</h2>
     <form method="post" class="smtp-grid">
       <div class="smtp-section">
-      <div class="smtp-toggle">
-        <label for="enabled">Enable notifications</label>
-        <input id="enabled" name="enabled" type="checkbox" {% if config and config.enabled %}checked{% endif %}>
+        <div class="smtp-toggle">
+          <label for="enabled">Enable notifications</label>
+          <input id="enabled" name="enabled" type="checkbox" {% if config and config.enabled %}checked{% endif %}>
         </div>
         <div class="smtp-field">
           <label for="host">SMTP Server</label>
@@ -33,9 +33,9 @@
           <label for="password">Password</label>
           <input id="password" name="password" type="password" value="" placeholder="Leave blank to keep existing">
         </div>
-      <div class="smtp-toggle">
-        <label for="skip_auth">Skip authentication</label>
-        <input id="skip_auth" name="skip_auth" type="checkbox" {% if config and config.skip_auth %}checked{% endif %}>
+        <div class="smtp-toggle">
+          <label for="skip_auth">Skip authentication</label>
+          <input id="skip_auth" name="skip_auth" type="checkbox" {% if config and config.skip_auth %}checked{% endif %}>
         </div>
         <div class="smtp-field">
           <label for="sender_email">Sender Email</label>
@@ -43,17 +43,17 @@
         </div>
       </div>
       <div class="smtp-section">
-      <div class="smtp-toggle">
-        <label for="monthly_report_enabled">Enable monthly report</label>
-        <input id="monthly_report_enabled" name="monthly_report_enabled" type="checkbox" {% if config and config.monthly_report_enabled %}checked{% endif %}>
+        <div class="smtp-toggle">
+          <label for="monthly_report_enabled">Enable monthly report</label>
+          <input id="monthly_report_enabled" name="monthly_report_enabled" type="checkbox" {% if config and config.monthly_report_enabled %}checked{% endif %}>
         </div>
         <div class="smtp-field">
           <label for="monthly_report_day">Monthly report day (1-28)</label>
           <input id="monthly_report_day" name="monthly_report_day" type="number" min="1" max="28" value="{{ config.monthly_report_day if config else 1 }}">
         </div>
-      <div class="smtp-toggle">
-        <label for="low_stock_enabled">Enable low stock alerts</label>
-        <input id="low_stock_enabled" name="low_stock_enabled" type="checkbox" {% if config and config.low_stock_enabled %}checked{% endif %}>
+        <div class="smtp-toggle">
+          <label for="low_stock_enabled">Enable low stock alerts</label>
+          <input id="low_stock_enabled" name="low_stock_enabled" type="checkbox" {% if config and config.low_stock_enabled %}checked{% endif %}>
         </div>
         <div class="smtp-field">
           <label for="low_stock_threshold">Low stock threshold</label>
@@ -64,16 +64,16 @@
           <input id="low_stock_frequency_days" name="low_stock_frequency_days" type="number" min="1" value="{{ config.low_stock_frequency_days if config else 1 }}">
         </div>
         <button class="button" type="submit">Save</button>
-        <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 8px;">
-          <form method="post" action="{{ url_for('smtp_send_monthly') }}">
-            <button class="button secondary" type="submit">Send monthly report now</button>
-          </form>
-          <form method="post" action="{{ url_for('smtp_send_low_stock') }}">
-            <button class="button secondary" type="submit">Send low stock report now</button>
-          </form>
-        </div>
       </div>
     </form>
+    <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px;">
+      <form method="post" action="{{ url_for('smtp_send_monthly') }}">
+        <button class="button secondary" type="submit">Send monthly report now</button>
+      </form>
+      <form method="post" action="{{ url_for('smtp_send_low_stock') }}">
+        <button class="button secondary" type="submit">Send low stock report now</button>
+      </form>
+    </div>
   </div>
 
   <div class="card smtp-settings" style="max-width: 1100px; width: 100%; margin-top: 18px;">
@@ -168,6 +168,7 @@
       align-items: center;
       gap: 8px;
       justify-content: flex-start;
+      white-space: nowrap;
     }
     .smtp-recipient-grid {
       display: grid;
@@ -180,6 +181,12 @@
       flex-wrap: wrap;
       gap: 12px 18px;
       align-items: center;
+    }
+    .smtp-checks label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
     }
     .smtp-recipient-grid > div:last-child {
       grid-column: 1 / -1;

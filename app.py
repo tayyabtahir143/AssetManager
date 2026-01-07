@@ -63,13 +63,13 @@ REPORT_CACHE_SECONDS = 30
 DEFAULT_PAGE_SIZE = 25
 _USER_DISPLAY_CACHE = {"timestamp": 0, "map": {}}
 ASSET_TITLE_OVERRIDES = {
-    "laptops": "Laptop Assets",
-    "computers": "Computer Assets",
-    "screens": "Screen Assets",
-    "keyboards": "Keyboard Assets",
-    "mice": "Mouse Assets",
-    "headsets": "Headset Assets",
-    "ram": "RAM Assets",
+    "laptops": "Laptops",
+    "computers": "Computers",
+    "screens": "Screens",
+    "keyboards": "Keyboards",
+    "mice": "Mice",
+    "headsets": "Headsets",
+    "ram": "RAM",
 }
 STATUS_OPTIONS = ["In Stock", "Assigned", "Broken", "Write Off"]
 STATUS_LABELS = {
@@ -1316,7 +1316,7 @@ def get_ldap_config_from_db():
         "bind_dn": (config.bind_dn or "").strip(),
         "bind_password": config.bind_password or "",
         "user_filter": config.user_filter or "(uid={username})",
-        "list_filter": config.list_filter or "(&(objectClass=person)(uid=*))",
+        "list_filter": config.list_filter or "(&(objectClass=user)(!(objectClass=computer))(sAMAccountName=*))",
         "user_attribute": config.user_attribute or "uid",
         "email_attribute": config.email_attribute or "mail",
         "user_dn_template": (config.user_dn_template or "").strip(),
@@ -1340,7 +1340,8 @@ def _ldap_config():
         "bind_password": os.environ.get("LDAP_BIND_PASSWORD", ""),
         "user_filter": os.environ.get("LDAP_USER_FILTER", "(uid={username})"),
         "list_filter": os.environ.get(
-            "LDAP_USER_LIST_FILTER", "(&(objectClass=person)(uid=*))"
+            "LDAP_USER_LIST_FILTER",
+            "(&(objectClass=user)(!(objectClass=computer))(sAMAccountName=*))",
         ),
         "user_attribute": os.environ.get("LDAP_USER_ATTRIBUTE", "uid"),
         "email_attribute": os.environ.get("LDAP_EMAIL_ATTRIBUTE", "mail"),
@@ -1426,6 +1427,24 @@ def _ldap_service_connection(config=None):
     return _ldap_connect(bind_dn=bind_dn, bind_password=bind_password, config=config)
 
 
+def _ldap_is_computer_entry(entry, user_attribute):
+    try:
+        classes = entry["objectClass"].value
+    except (KeyError, AttributeError):
+        classes = []
+    if isinstance(classes, str):
+        classes = [classes]
+    if any(str(value).lower() == "computer" for value in classes or []):
+        return True
+    try:
+        name_value = entry[user_attribute].value
+    except (KeyError, AttributeError):
+        return False
+    if isinstance(name_value, list):
+        name_value = next((item for item in name_value if item), "")
+    return str(name_value or "").endswith("$")
+
+
 def ldap_authenticate(username, password):
     if not ldap_enabled() or not password:
         return False
@@ -1481,11 +1500,13 @@ def get_ldap_users(force_refresh=False):
         config["base_dn"],
         config["list_filter"],
         search_scope=SUBTREE,
-        attributes=[config["user_attribute"]],
+        attributes=[config["user_attribute"], "objectClass"],
         size_limit=config["list_limit"],
     )
     usernames = set()
     for entry in conn.entries:
+        if _ldap_is_computer_entry(entry, config["user_attribute"]):
+            continue
         try:
             value = entry[config["user_attribute"]].value
         except (KeyError, AttributeError):
@@ -1520,11 +1541,13 @@ def get_ldap_user_records(force_refresh=False):
         config["base_dn"],
         config["list_filter"],
         search_scope=SUBTREE,
-        attributes=[config["user_attribute"], email_attr],
+        attributes=[config["user_attribute"], email_attr, "objectClass"],
         size_limit=config["list_limit"],
     )
     records = []
     for entry in conn.entries:
+        if _ldap_is_computer_entry(entry, config["user_attribute"]):
+            continue
         try:
             username_value = entry[config["user_attribute"]].value
         except (KeyError, AttributeError):
@@ -1675,9 +1698,9 @@ def _ldap_config_from_form(form, existing=None):
         "base_dn": get_text("base_dn"),
         "bind_dn": get_text("bind_dn"),
         "bind_password": bind_password,
-        "user_filter": get_text("user_filter") or "(uid={username})",
-        "list_filter": get_text("list_filter") or "(&(objectClass=person)(uid=*))",
-        "user_attribute": get_text("user_attribute") or "uid",
+        "user_filter": get_text("user_filter") or "(sAMAccountName={username})",
+        "list_filter": get_text("list_filter") or "(&(objectClass=user)(!(objectClass=computer))(sAMAccountName=*))",
+        "user_attribute": get_text("user_attribute") or "sAMAccountName",
         "email_attribute": get_text("email_attribute") or "mail",
         "user_dn_template": get_text("user_dn_template"),
         "use_ssl": "use_ssl" in form,
@@ -1760,7 +1783,8 @@ def _ldap_form_values(config_row):
             "bind_dn": config_row.bind_dn or "",
             "bind_password": "",
             "user_filter": config_row.user_filter or "(uid={username})",
-            "list_filter": config_row.list_filter or "(&(objectClass=person)(uid=*))",
+            "list_filter": config_row.list_filter
+            or "(&(objectClass=user)(!(objectClass=computer))(sAMAccountName=*))",
             "user_attribute": config_row.user_attribute or "uid",
             "email_attribute": config_row.email_attribute or "mail",
             "user_dn_template": config_row.user_dn_template or "",
@@ -2030,9 +2054,29 @@ def format_custom_field_value(field, value, assigned_fields):
 def format_asset_title(asset_key, label):
     if asset_key in ASSET_TITLE_OVERRIDES:
         return ASSET_TITLE_OVERRIDES[asset_key]
-    if label and label.lower().endswith("assets"):
-        return label
-    return f"{label} Assets" if label else "Assets"
+    if label:
+        lower = label.lower()
+        if lower.endswith("assets"):
+            return label
+        if lower.endswith("s"):
+            return label
+        return f"{label}s"
+    return "Assets"
+
+
+def parse_bulk_tags(raw):
+    if not raw:
+        return []
+    parts = re.split(r"[,\n]+", raw)
+    seen = set()
+    tags = []
+    for part in parts:
+        value = part.strip()
+        if not value or value in seen:
+            continue
+        seen.add(value)
+        tags.append(value)
+    return tags
 
 
 def serialize_model_list(model):
@@ -3579,6 +3623,12 @@ def view_asset(asset_type, item_id):
         .order_by(AssetAssignmentHistory.created_at.desc())
         .all()
     )
+    edit_history = (
+        AuditLog.query.filter_by(entity_type="asset", action="update")
+        .filter(AuditLog.entity_id == str(item.id))
+        .order_by(AuditLog.created_at.desc())
+        .all()
+    )
     comments = (
         AssetComment.query.filter_by(asset_type=asset_type, asset_id=item.id)
         .order_by(AssetComment.created_at.desc())
@@ -3609,6 +3659,7 @@ def view_asset(asset_type, item_id):
         fields=fields,
         assigned_to=assigned_to,
         history=history,
+        edit_history=edit_history,
         comments=comments,
         previous_users=previous_users,
     )
@@ -3948,6 +3999,17 @@ def delete_asset(asset_type, item_id):
 def bulk_delete_assets(asset_type):
     definition = ASSET_DEFS[asset_type]
     ids = [int(item_id) for item_id in request.form.getlist("selected_ids") if item_id.isdigit()]
+    tag_input = request.form.get("bulk_tags", "")
+    tag_list = parse_bulk_tags(tag_input)
+    if tag_list:
+        if not hasattr(definition["model"], "asset_tag"):
+            flash("This asset type does not support asset tag deletes.", "error")
+            return redirect(url_for("list_assets", asset_type=asset_type))
+        tag_items = definition["model"].query.filter(
+            definition["model"].asset_tag.in_(tag_list)
+        ).all()
+        ids.extend(item.id for item in tag_items)
+    ids = sorted(set(ids))
     if ids:
         items = definition["model"].query.filter(definition["model"].id.in_(ids)).all()
         tags = [
@@ -3959,9 +4021,10 @@ def bulk_delete_assets(asset_type):
             synchronize_session=False
         )
         db.session.commit()
-        detail_text = f"type={asset_type} ids={ids}"
         if tags:
-            detail_text = f"{detail_text} asset_tags={tags}"
+            detail_text = f"type={asset_type} asset_tags={tags}"
+        else:
+            detail_text = f"type={asset_type} ids={ids}"
         log_audit("bulk_delete", "asset", entity_id=asset_type, details=detail_text)
         flash(f"Deleted {len(ids)} items.", "success")
     else:
@@ -4136,6 +4199,7 @@ def list_custom_assets(asset_key):
         asset_type=asset_type,
         asset_title=format_asset_title(asset_type.key, asset_type.label),
         fields=fields,
+        fields_json=[{"name": field.name, "label": field.label, "field_type": field.field_type} for field in fields],
         items=items,
         asset_perms=asset_perms,
         assigned_fields=assigned_fields,
@@ -4163,6 +4227,12 @@ def view_custom_asset(asset_key, item_id):
             asset_type=f"custom:{asset_key}", asset_id=item.id
         )
         .order_by(AssetAssignmentHistory.created_at.desc())
+        .all()
+    )
+    edit_history = (
+        AuditLog.query.filter_by(entity_type="custom_asset", action="update")
+        .filter(AuditLog.entity_id == str(item.id))
+        .order_by(AuditLog.created_at.desc())
         .all()
     )
     comments = (
@@ -4201,6 +4271,7 @@ def view_custom_asset(asset_key, item_id):
         fields=details,
         assigned_to=assigned_to,
         history=history,
+        edit_history=edit_history,
         comments=comments,
         previous_users=previous_users,
     )
@@ -4545,16 +4616,38 @@ def bulk_delete_custom_assets(asset_key):
     if not asset_type:
         return redirect(url_for("index"))
     ids = [int(item_id) for item_id in request.form.getlist("selected_ids") if item_id.isdigit()]
+    tag_input = request.form.get("bulk_tags", "")
+    tag_list = parse_bulk_tags(tag_input)
+    if tag_list:
+        candidates = AssetItem.query.filter_by(asset_type_id=asset_type.id).all()
+        for item in candidates:
+            data = item.data or {}
+            if data.get("asset_tag") in tag_list:
+                ids.append(item.id)
+    ids = sorted(set(ids))
     if ids:
+        items = AssetItem.query.filter(
+            AssetItem.asset_type_id == asset_type.id, AssetItem.id.in_(ids)
+        ).all()
+        tags = []
+        for item in items:
+            data = item.data or {}
+            tag = data.get("asset_tag")
+            if tag:
+                tags.append(tag)
         AssetItem.query.filter(
             AssetItem.asset_type_id == asset_type.id, AssetItem.id.in_(ids)
         ).delete(synchronize_session=False)
         db.session.commit()
+        if tags:
+            detail_text = f"type={asset_key} asset_tags={tags}"
+        else:
+            detail_text = f"type={asset_key} ids={ids}"
         log_audit(
             "bulk_delete",
             "custom_asset",
             entity_id=asset_key,
-            details=f"Deleted ids: {ids}",
+            details=detail_text,
         )
         flash(f"Deleted {len(ids)} items.", "success")
     else:
@@ -4755,7 +4848,7 @@ def add_asset_type():
             if not name:
                 name = slugify_key(label_field)
             options = []
-            if field_type == "checkbox":
+            if field_type in {"checkbox", "select"}:
                 for opt_idx in range(1, 6):
                     opt_value = request.form.get(
                         f"field_options_{idx}_{opt_idx}", ""
@@ -4765,15 +4858,24 @@ def add_asset_type():
             field_rows.append(
                 (name, label_field or name.replace("_", " ").title(), field_type, options)
             )
-        if not field_rows:
-            flash("At least one field is required.", "error")
-            return redirect(url_for("add_asset_type"))
         seen = set()
         for name, _, _, _ in field_rows:
             if name in seen:
                 flash("Field names must be unique.", "error")
                 return redirect(url_for("add_asset_type"))
             seen.add(name)
+        default_fields = [
+            ("assigned_to", "User", "text", []),
+            ("dept", "Dept", "text", []),
+            ("status", "Status", "select", list(STATUS_OPTIONS)),
+        ]
+        for name, label_field, field_type, options in default_fields:
+            if name not in seen:
+                field_rows.append((name, label_field, field_type, options))
+                seen.add(name)
+        if not field_rows:
+            flash("At least one field is required.", "error")
+            return redirect(url_for("add_asset_type"))
         asset_type = AssetType(key=key, label=label)
         db.session.add(asset_type)
         db.session.flush()
@@ -4812,7 +4914,7 @@ def edit_asset_type(asset_type_id):
             field_type = request.form.get(f"field_type_{field.id}", field.field_type)
             field.field_type = field_type
             options = []
-            if field_type == "checkbox":
+            if field_type in {"checkbox", "select"}:
                 for opt_idx in range(1, 6):
                     opt_value = request.form.get(
                         f"field_options_{field.id}_{opt_idx}", ""
@@ -4830,7 +4932,7 @@ def edit_asset_type(asset_type_id):
             if not name:
                 name = slugify_key(label_field)
             options = []
-            if field_type == "checkbox":
+            if field_type in {"checkbox", "select"}:
                 for opt_idx in range(1, 6):
                     opt_value = request.form.get(
                         f"new_field_options_{idx}_{opt_idx}", ""

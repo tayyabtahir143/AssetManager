@@ -22,10 +22,11 @@
               <select name="field_type_{{ idx }}" class="field-type-select">
                 <option value="text">Text</option>
                 <option value="checkbox">Checkbox</option>
+                <option value="select">Select</option>
               </select>
             </div>
             <div class="field-options" style="display: none; margin-top: 8px;">
-              <div class="muted" style="font-size: 13px;">Checkbox options (leave blank to make it a single true/false)</div>
+              <div class="muted" style="font-size: 13px;">Options for checkbox/select (leave blank for true/false or empty select)</div>
               <div style="display: grid; grid-template-columns: repeat(3, minmax(120px, 1fr)); gap: 8px; margin-top: 6px;">
                 {% for opt_idx in range(1, 6) %}
                   <input name="field_options_{{ idx }}_{{ opt_idx }}" type="text" placeholder="Option {{ opt_idx }}">
@@ -44,7 +45,7 @@
         const select = row.querySelector('.field-type-select');
         const options = row.querySelector('.field-options');
         const toggle = () => {
-          if (select.value === 'checkbox') {
+          if (select.value === 'checkbox' || select.value === 'select') {
             options.style.display = 'block';
           } else {
             options.style.display = 'none';

@@ -67,6 +67,32 @@
   </div>
 
   <div class="card" style="margin-top: 16px;">
+    <h3 style="margin-top: 0;">Edit History</h3>
+    {% if edit_history %}
+      <table>
+        <thead>
+          <tr>
+            <th>When</th>
+            <th>Edited By</th>
+            <th>Changes</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for entry in edit_history %}
+            <tr>
+              <td>{{ entry.created_at.strftime("%Y-%m-%d %H:%M:%S") }}</td>
+              <td>{{ entry.username or "-" }}</td>
+              <td>{{ entry.details or "-" }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p class="muted">No edit history yet.</p>
+    {% endif %}
+  </div>
+
+  <div class="card" style="margin-top: 16px;">
     <h3 style="margin-top: 0;">Comments</h3>
     <form method="post" action="{{ url_for('add_asset_comment', asset_type=asset_type, item_id=item.id) }}" style="display: grid; gap: 10px;">
       <textarea name="comment" rows="3" placeholder="Add a comment..." required></textarea>

@@ -12,7 +12,7 @@
       </form>
       {% if app_admin and permissions.can_bulk_delete %}
         <button class="button secondary" type="button" id="toggle-groups-bulk">Bulk delete</button>
-        <button class="button secondary bulk-toggle-groups" type="submit" onclick="return confirm('Delete selected groups?');" style="display: none;">Delete selected</button>
+        <button class="button secondary bulk-toggle-groups" id="bulk-groups-submit" type="submit" form="bulk-groups-form" onclick="return confirm('Delete selected groups?');" style="display: none;">Delete selected</button>
       {% endif %}
       <form method="post" action="{{ url_for('ldap_sync_groups') }}">
         <button class="button secondary" type="submit">Sync LDAP Groups</button>
@@ -21,7 +21,8 @@
     </div>
   </div>
 
-  <form method="post" action="{{ url_for('bulk_delete_groups') }}">
+  <form method="post" action="{{ url_for('bulk_delete_groups') }}" id="bulk-groups-form">
+    <input type="hidden" name="bulk_delete_intent" id="bulk-groups-intent" value="">
     <table>
       <thead>
         <tr>
@@ -58,11 +59,22 @@
       </tbody>
     </table>
   </form>
+  <div id="bulk-groups-overlay" style="display: none; position: fixed; inset: 0; background: rgba(3, 6, 12, 0.7); z-index: 999; align-items: center; justify-content: center;">
+    <div class="card" style="min-width: 280px; text-align: center;">
+      <h3 style="margin-top: 0;">Deleting…</h3>
+      <p class="muted">Please wait while we process your request.</p>
+      <div class="spinner"></div>
+    </div>
+  </div>
   {% if app_admin and permissions.can_bulk_delete %}
     <script>
       const selectAllGroups = document.getElementById('select-all-groups');
       const toggleGroupsBulk = document.getElementById('toggle-groups-bulk');
       const groupsBulkItems = document.querySelectorAll('.bulk-toggle-groups');
+      const bulkGroupsForm = document.getElementById('bulk-groups-form');
+      const bulkGroupsOverlay = document.getElementById('bulk-groups-overlay');
+      const bulkGroupsSubmit = document.getElementById('bulk-groups-submit');
+      const bulkGroupsIntent = document.getElementById('bulk-groups-intent');
       if (toggleGroupsBulk) {
         toggleGroupsBulk.addEventListener('click', () => {
           groupsBulkItems.forEach((item) => {
@@ -78,6 +90,18 @@
           document.querySelectorAll('.group-checkbox').forEach((box) => {
             box.checked = selectAllGroups.checked;
           });
+        });
+      }
+      if (bulkGroupsSubmit && bulkGroupsIntent) {
+        bulkGroupsSubmit.addEventListener('click', () => {
+          bulkGroupsIntent.value = '1';
+        });
+      }
+      if (bulkGroupsForm && bulkGroupsOverlay) {
+        bulkGroupsForm.addEventListener('submit', () => {
+          if (bulkGroupsIntent && bulkGroupsIntent.value === '1') {
+            bulkGroupsOverlay.style.display = 'flex';
+          }
         });
       }
     </script>

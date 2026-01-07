@@ -8,13 +8,14 @@
     <div style="display: flex; gap: 10px; flex-wrap: wrap;">
       {% if app_admin and permissions.can_bulk_delete %}
         <button class="button secondary" type="button" id="toggle-roles-bulk">Bulk delete</button>
-        <button class="button secondary bulk-toggle-roles" type="submit" onclick="return confirm('Delete selected roles?');" style="display: none;">Delete selected</button>
+        <button class="button secondary bulk-toggle-roles" id="bulk-roles-submit" type="submit" form="bulk-roles-form" onclick="return confirm('Delete selected roles?');" style="display: none;">Delete selected</button>
       {% endif %}
       <a class="button" href="{{ url_for('add_role') }}">Add Role</a>
     </div>
   </div>
 
-  <form method="post" action="{{ url_for('bulk_delete_roles') }}">
+  <form method="post" action="{{ url_for('bulk_delete_roles') }}" id="bulk-roles-form">
+    <input type="hidden" name="bulk_delete_intent" id="bulk-roles-intent" value="">
     <table>
       <thead>
         <tr>
@@ -62,11 +63,22 @@
       </tbody>
     </table>
   </form>
+  <div id="bulk-roles-overlay" style="display: none; position: fixed; inset: 0; background: rgba(3, 6, 12, 0.7); z-index: 999; align-items: center; justify-content: center;">
+    <div class="card" style="min-width: 280px; text-align: center;">
+      <h3 style="margin-top: 0;">Deleting…</h3>
+      <p class="muted">Please wait while we process your request.</p>
+      <div class="spinner"></div>
+    </div>
+  </div>
   {% if app_admin and permissions.can_bulk_delete %}
     <script>
       const selectAllRoles = document.getElementById('select-all-roles');
       const toggleRolesBulk = document.getElementById('toggle-roles-bulk');
       const rolesBulkItems = document.querySelectorAll('.bulk-toggle-roles');
+      const bulkRolesForm = document.getElementById('bulk-roles-form');
+      const bulkRolesOverlay = document.getElementById('bulk-roles-overlay');
+      const bulkRolesSubmit = document.getElementById('bulk-roles-submit');
+      const bulkRolesIntent = document.getElementById('bulk-roles-intent');
       if (toggleRolesBulk) {
         toggleRolesBulk.addEventListener('click', () => {
           rolesBulkItems.forEach((item) => {
@@ -82,6 +94,18 @@
           document.querySelectorAll('.role-checkbox').forEach((box) => {
             box.checked = selectAllRoles.checked;
           });
+        });
+      }
+      if (bulkRolesSubmit && bulkRolesIntent) {
+        bulkRolesSubmit.addEventListener('click', () => {
+          bulkRolesIntent.value = '1';
+        });
+      }
+      if (bulkRolesForm && bulkRolesOverlay) {
+        bulkRolesForm.addEventListener('submit', () => {
+          if (bulkRolesIntent && bulkRolesIntent.value === '1') {
+            bulkRolesOverlay.style.display = 'flex';
+          }
         });
       }
     </script>
