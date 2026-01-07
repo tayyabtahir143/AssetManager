@@ -99,6 +99,12 @@ def setup_logging():
 setup_logging()
 
 
+@app.teardown_request
+def log_unhandled_exception(exc):
+    if exc is not None:
+        app.logger.exception("Unhandled exception", exc_info=exc)
+
+
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
@@ -602,6 +608,16 @@ def send_smtp_notification(action, entity_type, entity_id, success, details):
     ):
         if value:
             detail_rows.append((label, display_value(value)))
+    if parsed.get("asset_tags"):
+        detail_rows.append(("Asset Tags", ", ".join(parsed["asset_tags"])))
+    if action == "bulk_delete":
+        deleted_count = 0
+        if parsed.get("asset_tags"):
+            deleted_count = len(parsed["asset_tags"])
+        elif parsed.get("ids"):
+            deleted_count = len(parsed["ids"])
+        if deleted_count:
+            detail_rows.append(("Deleted Assets", str(deleted_count)))
     if parsed.get("changes"):
         for field_name, change in parsed["changes"].items():
             old_value = display_value(change.get("old", "-"))
@@ -811,13 +827,36 @@ def _render_report_html(title, subtitle, meta_lines, body_html):
 
 
 def _parse_audit_details(details):
-    parsed = {"type": None, "asset_tag": None, "model": None, "changes": {}}
+    parsed = {
+        "type": None,
+        "asset_tag": None,
+        "asset_tags": [],
+        "ids": [],
+        "model": None,
+        "changes": {},
+    }
     if not details:
         return parsed
     parsed["type"] = re.search(r"\\btype=([^\\s]+)", details)
     parsed["type"] = parsed["type"].group(1) if parsed["type"] else None
     parsed["asset_tag"] = re.search(r"\\basset_tag=([^\\s]+)", details)
     parsed["asset_tag"] = parsed["asset_tag"].group(1) if parsed["asset_tag"] else None
+    tags_match = re.search(r"\basset_tags=\[([^\]]*)\]", details)
+    if tags_match:
+        tags_raw = tags_match.group(1)
+        parsed["asset_tags"] = [
+            tag.strip().strip("'").strip('"')
+            for tag in tags_raw.split(",")
+            if tag.strip()
+        ]
+    ids_match = re.search(r"\bids=\[([^\]]*)\]", details)
+    if ids_match:
+        ids_raw = ids_match.group(1)
+        parsed["ids"] = [
+            part.strip()
+            for part in ids_raw.split(",")
+            if part.strip()
+        ]
     parsed["model"] = re.search(r"\\bmodel=([^\\s]+)", details)
     parsed["model"] = parsed["model"].group(1) if parsed["model"] else None
     _, _, changes_blob = details.partition(" changes=")
@@ -5336,6 +5375,7 @@ def user_assets():
     return render_template(
         "user_assets.html",
         query=query,
+        display_query=display_assignee(query),
         sections=sections,
         total_items=total_items,
         total_quantity=total_quantity,

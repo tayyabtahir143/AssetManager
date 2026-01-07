@@ -6,14 +6,14 @@
       <p class="muted">Search a user to see everything assigned to them.</p>
     </div>
     <form method="get" class="inline">
-      <input type="text" name="user" placeholder="Search by username or email..." value="{{ query }}" list="ldap-users">
+      <input type="text" name="user" placeholder="Search by username..." value="{{ query }}" list="ldap-users">
       <button class="button secondary" type="submit">Search</button>
     </form>
   </div>
 
   {% if query %}
     <div class="card" style="margin-top: 12px;">
-      <h3 style="margin-top: 0;">Results for {{ query }}</h3>
+      <h3 style="margin-top: 0;">Results for {{ display_query or query }}</h3>
       <p class="muted">Items assigned: {{ total_items }}{% if total_quantity %} · Quantity assigned: {{ total_quantity }}{% endif %}</p>
     </div>
   {% endif %}
