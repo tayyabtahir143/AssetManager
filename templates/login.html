@@ -1,17 +1,104 @@
 {% extends "base.html" %}
 {% block content %}
-    <div class="card" style="max-width: 420px; margin: 40px auto;">
-      <h2>Login</h2>
+  <div class="login-wrap">
+    <div class="login-hero card">
+      <div class="login-badge">Enterprise Asset Suite</div>
+      <h2>Welcome back</h2>
+      <p class="muted">Sign in to manage assets, assignments, and reporting.</p>
+      <div class="login-glow"></div>
+    </div>
+    <div class="card login-card">
+      <h2>Sign in</h2>
       <form method="post" class="form-grid">
-      <div>
-        <label for="username">Username</label>
-        <input id="username" name="username" type="text" required>
-      </div>
-      <div>
-        <label for="password">Password</label>
-        <input id="password" name="password" type="password" required>
-      </div>
-      <button class="button" type="submit">Sign in</button>
-    </form>
+        <div>
+          <label for="username">Username</label>
+          <input id="username" name="username" type="text" autocomplete="username" required>
+        </div>
+        <div>
+          <label for="password">Password</label>
+          <div class="password-row">
+            <input id="password" name="password" type="password" autocomplete="current-password" required>
+            <button class="button secondary password-toggle" type="button" data-toggle="#password">Show</button>
+          </div>
+        </div>
+        <label class="checkbox-row">
+          <input type="checkbox" name="remember_me">
+          <span class="muted">Keep me signed in</span>
+        </label>
+        <button class="button" type="submit">Sign in</button>
+      </form>
+      <p class="muted" style="margin-top: 12px;">LDAP and local accounts supported.</p>
+    </div>
   </div>
+  <style>
+    .login-wrap {
+      display: grid;
+      grid-template-columns: minmax(260px, 1fr) minmax(320px, 480px);
+      gap: 20px;
+      align-items: stretch;
+      max-width: 920px;
+      margin: 40px auto;
+    }
+    .login-hero {
+      position: relative;
+      overflow: hidden;
+      min-height: 320px;
+    }
+    .login-badge {
+      display: inline-flex;
+      padding: 6px 12px;
+      border-radius: 999px;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.2em;
+      border: 1px solid var(--edge);
+      color: var(--accent);
+      background: rgba(76, 244, 199, 0.12);
+      margin-bottom: 14px;
+    }
+    .login-glow {
+      position: absolute;
+      inset: 20% -20% -30% 30%;
+      background: radial-gradient(circle, rgba(76, 244, 199, 0.25), transparent 60%);
+      filter: blur(10px);
+      pointer-events: none;
+    }
+    .login-card {
+      max-width: 520px;
+      margin: 0 auto;
+    }
+    .password-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    .password-row input {
+      flex: 1;
+    }
+    .password-toggle {
+      white-space: nowrap;
+    }
+    @media (max-width: 860px) {
+      .login-wrap {
+        grid-template-columns: 1fr;
+      }
+      .login-hero {
+        min-height: 220px;
+      }
+    }
+  </style>
+  <script>
+    document.querySelectorAll('[data-toggle]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const target = document.querySelector(btn.dataset.toggle);
+        if (!target) return;
+        target.type = target.type === 'password' ? 'text' : 'password';
+        btn.textContent = target.type === 'password' ? 'Show' : 'Hide';
+      });
+    });
+    const usernameInput = document.getElementById('username');
+    if (usernameInput) {
+      usernameInput.focus();
+    }
+  </script>
 {% endblock %}

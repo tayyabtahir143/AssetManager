@@ -11,6 +11,8 @@ import datetime
 import html
 import logging
 import json
+import hashlib
+from datetime import timedelta
 from logging.handlers import RotatingFileHandler
 from urllib.parse import urlparse
 from functools import wraps
@@ -19,6 +21,7 @@ from openpyxl import Workbook, load_workbook
 
 from flask import Flask, render_template, request, redirect, url_for, session, flash, send_file, jsonify
 from flask_sqlalchemy import SQLAlchemy
+import jwt
 from ldap3 import Connection, Server, SUBTREE, Tls
 from ldap3.utils.conv import escape_filter_chars
 from sqlalchemy import func, text, cast, String, or_
@@ -32,6 +35,19 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret-key")
 app.config["LOG_DIR"] = os.environ.get("LOG_DIR", "/data/logs")
 app.config["LOG_FILE"] = os.environ.get("LOG_FILE", "app.log")
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=14)
+LOG_PAGE_EXCLUDE_PREFIXES = (
+    "/static",
+    "/branding/logo",
+    "/favicon.ico",
+)
+LOG_PAGE_EXCLUDE_ENDPOINTS = {
+    "logs_tail",
+    "view_logs",
+}
+JWT_ACCESS_SECONDS = 15 * 60
+JWT_REFRESH_SECONDS = 14 * 24 * 60 * 60
+JWT_ALGORITHM = "HS256"
 
 SECTION_ENDPOINTS = {
     "index",
@@ -103,6 +119,94 @@ setup_logging()
 def log_unhandled_exception(exc):
     if exc is not None:
         app.logger.exception("Unhandled exception", exc_info=exc)
+
+
+@app.before_request
+def log_page_views():
+    if not request:
+        return
+    if request.path.startswith("/api"):
+        return
+    if request.method != "GET":
+        return
+    if request.endpoint in LOG_PAGE_EXCLUDE_ENDPOINTS:
+        return
+    path = request.path or ""
+    for prefix in LOG_PAGE_EXCLUDE_PREFIXES:
+        if path.startswith(prefix):
+            return
+    user = get_current_user()
+    username = user.username if user else "-"
+    ip_address = request.remote_addr or "-"
+    query = request.query_string.decode("utf-8", errors="ignore")
+    url = f"{path}?{query}" if query else path
+    app.logger.info("page_view user=%s ip=%s url=%s", username, ip_address, url)
+
+
+@app.before_request
+def handle_api_preflight():
+    if request.method == "OPTIONS" and request.path.startswith("/api"):
+        resp = app.response_class("", status=204)
+        resp.headers["Access-Control-Allow-Origin"] = "*"
+        resp.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
+        resp.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+        return resp
+
+
+@app.after_request
+def add_api_headers(response):
+    if request.path.startswith("/api"):
+        response.headers["Access-Control-Allow-Origin"] = "*"
+        response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
+        response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    return response
+
+
+def _normalize_asset_payload(definition, payload, existing=None):
+    data = {}
+    for field_name, _label, field_type in definition["fields"]:
+        value = payload.get(field_name)
+        if field_type == "checkbox":
+            data[field_name] = bool(value)
+        elif field_type == "number":
+            data[field_name] = _parse_int_value(value, 0)
+        else:
+            data[field_name] = str(value).strip() if value is not None else ""
+    if "assigned_to" in data and data["assigned_to"] == "":
+        data["assigned_to"] = "free"
+    if "status" in data:
+        status_norm = normalize_status(data["status"])
+        assigned_norm = normalize_assignee(data.get("assigned_to"))
+        if status_norm in {"broken", "write off"}:
+            data["status"] = "Broken" if status_norm == "broken" else "Write Off"
+            data["assigned_to"] = "free"
+            if "dept" in data:
+                data["dept"] = ""
+        elif status_norm in {"in stock", "in_stock"}:
+            data["status"] = "In Stock"
+            data["assigned_to"] = "free"
+            if "dept" in data:
+                data["dept"] = ""
+        elif assigned_norm and assigned_norm != "free":
+            data["status"] = "Assigned"
+        else:
+            data["status"] = "In Stock"
+    if "asset_tag" in data:
+        data["asset_tag"] = data["asset_tag"].strip()
+        if data["asset_tag"]:
+            existing_query = definition["model"].query.filter(
+                func.lower(definition["model"].asset_tag) == data["asset_tag"].lower()
+            )
+            if existing is not None:
+                existing_query = existing_query.filter(definition["model"].id != existing.id)
+            if existing_query.first():
+                return None, "Asset tag must be unique."
+    if "total_quantity" in data and "assigned_quantity" in data:
+        if data["assigned_quantity"] < 0 or data["total_quantity"] < 0:
+            return None, "Quantities cannot be negative."
+        if data["assigned_quantity"] > data["total_quantity"]:
+            return None, "Assigned quantity cannot exceed total quantity."
+    return data, None
 
 
 class User(db.Model):
@@ -229,6 +333,15 @@ class SMTPRecipient(db.Model):
     notify_bulk_delete = db.Column(db.Boolean, nullable=False, default=False)
     notify_monthly = db.Column(db.Boolean, nullable=False, default=False)
     notify_low_stock = db.Column(db.Boolean, nullable=False, default=False)
+
+
+class RefreshToken(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=False, index=True)
+    token_hash = db.Column(db.String(255), nullable=False, unique=True)
+    issued_at = db.Column(db.DateTime, default=datetime.datetime.utcnow, nullable=False)
+    expires_at = db.Column(db.DateTime, nullable=False)
+    revoked = db.Column(db.Boolean, nullable=False, default=False)
 
 
 class AssetAssignmentHistory(db.Model):
@@ -487,14 +600,11 @@ ASSET_DEFS = {
     "ram": {
         "label": "RAM",
         "model": Ram,
-        "consumable": True,
-        "bulk_add": False,
+        "bulk_add": True,
         "fields": [
             ("size", "Size", "text"),
             ("speed", "Speed", "text"),
             ("vendor", "Vendor", "text"),
-            ("total_quantity", "Total Quantity", "number"),
-            ("assigned_quantity", "Assigned Quantity", "number"),
             ("dept", "Dept", "text"),
             ("assigned_to", "User", "text"),
             ("status", "Status", "select"),
@@ -570,7 +680,10 @@ def send_smtp_notification(action, entity_type, entity_id, success, details):
     if not recipients:
         return
     subject = f"[{get_branding_name()}] {action.upper()} {entity_type}"
-    user_name = get_current_user().username if get_current_user() else "-"
+    user = get_current_user()
+    if not user and request:
+        user = getattr(request, "api_user", None)
+    user_name = user.username if user else "-"
     body_lines = [
         f"Action: {action}",
         f"Entity: {entity_type}",
@@ -1317,8 +1430,52 @@ def get_user_by_username_ci(username):
     return User.query.filter(func.lower(User.username) == username.lower()).first()
 
 
+def _hash_token(token):
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def _jwt_encode(payload, expires_in):
+    now = datetime.datetime.utcnow()
+    data = dict(payload)
+    data.update({"iat": now, "exp": now + datetime.timedelta(seconds=expires_in)})
+    return jwt.encode(data, app.config["SECRET_KEY"], algorithm=JWT_ALGORITHM)
+
+
+def _jwt_decode(token):
+    return jwt.decode(token, app.config["SECRET_KEY"], algorithms=[JWT_ALGORITHM])
+
+
+def _issue_tokens(user_id):
+    access_token = _jwt_encode({"sub": str(user_id), "type": "access"}, JWT_ACCESS_SECONDS)
+    refresh_token = _jwt_encode({"sub": str(user_id), "type": "refresh"}, JWT_REFRESH_SECONDS)
+    refresh_entry = RefreshToken(
+        user_id=user_id,
+        token_hash=_hash_token(refresh_token),
+        expires_at=datetime.datetime.utcnow() + datetime.timedelta(seconds=JWT_REFRESH_SECONDS),
+    )
+    db.session.add(refresh_entry)
+    db.session.commit()
+    return access_token, refresh_token
+
+
+def _rotate_refresh_token(user_id, token_value):
+    token_hash = _hash_token(token_value)
+    entry = RefreshToken.query.filter_by(token_hash=token_hash, revoked=False).first()
+    if not entry:
+        return None, None
+    if entry.expires_at < datetime.datetime.utcnow():
+        entry.revoked = True
+        db.session.commit()
+        return None, None
+    entry.revoked = True
+    db.session.commit()
+    return _issue_tokens(user_id)
+
+
 def log_audit(action, entity_type, entity_id=None, success=True, details=None):
     user = get_current_user()
+    if not user and request:
+        user = getattr(request, "api_user", None)
     username = user.username if user else None
     user_id = user.id if user else None
     ip_address = request.remote_addr if request else None
@@ -1326,6 +1483,16 @@ def log_audit(action, entity_type, entity_id=None, success=True, details=None):
     if details is not None:
         detail_text = str(details)
     try:
+        app.logger.info(
+            "audit action=%s entity=%s entity_id=%s user=%s ip=%s success=%s details=%s",
+            action,
+            entity_type,
+            entity_id or "-",
+            username or "-",
+            ip_address or "-",
+            "yes" if success else "no",
+            detail_text or "-",
+        )
         db.session.add(
             AuditLog(
                 user_id=user_id,
@@ -2995,6 +3162,37 @@ def ensure_indexes():
     db.session.commit()
 
 
+def normalize_ram_quantities():
+    rows = (
+        Ram.query.filter(Ram.total_quantity > 1)
+        .filter((Ram.assigned_quantity.is_(None)) | (Ram.assigned_quantity <= 0))
+        .all()
+    )
+    if not rows:
+        return
+    for row in rows:
+        assigned_to = normalize_assignee(row.assigned_to)
+        if assigned_to and assigned_to != "free":
+            continue
+        total = max(row.total_quantity or 0, 0)
+        if total <= 1:
+            continue
+        for _ in range(total):
+            item = Ram(
+                size=row.size,
+                speed=row.speed,
+                vendor=row.vendor,
+                dept=row.dept,
+                assigned_to="free",
+                status="In Stock",
+                total_quantity=1,
+                assigned_quantity=0,
+            )
+            db.session.add(item)
+        db.session.delete(row)
+    db.session.commit()
+
+
 def apply_builtin_overrides():
     settings = {setting.key: setting for setting in BuiltinAssetTypeSetting.query.all()}
     field_settings = BuiltinAssetFieldSetting.query.all()
@@ -3059,6 +3257,7 @@ def init_db():
         ensure_default_users()
         ensure_role_permissions()
         ensure_indexes()
+        normalize_ram_quantities()
         _DB_INIT_DONE = True
     if request.method == "GET":
         endpoint = request.endpoint
@@ -3340,6 +3539,39 @@ def require_bulk_delete(view):
     return wrapped
 
 
+def api_auth_required(asset_type=None, permission=None):
+    def decorator(view):
+        @wraps(view)
+        def wrapped(*args, **kwargs):
+            auth_header = request.headers.get("Authorization", "")
+            if not auth_header.startswith("Bearer "):
+                return jsonify({"error": "Missing token"}), 401
+            token = auth_header.split(" ", 1)[1].strip()
+            try:
+                payload = _jwt_decode(token)
+            except Exception:
+                return jsonify({"error": "Invalid token"}), 401
+            if payload.get("type") != "access":
+                return jsonify({"error": "Invalid token type"}), 401
+            user_id = payload.get("sub")
+            user = User.query.get(user_id) if user_id else None
+            if not user:
+                return jsonify({"error": "User not found"}), 401
+            request.api_user = user
+            if permission:
+                if asset_type:
+                    perms = get_role_asset_permissions(user, asset_type)
+                    if not perms.get(permission, False):
+                        return jsonify({"error": "Forbidden"}), 403
+                else:
+                    perms = get_role_permissions(user)
+                    if not perms.get(permission, False):
+                        return jsonify({"error": "Forbidden"}), 403
+            return view(*args, **kwargs)
+        return wrapped
+    return decorator
+
+
 def is_free_filter(model):
     if hasattr(model, "status"):
         return model.query.filter(
@@ -3386,6 +3618,7 @@ def login():
     if request.method == "POST":
         username = normalize_username(request.form.get("username", ""))
         password = request.form.get("password", "")
+        remember = "remember_me" in request.form
         user = get_user_by_username_ci(username)
         local_ok = user and check_password_hash(user.password_hash, password)
         if local_ok:
@@ -3394,6 +3627,7 @@ def login():
                 flash("Your account is not assigned to any role.", "error")
                 return redirect(url_for("login"))
             session["user_id"] = user.id
+            session.permanent = remember
             if not get_role_permissions(user).get("can_read", False) and user_has_app_admin(user):
                 return redirect(url_for("list_users"))
             log_audit("login", "auth", details=username)
@@ -3413,6 +3647,7 @@ def login():
                 flash("Your account is not assigned to any role.", "error")
                 return redirect(url_for("login"))
             session["user_id"] = user.id
+            session.permanent = remember
             if not get_role_permissions(user).get("can_read", False) and user_has_app_admin(user):
                 return redirect(url_for("list_users"))
             log_audit("login", "auth", details=username)
@@ -3428,6 +3663,252 @@ def login():
 def logout():
     session.clear()
     return redirect(url_for("login"))
+
+
+@app.route("/api/auth/login", methods=["POST"])
+def api_login():
+    payload = request.get_json(silent=True) or {}
+    username = normalize_username(payload.get("username", ""))
+    password = payload.get("password", "")
+    if not username or not password:
+        return jsonify({"error": "Missing credentials"}), 400
+    user = get_user_by_username_ci(username)
+    if not user and "@" in username:
+        user = User.query.filter(func.lower(User.email) == username.lower()).first()
+    local_ok = user and check_password_hash(user.password_hash, password)
+    if not local_ok:
+        try:
+            ldap_ok = ldap_authenticate(username, password)
+        except Exception as exc:
+            app.logger.warning("LDAP authentication unavailable: %s", exc)
+            ldap_ok = False
+        if ldap_ok:
+            if not user:
+                user = ensure_ldap_user(username)
+        else:
+            if "@" in username:
+                short_name = username.split("@", 1)[0]
+                try:
+                    ldap_ok = ldap_authenticate(short_name, password)
+                except Exception as exc:
+                    app.logger.warning("LDAP authentication unavailable: %s", exc)
+                    ldap_ok = False
+                if ldap_ok and not user:
+                    user = ensure_ldap_user(short_name)
+    if not user:
+        log_audit("login_failed", "api_auth", success=False, details=username)
+        return jsonify({"error": "Invalid username or password"}), 401
+    if not get_user_role_names(user):
+        log_audit("login_denied", "api_auth", success=False, details=username)
+        return jsonify({"error": "No roles assigned"}), 403
+    access_token, refresh_token = _issue_tokens(user.id)
+    log_audit("login", "api_auth", details=username)
+    return jsonify(
+        {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "Bearer",
+            "expires_in": JWT_ACCESS_SECONDS,
+        }
+    )
+
+
+@app.route("/api/auth/refresh", methods=["POST"])
+def api_refresh():
+    payload = request.get_json(silent=True) or {}
+    refresh_token = payload.get("refresh_token", "")
+    if not refresh_token:
+        return jsonify({"error": "Missing refresh token"}), 400
+    try:
+        decoded = _jwt_decode(refresh_token)
+    except Exception:
+        return jsonify({"error": "Invalid refresh token"}), 401
+    if decoded.get("type") != "refresh":
+        return jsonify({"error": "Invalid token type"}), 401
+    user_id = decoded.get("sub")
+    user = User.query.get(user_id) if user_id else None
+    if not user:
+        return jsonify({"error": "User not found"}), 401
+    access_token, new_refresh = _rotate_refresh_token(user.id, refresh_token)
+    if not access_token:
+        return jsonify({"error": "Refresh expired"}), 401
+    return jsonify(
+        {
+            "access_token": access_token,
+            "refresh_token": new_refresh,
+            "token_type": "Bearer",
+            "expires_in": JWT_ACCESS_SECONDS,
+        }
+    )
+
+
+@app.route("/api/asset-types", methods=["GET"])
+@api_auth_required(permission="can_read")
+def api_asset_types():
+    return jsonify(
+        [
+            {"key": key, "label": definition["label"]}
+            for key, definition in ASSET_DEFS.items()
+        ]
+    )
+
+
+@app.route("/api/users", methods=["GET"])
+@api_auth_required(permission="can_read")
+def api_users():
+    usernames = {user.username for user in User.query.all() if user.username}
+    try:
+        usernames.update(get_ldap_users())
+    except Exception:
+        pass
+    return jsonify(sorted(usernames, key=str.lower))
+
+
+@app.route("/api/departments", methods=["GET"])
+@api_auth_required(permission="can_read")
+def api_departments():
+    departments = Department.query.order_by(Department.name.asc()).all()
+    return jsonify([dept.name for dept in departments])
+
+
+@app.route("/api/assets/<asset_type>", methods=["GET"])
+@api_auth_required(permission="can_read", asset_type=None)
+def api_assets_list(asset_type):
+    if asset_type not in ASSET_DEFS:
+        return jsonify({"error": "Unknown asset type"}), 404
+    user = request.api_user
+    if not get_role_asset_permissions(user, asset_type).get("can_read", False):
+        return jsonify({"error": "Forbidden"}), 403
+    definition = ASSET_DEFS[asset_type]
+    page = max(_parse_int(request.args.get("page", ""), 1), 1)
+    per_page = max(min(_parse_int(request.args.get("per_page", ""), DEFAULT_PAGE_SIZE), 200), 1)
+    query_builder = definition["model"].query
+    query = normalize_search(request.args.get("q", ""))
+    status_filter = (request.args.get("status") or "all").strip()
+    query_builder = apply_status_filter_query(definition["model"], query_builder, status_filter)
+    if query:
+        filters = []
+        for field_name, _label, field_type in definition["fields"]:
+            column = getattr(definition["model"], field_name)
+            if field_type == "checkbox":
+                if query in {"yes", "true", "1"}:
+                    filters.append(column.is_(True))
+                elif query in {"no", "false", "0"}:
+                    filters.append(column.is_(False))
+            else:
+                filters.append(cast(column, String).ilike(f"%{query}%"))
+        if filters:
+            query_builder = query_builder.filter(or_(*filters))
+    total_items = query_builder.count()
+    items = (
+        query_builder.order_by(definition["model"].id.asc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+        .all()
+    )
+    rows = []
+    for item in items:
+        row = {"id": item.id}
+        for field_name, _label, field_type in definition["fields"]:
+            value = getattr(item, field_name, None)
+            row[field_name] = format_static_field_value(field_name, field_type, value)
+        rows.append(row)
+    return jsonify(
+        {
+            "items": rows,
+            "page": page,
+            "per_page": per_page,
+            "total": total_items,
+        }
+    )
+
+
+@app.route("/api/assets/<asset_type>/<int:item_id>", methods=["GET"])
+@api_auth_required(permission="can_read", asset_type=None)
+def api_assets_get(asset_type, item_id):
+    if asset_type not in ASSET_DEFS:
+        return jsonify({"error": "Unknown asset type"}), 404
+    user = request.api_user
+    if not get_role_asset_permissions(user, asset_type).get("can_read", False):
+        return jsonify({"error": "Forbidden"}), 403
+    definition = ASSET_DEFS[asset_type]
+    item = definition["model"].query.get_or_404(item_id)
+    row = {"id": item.id}
+    for field_name, _label, field_type in definition["fields"]:
+        value = getattr(item, field_name, None)
+        row[field_name] = format_static_field_value(field_name, field_type, value)
+    return jsonify(row)
+
+
+@app.route("/api/assets/<asset_type>", methods=["POST"])
+@api_auth_required(permission="can_add", asset_type=None)
+def api_assets_create(asset_type):
+    if asset_type not in ASSET_DEFS:
+        return jsonify({"error": "Unknown asset type"}), 404
+    user = request.api_user
+    if not get_role_asset_permissions(user, asset_type).get("can_add", False):
+        return jsonify({"error": "Forbidden"}), 403
+    definition = ASSET_DEFS[asset_type]
+    payload = request.get_json(silent=True) or {}
+    data, error = _normalize_asset_payload(definition, payload)
+    if error:
+        return jsonify({"error": error}), 400
+    item = definition["model"](**data)
+    db.session.add(item)
+    db.session.commit()
+    log_audit("create", "asset", entity_id=item.id, details=asset_audit_details(asset_type, item))
+    assigned_to = getattr(item, "assigned_to", None)
+    if assigned_to and str(assigned_to).strip().lower() not in {"", "free"}:
+        log_assignment_change(asset_type, item.id, None, assigned_to, user)
+        specs = build_assignment_specs(definition, item)
+        send_assignment_email(assigned_to, definition["label"], specs)
+    return jsonify({"id": item.id}), 201
+
+
+@app.route("/api/assets/<asset_type>/<int:item_id>", methods=["PUT"])
+@api_auth_required(permission="can_add", asset_type=None)
+def api_assets_update(asset_type, item_id):
+    if asset_type not in ASSET_DEFS:
+        return jsonify({"error": "Unknown asset type"}), 404
+    user = request.api_user
+    if not get_role_asset_permissions(user, asset_type).get("can_add", False):
+        return jsonify({"error": "Forbidden"}), 403
+    definition = ASSET_DEFS[asset_type]
+    item = definition["model"].query.get_or_404(item_id)
+    payload = request.get_json(silent=True) or {}
+    data, error = _normalize_asset_payload(definition, payload, existing=item)
+    if error:
+        return jsonify({"error": error}), 400
+    old_values = {field_name: getattr(item, field_name, None) for field_name, _, _ in definition["fields"]}
+    for field_name, _label, field_type in definition["fields"]:
+        setattr(item, field_name, data.get(field_name))
+    db.session.commit()
+    log_audit("update", "asset", entity_id=item.id, details=format_changes(old_values, data))
+    log_assignment_change(
+        asset_type,
+        item.id,
+        old_values.get("assigned_to"),
+        data.get("assigned_to"),
+        user,
+    )
+    return jsonify({"status": "updated"})
+
+
+@app.route("/api/assets/<asset_type>/<int:item_id>", methods=["DELETE"])
+@api_auth_required(permission="can_delete", asset_type=None)
+def api_assets_delete(asset_type, item_id):
+    if asset_type not in ASSET_DEFS:
+        return jsonify({"error": "Unknown asset type"}), 404
+    user = request.api_user
+    if not get_role_asset_permissions(user, asset_type).get("can_delete", False):
+        return jsonify({"error": "Forbidden"}), 403
+    definition = ASSET_DEFS[asset_type]
+    item = definition["model"].query.get_or_404(item_id)
+    details = asset_audit_details(asset_type, item)
+    db.session.delete(item)
+    db.session.commit()
+    log_audit("delete", "asset", entity_id=item_id, details=details)
+    return jsonify({"status": "deleted"})
 
 
 @app.route("/")
