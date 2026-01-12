@@ -30,16 +30,16 @@
 
 ## ✅ Prerequisites
 - Docker + Docker Compose
-- Port `5001` open (or change it in `docker-compose.yml`)
+- Port `5000` open (or change it in `docker-compose.yml`)
 
 ---
 
-## 🚀 Quick Start (Postgres)
+## 🚀 Quick Start (Docker Hub Image)
 
 ```bash
 git clone https://github.com/tayyabtahir143/AssetManager.git
 cd AssetManager
-sudo docker compose up -d --build
+sudo docker compose up -d
 ```
 
 Open the app:
@@ -51,11 +51,17 @@ http://localhost:5000
 
 ## ⚙️ Configuration
 
-This deployment is already configured for Postgres inside `docker-compose.yml`:
+The default `docker-compose.yml` pulls the prebuilt image:
+
+```yaml
+image: tayyabtahir/assetmanager:latest
+```
+
+You can override the database by setting `DATABASE_URL`, otherwise it falls back to SQLite:
 
 ```yaml
 DATABASE_URL=postgresql://inventory:inventory@db:5432/inventory
-SECRET_KEY=change-this-to-a-strong-secret
+SECRET_KEY=change-me
 ```
 
 Recommended: replace `SECRET_KEY` with a strong random string.
@@ -70,6 +76,21 @@ Postgres data is stored in:
 ```
 
 You can back up data by copying this folder or using the built‑in backup UI.
+
+SQLite data (if used) is stored in:
+```
+./data/inventory.db
+```
+
+---
+
+## 🔧 Local Build (for internal testing)
+
+If you want to build locally instead of pulling from Docker Hub:
+
+```bash
+sudo docker compose -f docker-compose-build.yml up -d --build
+```
 
 ---
 
