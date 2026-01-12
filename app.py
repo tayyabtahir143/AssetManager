@@ -29,6 +29,7 @@ from ldap3.utils.conv import escape_filter_chars
 from sqlalchemy import func, text, cast, String, or_
 from werkzeug.security import generate_password_hash, check_password_hash
 
+
 app = Flask(__name__)
 app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
     "DATABASE_URL", "sqlite:///inventory.db"
@@ -3455,7 +3456,6 @@ def login_required(view):
         return view(*args, **kwargs)
 
     return wrapped
-
 
 def require_roles(*roles):
     def decorator(view):
