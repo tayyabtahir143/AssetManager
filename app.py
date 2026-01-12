@@ -23,6 +23,7 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 from flask_sqlalchemy import SQLAlchemy
 import jwt
 from ldap3 import Connection, Server, SUBTREE, Tls
+from ldap3.core.exceptions import LDAPExceptionError, LDAPInvalidFilterError
 from ldap3.utils.conv import escape_filter_chars
 from sqlalchemy import func, text, cast, String, or_
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -496,6 +497,7 @@ class Headset(db.Model):
 
 class Ram(db.Model):
     id = db.Column(db.Integer, primary_key=True)
+    ram_type = db.Column(db.String(20), nullable=True)
     size = db.Column(db.String(50), nullable=False)
     speed = db.Column(db.String(50), nullable=False)
     vendor = db.Column(db.String(80), nullable=False)
@@ -602,6 +604,7 @@ ASSET_DEFS = {
         "model": Ram,
         "bulk_add": True,
         "fields": [
+            ("ram_type", "RAM Type", "select"),
             ("size", "Size", "text"),
             ("speed", "Speed", "text"),
             ("vendor", "Vendor", "text"),
@@ -609,7 +612,7 @@ ASSET_DEFS = {
             ("assigned_to", "User", "text"),
             ("status", "Status", "select"),
         ],
-        "field_options": {"status": STATUS_OPTIONS},
+        "field_options": {"status": STATUS_OPTIONS, "ram_type": ["DDR3", "DDR4", "DDR5"]},
     },
 }
 
@@ -2021,13 +2024,20 @@ def ldap_lookup_user_email(username, config=None):
     search_filter = (config.get("user_filter") or "(uid={username})").format(
         username=safe_username
     )
-    conn.search(
-        config["base_dn"],
-        search_filter,
-        search_scope=SUBTREE,
-        attributes=[email_attr],
-        size_limit=1,
-    )
+    try:
+        conn.search(
+            config["base_dn"],
+            search_filter,
+            search_scope=SUBTREE,
+            attributes=[email_attr],
+            size_limit=1,
+        )
+    except LDAPInvalidFilterError:
+        conn.unbind()
+        raise
+    except LDAPExceptionError:
+        conn.unbind()
+        raise
     email_value = None
     if conn.entries:
         try:
@@ -2834,6 +2844,30 @@ def ensure_status_columns():
     db.session.commit()
 
 
+def ensure_ram_type_column():
+    tables = ("ram",)
+    if db.engine.dialect.name == "sqlite":
+        for table_name in tables:
+            result = db.session.execute(text(f"PRAGMA table_info({table_name})")).fetchall()
+            if not result:
+                continue
+            columns = {row[1] for row in result}
+            if "ram_type" not in columns:
+                db.session.execute(
+                    text(f"ALTER TABLE {table_name} ADD COLUMN ram_type VARCHAR(20)")
+                )
+        db.session.commit()
+        return
+    for table_name in tables:
+        try:
+            db.session.execute(
+                text(f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS ram_type VARCHAR(20)")
+            )
+        except Exception:
+            db.session.rollback()
+    db.session.commit()
+
+
 def ensure_role_admin_column():
     if db.engine.dialect.name != "sqlite":
         return
@@ -3238,6 +3272,7 @@ def init_db():
         ensure_asset_tag_columns()
         ensure_dept_columns()
         ensure_status_columns()
+        ensure_ram_type_column()
         ensure_role_admin_column()
         ensure_user_email_column()
         ensure_role_permission_bulk_column()
@@ -6132,6 +6167,18 @@ def ldap_sync_users():
         return redirect(url_for("list_users"))
     try:
         records = get_ldap_user_records(force_refresh=True)
+    except LDAPInvalidFilterError as exc:
+        log_audit("sync_failed", "ldap_users", success=False, details=str(exc))
+        flash(
+            "LDAP sync failed. Your user/list filter looks invalid. Please review the LDAP "
+            "User Filter and User List Filter fields.",
+            "error",
+        )
+        return redirect(url_for("list_users"))
+    except LDAPExceptionError as exc:
+        log_audit("sync_failed", "ldap_users", success=False, details=str(exc))
+        flash("LDAP sync failed. Please verify server settings and credentials.", "error")
+        return redirect(url_for("list_users"))
     except Exception as exc:
         log_audit("sync_failed", "ldap_users", success=False, details=str(exc))
         flash("Unable to connect to LDAP server.", "error")
@@ -6153,7 +6200,20 @@ def ldap_sync_users():
                 existing.email = email
                 updated += 1
             continue
-        new_user = ensure_ldap_user(username_norm)
+        try:
+            new_user = ensure_ldap_user(username_norm)
+        except LDAPInvalidFilterError as exc:
+            log_audit("sync_failed", "ldap_users", success=False, details=str(exc))
+            flash(
+                "LDAP sync failed. Your User Filter looks invalid. "
+                "Please fix the User Filter in LDAP settings.",
+                "error",
+            )
+            return redirect(url_for("list_users"))
+        except LDAPExceptionError as exc:
+            log_audit("sync_failed", "ldap_users", success=False, details=str(exc))
+            flash("LDAP sync failed. Please verify server settings and credentials.", "error")
+            return redirect(url_for("list_users"))
         if email and new_user.email != email:
             new_user.email = email
         created += 1
@@ -6177,6 +6237,18 @@ def ldap_sync_groups():
         return redirect(url_for("list_groups"))
     try:
         groups = get_ldap_groups(force_refresh=True)
+    except LDAPInvalidFilterError as exc:
+        log_audit("sync_failed", "ldap_groups", success=False, details=str(exc))
+        flash(
+            "LDAP sync failed. Your group filter looks invalid. Please review the LDAP "
+            "Group Filter field.",
+            "error",
+        )
+        return redirect(url_for("list_groups"))
+    except LDAPExceptionError as exc:
+        log_audit("sync_failed", "ldap_groups", success=False, details=str(exc))
+        flash("LDAP sync failed. Please verify server settings and credentials.", "error")
+        return redirect(url_for("list_groups"))
     except Exception as exc:
         log_audit("sync_failed", "ldap_groups", success=False, details=str(exc))
         flash("Unable to connect to LDAP server.", "error")
