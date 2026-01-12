@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: assetmanager-postgres
+  namespace: assetmanager
+spec:
+  serviceName: assetmanager-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: assetmanager-postgres
+  template:
+    metadata:
+      labels:
+        app: assetmanager-postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - secretRef:
+                name: assetmanager-secret
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 10Gi

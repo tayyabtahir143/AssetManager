@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: assetmanager-web
+  namespace: assetmanager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: assetmanager-web
+  template:
+    metadata:
+      labels:
+        app: assetmanager-web
+    spec:
+      containers:
+        - name: web
+          image: tayyabtahir/assetmanager:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 5000
+          envFrom:
+            - configMapRef:
+                name: assetmanager-config
+            - secretRef:
+                name: assetmanager-secret
+          volumeMounts:
+            - name: web-data
+              mountPath: /data
+      volumes:
+        - name: web-data
+          persistentVolumeClaim:
+            claimName: assetmanager-web-pvc
