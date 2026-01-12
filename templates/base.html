@@ -162,6 +162,12 @@
         font-size: 12px;
         padding: 2px 8px;
       }
+      .version-chip {
+        margin-top: 10px;
+        font-size: 12px;
+        color: var(--muted);
+        text-align: center;
+      }
       .content-wrap {
         flex: 1;
         display: flex;
@@ -475,6 +481,7 @@
               </a>
             {% endif %}
             <a class="button secondary" href="{{ url_for('logout') }}">Logout</a>
+            <div class="version-chip">Version: {{ app_version }}</div>
           </div>
         {% endif %}
       </aside>

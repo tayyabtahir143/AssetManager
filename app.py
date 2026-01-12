@@ -52,10 +52,14 @@ JWT_REFRESH_SECONDS = 14 * 24 * 60 * 60
 JWT_ALGORITHM = "HS256"
 APP_START_TIME = datetime.datetime.utcnow()
 DOCKERHUB_REPO = "tayyabtahir/assetmanager"
+APP_VERSION = os.environ.get("APP_VERSION", "1.0.0").strip()
 UPDATE_CHECK_CACHE = {
     "timestamp": 0.0,
     "available": False,
     "last_updated": None,
+    "latest_digest": None,
+    "current_digest": None,
+    "current_tag": APP_VERSION or None,
     "error": None,
 }
 
@@ -2103,17 +2107,39 @@ def get_update_status():
     UPDATE_CHECK_CACHE["timestamp"] = now
     UPDATE_CHECK_CACHE["available"] = False
     UPDATE_CHECK_CACHE["last_updated"] = None
+    UPDATE_CHECK_CACHE["latest_digest"] = None
+    UPDATE_CHECK_CACHE["current_digest"] = None
+    UPDATE_CHECK_CACHE["current_tag"] = APP_VERSION or None
     UPDATE_CHECK_CACHE["error"] = None
-    url = f"https://hub.docker.com/v2/repositories/{DOCKERHUB_REPO}/tags/latest"
     try:
-        with urlopen(url, timeout=4) as response:
+        latest_url = f"https://hub.docker.com/v2/repositories/{DOCKERHUB_REPO}/tags/latest"
+        with urlopen(latest_url, timeout=4) as response:
             payload = json.loads(response.read().decode("utf-8"))
         last_updated = payload.get("last_updated")
-        if last_updated:
+        latest_digest = None
+        images = payload.get("images") or []
+        if images:
+            latest_digest = images[0].get("digest")
+        if latest_digest:
+            UPDATE_CHECK_CACHE["latest_digest"] = latest_digest
+        current_digest = None
+        if APP_VERSION:
+            current_url = f"https://hub.docker.com/v2/repositories/{DOCKERHUB_REPO}/tags/{APP_VERSION}"
+            with urlopen(current_url, timeout=4) as response:
+                current_payload = json.loads(response.read().decode("utf-8"))
+            current_images = current_payload.get("images") or []
+            if current_images:
+                current_digest = current_images[0].get("digest")
+        UPDATE_CHECK_CACHE["current_digest"] = current_digest
+        if latest_digest and current_digest:
+            UPDATE_CHECK_CACHE["available"] = latest_digest != current_digest
+        if not UPDATE_CHECK_CACHE["available"] and last_updated:
             ts = last_updated.replace("Z", "+00:00")
             updated_at = datetime.datetime.fromisoformat(ts)
             UPDATE_CHECK_CACHE["last_updated"] = updated_at
-            UPDATE_CHECK_CACHE["available"] = updated_at > (APP_START_TIME + timedelta(minutes=2))
+            if not APP_VERSION:
+                app.logger.info("Update check: APP_VERSION not set; falling back to last_updated.")
+                UPDATE_CHECK_CACHE["available"] = updated_at > (APP_START_TIME + timedelta(minutes=2))
     except Exception as exc:
         UPDATE_CHECK_CACHE["error"] = str(exc)
         app.logger.warning("Update check failed: %s", exc)
@@ -5755,6 +5781,7 @@ def inject_user():
         "display_assignee": display_assignee,
         "update_status": get_update_status(),
         "dockerhub_repo": DOCKERHUB_REPO,
+        "app_version": APP_VERSION or "dev",
     }
 
 
