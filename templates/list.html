@@ -87,7 +87,15 @@
             <td>{{ loop.index }}</td>
             {% for field_name, label, field_type in definition.fields %}
               <td>
-                {% if field_type == "checkbox" %}
+                {% if field_name == "connection" and asset_type == "mice" %}
+                  {% if item.wired %}
+                    Wired
+                  {% elif item.wireless %}
+                    Wireless
+                  {% else %}
+                    -
+                  {% endif %}
+                {% elif field_type == "checkbox" %}
                   {{ "Yes" if item|attr(field_name) else "No" }}
                 {% else %}
                   {% set value = item|attr(field_name) %}

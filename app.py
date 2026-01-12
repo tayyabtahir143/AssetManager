@@ -186,6 +186,8 @@ def _normalize_asset_payload(definition, payload, existing=None):
             data[field_name] = _parse_int_value(value, 0)
         else:
             data[field_name] = str(value).strip() if value is not None else ""
+    if definition["model"] is Mouse:
+        apply_mouse_connection_to_data(data)
     if "assigned_to" in data and data["assigned_to"] == "":
         data["assigned_to"] = "free"
     if "status" in data:
@@ -591,14 +593,16 @@ ASSET_DEFS = {
         "model": Mouse,
         "bulk_add": True,
         "fields": [
-            ("wired", "Wired", "checkbox"),
-            ("wireless", "Wireless", "checkbox"),
+            ("connection", "Connection", "select"),
             ("model", "Model", "text"),
             ("dept", "Dept", "text"),
             ("assigned_to", "User", "text"),
             ("status", "Status", "select"),
         ],
-        "field_options": {"status": STATUS_OPTIONS},
+        "field_options": {
+            "status": STATUS_OPTIONS,
+            "connection": ["Wired", "Wireless"],
+        },
     },
     "headsets": {
         "label": "Headset",
@@ -2304,6 +2308,34 @@ def _parse_int_value(value, default=0):
         return default
 
 
+def normalize_connection(value):
+    text = str(value or "").strip().lower()
+    if "wireless" in text:
+        return "wireless"
+    if "wired" in text:
+        return "wired"
+    return ""
+
+
+def get_mouse_connection(item):
+    if getattr(item, "wired", False):
+        return "Wired"
+    if getattr(item, "wireless", False):
+        return "Wireless"
+    return "-"
+
+
+def apply_mouse_connection_to_data(data):
+    connection = normalize_connection(data.get("connection"))
+    if connection:
+        data["wired"] = connection == "wired"
+        data["wireless"] = connection == "wireless"
+    elif "connection" in data:
+        data["wired"] = False
+        data["wireless"] = False
+    data.pop("connection", None)
+
+
 def format_static_field_value(field_name, field_type, value):
     if field_type == "checkbox":
         return "Yes" if value else "No"
@@ -3883,6 +3915,12 @@ def api_assets_list(asset_type):
     if query:
         filters = []
         for field_name, _label, field_type in definition["fields"]:
+            if field_name == "connection" and definition["model"] is Mouse:
+                if query in {"wired"}:
+                    filters.append(definition["model"].wired.is_(True))
+                elif query in {"wireless"}:
+                    filters.append(definition["model"].wireless.is_(True))
+                continue
             column = getattr(definition["model"], field_name)
             if field_type == "checkbox":
                 if query in {"yes", "true", "1"}:
@@ -3904,7 +3942,11 @@ def api_assets_list(asset_type):
     for item in items:
         row = {"id": item.id}
         for field_name, _label, field_type in definition["fields"]:
-            value = getattr(item, field_name, None)
+            if field_name == "connection" and definition["model"] is Mouse:
+                value = get_mouse_connection(item)
+                field_type = "text"
+            else:
+                value = getattr(item, field_name, None)
             row[field_name] = format_static_field_value(field_name, field_type, value)
         rows.append(row)
     return jsonify(
@@ -3929,7 +3971,11 @@ def api_assets_get(asset_type, item_id):
     item = definition["model"].query.get_or_404(item_id)
     row = {"id": item.id}
     for field_name, _label, field_type in definition["fields"]:
-        value = getattr(item, field_name, None)
+        if field_name == "connection" and definition["model"] is Mouse:
+            value = get_mouse_connection(item)
+            field_type = "text"
+        else:
+            value = getattr(item, field_name, None)
         row[field_name] = format_static_field_value(field_name, field_type, value)
     return jsonify(row)
 
@@ -4191,6 +4237,12 @@ def list_assets(asset_type):
     if query:
         filters = []
         for field_name, _label, field_type in definition["fields"]:
+            if field_name == "connection" and definition["model"] is Mouse:
+                if query in {"wired"}:
+                    filters.append(definition["model"].wired.is_(True))
+                elif query in {"wireless"}:
+                    filters.append(definition["model"].wireless.is_(True))
+                continue
             column = getattr(definition["model"], field_name)
             if field_type == "checkbox":
                 if query in {"yes", "true", "1"}:
@@ -4260,7 +4312,14 @@ def view_asset(asset_type, item_id):
         if len(previous_users) >= 2:
             break
     fields = [
-        (field_name, label, field_type, getattr(item, field_name, None))
+        (
+            field_name,
+            label,
+            field_type,
+            get_mouse_connection(item)
+            if field_name == "connection" and definition["model"] is Mouse
+            else getattr(item, field_name, None),
+        )
         for field_name, label, field_type in definition["fields"]
         if field_name != "assigned_to"
     ]
@@ -4342,7 +4401,11 @@ def list_assets_page(asset_type):
     for item in items:
         row = {"id": item.id, "fields": {}}
         for field_name, _label, field_type in definition["fields"]:
-            value = getattr(item, field_name, None)
+            if field_name == "connection" and definition["model"] is Mouse:
+                value = get_mouse_connection(item)
+                field_type = "text"
+            else:
+                value = getattr(item, field_name, None)
             row["fields"][field_name] = format_static_field_value(
                 field_name, field_type, value
             )
@@ -4368,7 +4431,11 @@ def export_assets_excel(asset_type):
     for item in definition["model"].query.order_by(definition["model"].id.asc()).all():
         row = [item.id]
         for field_name, _label, field_type in definition["fields"]:
-            value = getattr(item, field_name, None)
+            if field_name == "connection" and definition["model"] is Mouse:
+                value = get_mouse_connection(item)
+                field_type = "text"
+            else:
+                value = getattr(item, field_name, None)
             if field_name == "assigned_to" and (not value or normalize_assignee(value) == "free"):
                 value = ""
             if field_type == "checkbox":
@@ -4460,6 +4527,8 @@ def import_assets_excel(asset_type):
                 data["status"] = "Assigned"
             else:
                 data["status"] = "In Stock"
+        if definition["model"] is Mouse:
+            apply_mouse_connection_to_data(data)
         if "asset_tag" in data and data["asset_tag"]:
             existing = definition["model"].query.filter_by(asset_tag=data["asset_tag"]).first()
             if existing:
@@ -4494,7 +4563,9 @@ def add_asset(asset_type):
         data = {}
         bulk_quantity = request.form.get("bulk_quantity", "1")
         for field_name, _, field_type in definition["fields"]:
-            if field_type == "checkbox":
+            if field_name == "connection" and definition["model"] is Mouse:
+                data[field_name] = request.form.get(field_name, "").strip()
+            elif field_type == "checkbox":
                 data[field_name] = field_name in request.form
             elif field_type == "number":
                 value = request.form.get(field_name, "").strip()
@@ -4502,6 +4573,8 @@ def add_asset(asset_type):
             else:
                 value = request.form.get(field_name, "").strip()
                 data[field_name] = value
+        if definition["model"] is Mouse:
+            apply_mouse_connection_to_data(data)
         if "assigned_to" in data and data["assigned_to"] == "":
             data["assigned_to"] = "free"
         if "status" in data:
@@ -4653,9 +4726,18 @@ def edit_asset(asset_type, item_id):
     definition = ASSET_DEFS[asset_type]
     item = definition["model"].query.get_or_404(item_id)
     user = get_current_user()
-    old_values = {field_name: getattr(item, field_name, None) for field_name, _, _ in definition["fields"]}
+    old_values = {}
+    for field_name, _, _ in definition["fields"]:
+        if field_name == "connection" and definition["model"] is Mouse:
+            old_values[field_name] = get_mouse_connection(item)
+        else:
+            old_values[field_name] = getattr(item, field_name, None)
     if request.method == "POST":
+        connection_value = None
         for field_name, _, field_type in definition["fields"]:
+            if field_name == "connection" and definition["model"] is Mouse:
+                connection_value = request.form.get(field_name, "").strip()
+                continue
             if field_type == "checkbox":
                 setattr(item, field_name, field_name in request.form)
             elif field_type == "number":
@@ -4666,6 +4748,10 @@ def edit_asset(asset_type, item_id):
                 if field_name == "assigned_to" and value == "":
                     value = "free"
                 setattr(item, field_name, value)
+        if definition["model"] is Mouse and connection_value is not None:
+            conn_norm = normalize_connection(connection_value)
+            item.wired = conn_norm == "wired"
+            item.wireless = conn_norm == "wireless"
         if hasattr(item, "status"):
             status_norm = normalize_status(getattr(item, "status", ""))
             assigned_norm = normalize_assignee(getattr(item, "assigned_to", ""))
@@ -4719,7 +4805,12 @@ def edit_asset(asset_type, item_id):
                     item=item,
                 )
         db.session.commit()
-        new_values = {field_name: getattr(item, field_name, None) for field_name, _, _ in definition["fields"]}
+        new_values = {}
+        for field_name, _, _ in definition["fields"]:
+            if field_name == "connection" and definition["model"] is Mouse:
+                new_values[field_name] = get_mouse_connection(item)
+            else:
+                new_values[field_name] = getattr(item, field_name, None)
         change_details = format_changes(old_values, new_values)
         details = asset_audit_details(asset_type, item)
         if change_details:
@@ -4750,7 +4841,10 @@ def copy_asset(asset_type, item_id):
     item = definition["model"].query.get_or_404(item_id)
     data = {}
     for field_name, _, _ in definition["fields"]:
-        data[field_name] = getattr(item, field_name, None)
+        if field_name == "connection" and definition["model"] is Mouse:
+            data[field_name] = get_mouse_connection(item)
+        else:
+            data[field_name] = getattr(item, field_name, None)
     if "asset_tag" in data:
         data["asset_tag"] = ""
     return render_template(
@@ -5894,7 +5988,11 @@ def user_assets():
                 for item in matches:
                     row = {}
                     for field_name, _label, field_type in display_fields:
-                        value = getattr(item, field_name, None)
+                        if field_name == "connection" and model is Mouse:
+                            value = get_mouse_connection(item)
+                            field_type = "text"
+                        else:
+                            value = getattr(item, field_name, None)
                         row[field_name] = format_static_field_value(
                             field_name, field_type, value
                         )
