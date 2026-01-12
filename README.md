@@ -44,7 +44,7 @@ sudo docker compose up -d --build
 
 Open the app:
 ```
-http://localhost:5001
+http://localhost:5000
 ```
 
 ---
