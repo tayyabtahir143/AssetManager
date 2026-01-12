@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: assetmanager-config
+  namespace: assetmanager
+data:
+  DATABASE_URL: postgresql://inventory:inventory@assetmanager-postgres:5432/inventory
+  LOG_DIR: /data/logs
