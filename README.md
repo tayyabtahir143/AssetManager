@@ -9,6 +9,7 @@
 
 ---
 
+
 ## ✨ Highlights
 - LDAP user & group sync
 - Asset assignment history + comments
