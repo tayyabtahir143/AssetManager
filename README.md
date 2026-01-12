@@ -85,6 +85,21 @@ SQLite data (if used) is stored in:
 
 ---
 
+## 🧩 SQLite-Only Deployment (no Postgres)
+
+Use the SQLite-only compose file when you want the simplest setup.
+
+```bash
+sudo docker compose -f docker-compose-sqlite.yml up -d
+```
+
+Data location:
+```
+./data/inventory.db
+```
+
+---
+
 ## 🔧 Local Build (for internal testing)
 
 If you want to build locally instead of pulling from Docker Hub:
