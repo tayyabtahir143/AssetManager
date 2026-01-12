@@ -15,6 +15,7 @@ import hashlib
 from datetime import timedelta
 from logging.handlers import RotatingFileHandler
 from urllib.parse import urlparse
+from urllib.request import urlopen
 from functools import wraps
 from email.message import EmailMessage
 from openpyxl import Workbook, load_workbook
@@ -49,6 +50,14 @@ LOG_PAGE_EXCLUDE_ENDPOINTS = {
 JWT_ACCESS_SECONDS = 15 * 60
 JWT_REFRESH_SECONDS = 14 * 24 * 60 * 60
 JWT_ALGORITHM = "HS256"
+APP_START_TIME = datetime.datetime.utcnow()
+DOCKERHUB_REPO = "tayyabtahir/assetmanager"
+UPDATE_CHECK_CACHE = {
+    "timestamp": 0.0,
+    "available": False,
+    "last_updated": None,
+    "error": None,
+}
 
 SECTION_ENDPOINTS = {
     "index",
@@ -2085,6 +2094,29 @@ def get_branding_logo_url():
     if branding and branding.logo_filename:
         return url_for("branding_logo")
     return None
+
+
+def get_update_status():
+    now = time.time()
+    if now - UPDATE_CHECK_CACHE["timestamp"] < 300:
+        return UPDATE_CHECK_CACHE
+    UPDATE_CHECK_CACHE["timestamp"] = now
+    UPDATE_CHECK_CACHE["available"] = False
+    UPDATE_CHECK_CACHE["last_updated"] = None
+    UPDATE_CHECK_CACHE["error"] = None
+    url = f"https://hub.docker.com/v2/repositories/{DOCKERHUB_REPO}/tags/latest"
+    try:
+        with urlopen(url, timeout=4) as response:
+            payload = json.loads(response.read().decode("utf-8"))
+        last_updated = payload.get("last_updated")
+        if last_updated:
+            ts = last_updated.replace("Z", "+00:00")
+            updated_at = datetime.datetime.fromisoformat(ts)
+            UPDATE_CHECK_CACHE["last_updated"] = updated_at
+            UPDATE_CHECK_CACHE["available"] = updated_at > (APP_START_TIME + timedelta(minutes=2))
+    except Exception as exc:
+        UPDATE_CHECK_CACHE["error"] = str(exc)
+    return UPDATE_CHECK_CACHE
 
 
 def read_log_tail(lines=200):
@@ -5720,6 +5752,8 @@ def inject_user():
         "branding_name": get_branding_name(),
         "dept_options": dept_options,
         "display_assignee": display_assignee,
+        "update_status": get_update_status(),
+        "dockerhub_repo": DOCKERHUB_REPO,
     }
 
 

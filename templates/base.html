@@ -147,6 +147,21 @@
       .side-footer {
         margin-top: auto;
       }
+      .update-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        justify-content: center;
+        background: linear-gradient(135deg, #2de6c7, #36a2ff);
+        color: #0b1220;
+        font-weight: 600;
+      }
+      .update-pill {
+        background: rgba(11, 18, 32, 0.2);
+        border-radius: 999px;
+        font-size: 12px;
+        padding: 2px 8px;
+      }
       .content-wrap {
         flex: 1;
         display: flex;
@@ -451,6 +466,14 @@
             {% endif %}
           </nav>
           <div class="side-footer">
+            {% if update_status and update_status.available %}
+              <a class="button update-link" href="https://hub.docker.com/r/{{ dockerhub_repo }}" target="_blank" rel="noopener">
+                Update Available
+                {% if update_status.last_updated %}
+                  <span class="update-pill">{{ update_status.last_updated.strftime('%Y-%m-%d') }}</span>
+                {% endif %}
+              </a>
+            {% endif %}
             <a class="button secondary" href="{{ url_for('logout') }}">Logout</a>
           </div>
         {% endif %}
