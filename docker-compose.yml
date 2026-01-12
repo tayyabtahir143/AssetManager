@@ -1,12 +1,11 @@
 services:
   web:
-    image: tayyabtahir/assetmanager:latest
+    build: .
     ports:
-      - "5000:5000"
+      - "5001:5000"
     environment:
-      - DATABASE_URL=${DATABASE_URL:-sqlite:////data/inventory.db}
-      - SECRET_KEY=change-me
-    restart: always
+      - DATABASE_URL=postgresql://inventory:inventory@db:5432/inventory
+      - SECRET_KEY=change-this-to-a-strong-secret
     volumes:
       - ./data:/data
   db:
@@ -15,8 +14,5 @@ services:
       - POSTGRES_DB=inventory
       - POSTGRES_USER=inventory
       - POSTGRES_PASSWORD=inventory
-    restart: always
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
-    ports:
-      - "5432:5432"
