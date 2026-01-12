@@ -2116,6 +2116,7 @@ def get_update_status():
             UPDATE_CHECK_CACHE["available"] = updated_at > (APP_START_TIME + timedelta(minutes=2))
     except Exception as exc:
         UPDATE_CHECK_CACHE["error"] = str(exc)
+        app.logger.warning("Update check failed: %s", exc)
     return UPDATE_CHECK_CACHE
 
 
