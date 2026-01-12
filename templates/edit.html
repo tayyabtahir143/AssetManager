@@ -18,15 +18,25 @@
             {% if field_name == "dept" and dept_options %}
               {% set options = dept_options %}
             {% endif %}
+            {% set current_value = item|attr(field_name) %}
+            {% if field_name == "connection" and asset_type == "mice" %}
+              {% if item.wired %}
+                {% set current_value = "Wired" %}
+              {% elif item.wireless %}
+                {% set current_value = "Wireless" %}
+              {% else %}
+                {% set current_value = "" %}
+              {% endif %}
+            {% endif %}
             <select id="{{ field_name }}" name="{{ field_name }}" {% if field_name != "assigned_to" %}required{% endif %}>
               {% if field_name == "dept" %}
                 <option value="">-</option>
               {% endif %}
-              {% if item|attr(field_name) and item|attr(field_name) not in options %}
-                <option value="{{ item|attr(field_name) }}" selected>{{ item|attr(field_name) }}</option>
+              {% if current_value and current_value not in options %}
+                <option value="{{ current_value }}" selected>{{ current_value }}</option>
               {% endif %}
               {% for option in options %}
-                <option value="{{ option }}" {% if item|attr(field_name) == option %}selected{% endif %}>{{ option }}</option>
+                <option value="{{ option }}" {% if current_value == option %}selected{% endif %}>{{ option }}</option>
               {% endfor %}
             </select>
           {% else %}
