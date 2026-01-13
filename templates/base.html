@@ -484,14 +484,12 @@
           </nav>
           <div class="side-footer">
             {% if update_status and update_status.available and (app_admin or current_user.role == "admin") %}
-              <form method="post" action="{{ url_for('run_update') }}">
-                <button class="button update-link" type="submit">
-                  Update Available
-                  {% if update_status.last_updated %}
-                    <span class="update-pill">{{ update_status.last_updated.strftime('%Y-%m-%d') }}</span>
-                  {% endif %}
-                </button>
-              </form>
+              <a class="button update-link" href="https://hub.docker.com/r/{{ dockerhub_repo }}" target="_blank" rel="noopener">
+                Update Available
+                {% if update_status.last_updated %}
+                  <span class="update-pill">{{ update_status.last_updated.strftime('%Y-%m-%d') }}</span>
+                {% endif %}
+              </a>
             {% endif %}
             <a class="button secondary" href="{{ url_for('logout') }}">Logout</a>
             <div class="version-chip">Version: {{ app_version }}</div>
