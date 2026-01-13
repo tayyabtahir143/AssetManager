@@ -483,7 +483,7 @@
             {% endif %}
           </nav>
           <div class="side-footer">
-            {% if update_status and update_status.available and app_admin %}
+            {% if update_status and update_status.available and (app_admin or current_user.role == "admin") %}
               <form method="post" action="{{ url_for('run_update') }}">
                 <button class="button update-link" type="submit">
                   Update Available
