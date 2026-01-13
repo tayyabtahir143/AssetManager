@@ -179,6 +179,15 @@
         align-items: center;
         padding: 16px 28px 0 28px;
       }
+      .time-chip {
+        padding: 8px 14px;
+        border-radius: 999px;
+        border: 1px solid var(--edge);
+        color: #d8e3f0;
+        background: rgba(15, 23, 36, 0.7);
+        font-size: 12px;
+        letter-spacing: 0.02em;
+      }
       .theme-toggle {
         margin-left: 12px;
         padding: 8px 12px;
@@ -429,6 +438,8 @@
     </style>
   </head>
   <body>
+    {% set auth_endpoints = ['login', 'forgot_password', 'reset_password'] %}
+    {% set show_sidebar = current_user and request.endpoint not in auth_endpoints %}
     <div class="layout">
       <aside class="sidebar">
         <div class="brand">
@@ -440,7 +451,7 @@
             <div class="brand-subtitle">Asset Manager</div>
           </div>
         </div>
-        {% if current_user %}
+        {% if show_sidebar %}
           <div class="badge-row">
             <span class="badge">Role: {{ current_user.role }}</span>
           </div>
@@ -491,8 +502,9 @@
             <button class="mobile-toggle" type="button" id="mobile-nav-toggle">Menu</button>
           </div>
           <div style="display: flex; gap: 10px; align-items: center;">
+            <div class="time-chip" id="app-time" data-tz="{{ tz_name }}">--:--</div>
             <button class="theme-toggle" type="button" id="theme-toggle">Light mode</button>
-            {% if current_user %}
+            {% if show_sidebar %}
               <a class="button secondary" href="{{ url_for('logout') }}">Logout</a>
             {% endif %}
           </div>
@@ -505,7 +517,7 @@
           {% endfor %}
         {% endif %}
       {% endwith %}
-      {% if current_user %}
+      {% if show_sidebar %}
         {% set current_path = request.full_path.rstrip('?') %}
         {% set back_target = session.get("last_section_url") %}
         {% if back_target == current_path %}
@@ -572,6 +584,24 @@
       sidebar.querySelectorAll('a').forEach((link) => {
         link.addEventListener('click', closeNav);
       });
+    }
+    const timeNode = document.getElementById('app-time');
+    if (timeNode) {
+      const tzName = timeNode.dataset.tz || 'UTC';
+      const formatter = new Intl.DateTimeFormat(undefined, {
+        timeZone: tzName,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        year: 'numeric',
+        month: 'short',
+        day: '2-digit',
+      });
+      const tick = () => {
+        timeNode.textContent = formatter.format(new Date());
+      };
+      tick();
+      setInterval(tick, 1000);
     }
   </script>
 </html>

@@ -98,6 +98,10 @@ Data location:
 ./data/inventory.db
 ```
 
+Notes:
+- This mode uses a single local SQLite file, best for small teams or single-host deployments.
+- Backups are still available in the UI.
+
 ---
 
 ## 🔧 Local Build (for internal testing)
@@ -139,6 +143,27 @@ If you removed defaults, log in with LDAP or your configured users.
 
 ---
 
+## 🔑 Password Reset (Emergency / Local Users)
+
+If the default admin password is lost and no other admin exists, use the CLI reset script.
+This works for **local users only** (not LDAP/AD).
+
+### Running on a host install
+```bash
+python reset_password.py <username> <new_password>
+```
+
+### Running in Docker
+```bash
+sudo docker compose exec web python reset_password.py <username> <new_password>
+```
+
+Notes:
+- AD/LDAP users must reset via your directory service.
+- The script updates the user password hash in the database.
+
+---
+
 ## 📚 Product Overview
 
 Inventory Asset Manager is designed for IT teams managing physical and consumable assets. It supports:
@@ -176,6 +201,39 @@ Inventory Asset Manager is designed for IT teams managing physical and consumabl
 - Test connection from UI
 - Sync users and groups
 - Assign roles to groups for centralized access control
+
+#### LDAP Field Guide (common AD setups)
+Use these defaults if you’re syncing from Active Directory. They are prefilled in the UI and can be changed anytime.
+
+**User Filter**
+- `sAMAccountName` for classic AD usernames  
+  Example: `(sAMAccountName={username})`
+- `userPrincipalName` for UPN/email‑style login  
+  Example: `(userPrincipalName={username})`
+- `uid` for OpenLDAP‑style directories  
+  Example: `(uid={username})`
+
+**User List Filter (sync)**
+- AD users only (exclude computer accounts):  
+  `(&(objectClass=user)(!(objectClass=computer))(sAMAccountName=*))`
+- OpenLDAP users:  
+  `(&(objectClass=person)(uid=*))`
+
+**User Attribute**
+- AD: `sAMAccountName`
+- OpenLDAP: `uid`
+
+**Email Attribute**
+- AD UPN email‑style: `userPrincipalName`
+- AD mail attribute: `mail`
+
+**Group Filters**
+- AD groups: `(&(objectClass=group)(cn=*))`
+- OpenLDAP groups: `(&(objectClass=groupOfNames)(cn=*))`
+
+**Group Member Attribute**
+- AD: `member`
+- OpenLDAP: `member`
 
 ### 5) SMTP & Notifications
 `Administration → SMTP`

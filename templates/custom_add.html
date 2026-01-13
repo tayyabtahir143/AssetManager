@@ -29,16 +29,26 @@
               {% endfor %}
             </select>
           {% else %}
-            {% if field.name == "dept" and dept_options %}
+            {% if field.name == "dept" %}
               <select id="{{ field.name }}" name="{{ field.name }}" {% if field.name != "assigned_to" %}required{% endif %}>
                 <option value="">-</option>
-                {% for option in dept_options %}
-                  <option value="{{ option }}">{{ option }}</option>
-                {% endfor %}
+                {% if not dept_options %}
+                  <option value="" disabled>No departments added</option>
+                {% else %}
+                  {% for option in dept_options %}
+                    <option value="{{ option }}">{{ option }}</option>
+                  {% endfor %}
+                {% endif %}
               </select>
             {% else %}
               <input id="{{ field.name }}" name="{{ field.name }}" type="text" {% if field.name in assigned_fields %}list="ldap-users"{% endif %} {% if field.name != "assigned_to" %}required{% endif %}>
             {% endif %}
+          {% endif %}
+          {% if field.name == "dept" or field.name in assigned_fields %}
+            <div class="field-hint muted" data-hint-for="{{ field.name }}">Set status to Assigned to use this field.</div>
+          {% endif %}
+          {% if field.name == "dept" and not dept_options %}
+            <div class="field-hint muted" style="display:block;">No departments added.</div>
           {% endif %}
         </div>
       {% endfor %}
@@ -50,8 +60,20 @@
     (() => {
       const statusEl = document.getElementById('status');
       const deptEl = document.getElementById('dept');
+      const assignedNames = {{ assigned_fields|tojson }};
+      const assignedEl = assignedNames.length ? document.getElementById(assignedNames[0]) : null;
       if (!statusEl || !deptEl) return;
       const normalize = (value) => (value || '').toString().toLowerCase().replace('_', ' ').trim();
+      const showHint = (field) => {
+        if (!field) return;
+        const hint = document.querySelector(`[data-hint-for="${field.id}"]`);
+        if (!hint) return;
+        hint.style.display = 'block';
+        clearTimeout(hint._timer);
+        hint._timer = setTimeout(() => {
+          hint.style.display = field.disabled ? 'block' : 'none';
+        }, 2500);
+      };
       const toggle = () => {
         const status = normalize(statusEl.value);
         const disableDept = status === 'broken' || status === 'write off' || status === 'in stock';
@@ -60,9 +82,41 @@
         if (disableDept) {
           deptEl.value = '';
         }
+        const deptHint = document.querySelector('[data-hint-for="dept"]');
+        if (deptHint) {
+          deptHint.style.display = disableDept ? 'block' : 'none';
+        }
+        if (assignedEl) {
+          const assignedActive = status === 'assigned';
+          assignedEl.disabled = !assignedActive;
+          assignedEl.required = assignedActive;
+          if (!assignedActive) {
+            assignedEl.value = '';
+          }
+          const userHint = document.querySelector(`[data-hint-for="${assignedEl.id}"]`);
+          if (userHint) {
+            userHint.style.display = !assignedActive ? 'block' : 'none';
+          }
+        }
       };
+      deptEl.addEventListener('click', () => {
+        if (deptEl.disabled) showHint(deptEl);
+      });
+      if (assignedEl) {
+        assignedEl.addEventListener('click', () => {
+          if (assignedEl.disabled) showHint(assignedEl);
+        });
+      }
       statusEl.addEventListener('change', toggle);
       toggle();
     })();
   </script>
+  <style>
+    .field-hint {
+      display: none;
+      margin-top: 6px;
+      font-size: 12px;
+      color: #9fb1c9;
+    }
+  </style>
 {% endblock %}
