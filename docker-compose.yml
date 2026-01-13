@@ -2,7 +2,7 @@ services:
   web:
     image: tayyabtahir/assetmanager:latest
     ports:
-      - "5001:5000"
+      - "5000:5000"
     environment:
       - DATABASE_URL=postgresql://inventory:inventory@db:5432/inventory
       - SECRET_KEY=change-this-to-a-strong-secret
