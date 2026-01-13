@@ -14,6 +14,7 @@ import json
 import hashlib
 import secrets
 import threading
+import subprocess
 from datetime import timedelta
 from logging.handlers import RotatingFileHandler
 from urllib.parse import urlparse
@@ -90,6 +91,9 @@ db = SQLAlchemy(app)
 
 _LDAP_USER_CACHE = {"users": [], "timestamp": 0.0}
 _LDAP_GROUP_CACHE = {"groups": [], "timestamp": 0.0}
+_LDAP_SYNC_LOCKS = {"users": threading.Lock(), "groups": threading.Lock()}
+_LDAP_SYNC_STATE = {"users": None, "groups": None}
+_UPDATE_LOCK = threading.Lock()
 _LDAP_USER_RECORDS_CACHE = {"records": [], "timestamp": 0.0}
 _DEPT_CACHE = {"items": [], "timestamp": 0.0}
 _DB_INIT_DONE = False
@@ -708,6 +712,23 @@ def format_changes(old_values, new_values):
 
 def get_smtp_config():
     return SMTPConfig.query.first()
+
+
+def _start_ldap_sync(kind):
+    lock = _LDAP_SYNC_LOCKS.get(kind)
+    if not lock:
+        return False
+    if not lock.acquire(blocking=False):
+        return False
+    _LDAP_SYNC_STATE[kind] = time.time()
+    return True
+
+
+def _finish_ldap_sync(kind):
+    lock = _LDAP_SYNC_LOCKS.get(kind)
+    _LDAP_SYNC_STATE[kind] = None
+    if lock and lock.locked():
+        lock.release()
 
 
 def send_smtp_notification(action, entity_type, entity_id, success, details):
@@ -2404,6 +2425,31 @@ def get_update_status():
     return UPDATE_CHECK_CACHE
 
 
+def _run_compose_update():
+    compose_file = os.environ.get("UPDATE_COMPOSE_FILE", "docker-compose.yml")
+    try:
+        subprocess.run(
+            ["docker", "compose", "-f", compose_file, "pull"],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        subprocess.run(
+            ["docker", "compose", "-f", compose_file, "up", "-d"],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+        )
+        app.logger.info("Update applied via docker compose.")
+    except Exception as exc:
+        app.logger.warning("Update apply failed: %s", exc)
+    finally:
+        if _UPDATE_LOCK.locked():
+            _UPDATE_LOCK.release()
+
+
 def read_log_tail(lines=200):
     log_path = os.path.join(app.config["LOG_DIR"], app.config["LOG_FILE"])
     if not os.path.exists(log_path):
@@ -2411,6 +2457,19 @@ def read_log_tail(lines=200):
     with open(log_path, "r", encoding="utf-8", errors="ignore") as handle:
         data = handle.readlines()
     return "".join(data[-lines:])
+
+
+@app.route("/updates/run", methods=["POST"])
+@login_required
+@require_app_admin
+def run_update():
+    if not _UPDATE_LOCK.acquire(blocking=False):
+        flash("Update already running. Please wait.", "error")
+        return redirect(request.referrer or url_for("index"))
+    thread = threading.Thread(target=_run_compose_update, daemon=True)
+    thread.start()
+    flash("Update started. Containers will be refreshed automatically.", "success")
+    return redirect(request.referrer or url_for("index"))
 
 
 def get_custom_asset_types():
@@ -7247,49 +7306,13 @@ def ldap_sync_users():
         log_audit("sync_failed", "ldap_users", success=False, details="Not configured")
         flash("LDAP is not configured. Save LDAP settings first.", "error")
         return redirect(url_for("list_users"))
+    if not _start_ldap_sync("users"):
+        log_audit("sync_failed", "ldap_users", success=False, details="Sync already running")
+        flash("LDAP user sync is already running. Please wait for it to finish.", "error")
+        return redirect(url_for("list_users"))
     try:
-        records = get_ldap_user_records(force_refresh=True, raise_on_error=True)
-    except LDAPConfigError as exc:
-        log_audit("sync_failed", "ldap_users", success=False, details=str(exc))
-        flash(f"LDAP sync failed. {exc}", "error")
-        return redirect(url_for("list_users"))
-    except LDAPInvalidFilterError as exc:
-        log_audit("sync_failed", "ldap_users", success=False, details=str(exc))
-        flash(
-            "LDAP sync failed. Your user/list filter looks invalid. Please review the LDAP "
-            "User Filter and User List Filter fields.",
-            "error",
-        )
-        return redirect(url_for("list_users"))
-    except LDAPExceptionError as exc:
-        log_audit("sync_failed", "ldap_users", success=False, details=str(exc))
-        flash("LDAP sync failed. Please verify server settings and credentials.", "error")
-        return redirect(url_for("list_users"))
-    except Exception as exc:
-        log_audit("sync_failed", "ldap_users", success=False, details=str(exc))
-        flash("Unable to connect to LDAP server.", "error")
-        return redirect(url_for("list_users"))
-    if not records:
-        log_audit("sync_failed", "ldap_users", success=False, details="No users found")
-        flash("No LDAP users found or LDAP bind failed.", "error")
-        return redirect(url_for("list_users"))
-    created = 0
-    updated = 0
-    for record in records:
-        username_norm = normalize_username(record.get("username", ""))
-        if not username_norm:
-            continue
-        email = (record.get("email") or "").strip() or None
-        existing = get_user_by_username_ci(username_norm)
-        if existing:
-            if email and existing.email != email:
-                existing.email = email
-                updated += 1
-            if not existing.is_ldap:
-                existing.is_ldap = True
-            continue
         try:
-            new_user = ensure_ldap_user(username_norm)
+            records = get_ldap_user_records(force_refresh=True, raise_on_error=True)
         except LDAPConfigError as exc:
             log_audit("sync_failed", "ldap_users", success=False, details=str(exc))
             flash(f"LDAP sync failed. {exc}", "error")
@@ -7297,8 +7320,8 @@ def ldap_sync_users():
         except LDAPInvalidFilterError as exc:
             log_audit("sync_failed", "ldap_users", success=False, details=str(exc))
             flash(
-                "LDAP sync failed. Your User Filter looks invalid. "
-                "Please fix the User Filter in LDAP settings.",
+                "LDAP sync failed. Your user/list filter looks invalid. Please review the LDAP "
+                "User Filter and User List Filter fields.",
                 "error",
             )
             return redirect(url_for("list_users"))
@@ -7306,17 +7329,60 @@ def ldap_sync_users():
             log_audit("sync_failed", "ldap_users", success=False, details=str(exc))
             flash("LDAP sync failed. Please verify server settings and credentials.", "error")
             return redirect(url_for("list_users"))
-        if email and new_user.email != email:
-            new_user.email = email
-        created += 1
-    if updated:
-        db.session.commit()
-    log_audit("sync", "ldap_users", details=f"Added {created} users")
-    message = f"LDAP sync complete. Added {created} users."
-    if updated:
-        message = f"{message} Updated {updated} emails."
-    flash(message, "success")
-    return redirect(url_for("list_users"))
+        except Exception as exc:
+            log_audit("sync_failed", "ldap_users", success=False, details=str(exc))
+            flash("Unable to connect to LDAP server.", "error")
+            return redirect(url_for("list_users"))
+        if not records:
+            log_audit("sync_failed", "ldap_users", success=False, details="No users found")
+            flash("No LDAP users found or LDAP bind failed.", "error")
+            return redirect(url_for("list_users"))
+        created = 0
+        updated = 0
+        for record in records:
+            username_norm = normalize_username(record.get("username", ""))
+            if not username_norm:
+                continue
+            email = (record.get("email") or "").strip() or None
+            existing = get_user_by_username_ci(username_norm)
+            if existing:
+                if email and existing.email != email:
+                    existing.email = email
+                    updated += 1
+                if not existing.is_ldap:
+                    existing.is_ldap = True
+                continue
+            try:
+                new_user = ensure_ldap_user(username_norm)
+            except LDAPConfigError as exc:
+                log_audit("sync_failed", "ldap_users", success=False, details=str(exc))
+                flash(f"LDAP sync failed. {exc}", "error")
+                return redirect(url_for("list_users"))
+            except LDAPInvalidFilterError as exc:
+                log_audit("sync_failed", "ldap_users", success=False, details=str(exc))
+                flash(
+                    "LDAP sync failed. Your User Filter looks invalid. "
+                    "Please fix the User Filter in LDAP settings.",
+                    "error",
+                )
+                return redirect(url_for("list_users"))
+            except LDAPExceptionError as exc:
+                log_audit("sync_failed", "ldap_users", success=False, details=str(exc))
+                flash("LDAP sync failed. Please verify server settings and credentials.", "error")
+                return redirect(url_for("list_users"))
+            if email and new_user.email != email:
+                new_user.email = email
+            created += 1
+        if updated:
+            db.session.commit()
+        log_audit("sync", "ldap_users", details=f"Added {created} users")
+        message = f"LDAP sync complete. Added {created} users."
+        if updated:
+            message = f"{message} Updated {updated} emails."
+        flash(message, "success")
+        return redirect(url_for("list_users"))
+    finally:
+        _finish_ldap_sync("users")
 
 
 @app.route("/ldap/sync-groups", methods=["POST"])
@@ -7327,68 +7393,75 @@ def ldap_sync_groups():
         log_audit("sync_failed", "ldap_groups", success=False, details="Not configured")
         flash("LDAP is not configured. Save LDAP settings first.", "error")
         return redirect(url_for("list_groups"))
-    try:
-        groups = get_ldap_groups(force_refresh=True, raise_on_error=True)
-    except LDAPConfigError as exc:
-        log_audit("sync_failed", "ldap_groups", success=False, details=str(exc))
-        flash(f"LDAP sync failed. {exc}", "error")
+    if not _start_ldap_sync("groups"):
+        log_audit("sync_failed", "ldap_groups", success=False, details="Sync already running")
+        flash("LDAP group sync is already running. Please wait for it to finish.", "error")
         return redirect(url_for("list_groups"))
-    except LDAPInvalidFilterError as exc:
-        log_audit("sync_failed", "ldap_groups", success=False, details=str(exc))
+    try:
+        try:
+            groups = get_ldap_groups(force_refresh=True, raise_on_error=True)
+        except LDAPConfigError as exc:
+            log_audit("sync_failed", "ldap_groups", success=False, details=str(exc))
+            flash(f"LDAP sync failed. {exc}", "error")
+            return redirect(url_for("list_groups"))
+        except LDAPInvalidFilterError as exc:
+            log_audit("sync_failed", "ldap_groups", success=False, details=str(exc))
+            flash(
+                "LDAP sync failed. Your group filter looks invalid. Please review the LDAP "
+                "Group Filter field.",
+                "error",
+            )
+            return redirect(url_for("list_groups"))
+        except LDAPExceptionError as exc:
+            log_audit("sync_failed", "ldap_groups", success=False, details=str(exc))
+            flash("LDAP sync failed. Please verify server settings and credentials.", "error")
+            return redirect(url_for("list_groups"))
+        except Exception as exc:
+            log_audit("sync_failed", "ldap_groups", success=False, details=str(exc))
+            flash("Unable to connect to LDAP server.", "error")
+            return redirect(url_for("list_groups"))
+        if not groups:
+            log_audit("sync_failed", "ldap_groups", success=False, details="No groups found")
+            flash("No LDAP groups found or LDAP bind failed.", "error")
+            return redirect(url_for("list_groups"))
+        created = 0
+        updated = 0
+        for group in groups:
+            name = group.get("name")
+            if not name:
+                continue
+            existing = Group.query.filter_by(name=name).first()
+            if not existing:
+                existing = Group(name=name, role="unassigned")
+                db.session.add(existing)
+                db.session.flush()
+                created += 1
+            else:
+                updated += 1
+            GroupMember.query.filter_by(group_id=existing.id).delete()
+            for member_dn in group.get("members", []):
+                match = re.search(r"CN=([^,]+)", str(member_dn), re.IGNORECASE)
+                username = match.group(1) if match else None
+                if not username:
+                    continue
+                username_norm = normalize_username(username)
+                user = get_user_by_username_ci(username_norm)
+                if not user:
+                    user = ensure_ldap_user(username_norm)
+                db.session.add(GroupMember(group_id=existing.id, user_id=user.id))
+        db.session.commit()
+        log_audit(
+            "sync",
+            "ldap_groups",
+            details=f"Added {created} groups, updated {updated} groups",
+        )
         flash(
-            "LDAP sync failed. Your group filter looks invalid. Please review the LDAP "
-            "Group Filter field.",
-            "error",
+            f"LDAP sync complete. Added {created} groups, updated {updated} groups.",
+            "success",
         )
         return redirect(url_for("list_groups"))
-    except LDAPExceptionError as exc:
-        log_audit("sync_failed", "ldap_groups", success=False, details=str(exc))
-        flash("LDAP sync failed. Please verify server settings and credentials.", "error")
-        return redirect(url_for("list_groups"))
-    except Exception as exc:
-        log_audit("sync_failed", "ldap_groups", success=False, details=str(exc))
-        flash("Unable to connect to LDAP server.", "error")
-        return redirect(url_for("list_groups"))
-    if not groups:
-        log_audit("sync_failed", "ldap_groups", success=False, details="No groups found")
-        flash("No LDAP groups found or LDAP bind failed.", "error")
-        return redirect(url_for("list_groups"))
-    created = 0
-    updated = 0
-    for group in groups:
-        name = group.get("name")
-        if not name:
-            continue
-        existing = Group.query.filter_by(name=name).first()
-        if not existing:
-            existing = Group(name=name, role="unassigned")
-            db.session.add(existing)
-            db.session.flush()
-            created += 1
-        else:
-            updated += 1
-        GroupMember.query.filter_by(group_id=existing.id).delete()
-        for member_dn in group.get("members", []):
-            match = re.search(r"CN=([^,]+)", str(member_dn), re.IGNORECASE)
-            username = match.group(1) if match else None
-            if not username:
-                continue
-            username_norm = normalize_username(username)
-            user = get_user_by_username_ci(username_norm)
-            if not user:
-                user = ensure_ldap_user(username_norm)
-            db.session.add(GroupMember(group_id=existing.id, user_id=user.id))
-    db.session.commit()
-    log_audit(
-        "sync",
-        "ldap_groups",
-        details=f"Added {created} groups, updated {updated} groups",
-    )
-    flash(
-        f"LDAP sync complete. Added {created} groups, updated {updated} groups.",
-        "success",
-    )
-    return redirect(url_for("list_groups"))
+    finally:
+        _finish_ldap_sync("groups")
 
 
 @app.route("/groups")
