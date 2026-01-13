@@ -1,12 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
   <div class="login-wrap">
-    <div class="login-hero card">
-      <div class="login-badge">Enterprise Asset Suite</div>
-      <h2>Welcome back</h2>
-      <p class="muted">Sign in to manage assets, assignments, and reporting.</p>
-      <div class="login-glow"></div>
-    </div>
     <div class="card login-card">
       <h2>Sign in</h2>
       <form method="post" class="form-grid">
@@ -27,45 +21,39 @@
         </label>
         <button class="button" type="submit">Sign in</button>
       </form>
-      <p class="muted" style="margin-top: 12px;">LDAP and local accounts supported.</p>
+      <div style="display: flex; justify-content: flex-start; margin-top: 12px;">
+        <a class="forgot-button" href="{{ url_for('forgot_password') }}">Forgot password?</a>
+      </div>
     </div>
   </div>
   <style>
     .login-wrap {
-      display: grid;
-      grid-template-columns: minmax(260px, 1fr) minmax(320px, 480px);
-      gap: 20px;
+      display: flex;
+      justify-content: center;
       align-items: stretch;
-      max-width: 920px;
+      max-width: 520px;
       margin: 40px auto;
-    }
-    .login-hero {
-      position: relative;
-      overflow: hidden;
-      min-height: 320px;
-    }
-    .login-badge {
-      display: inline-flex;
-      padding: 6px 12px;
-      border-radius: 999px;
-      font-size: 12px;
-      text-transform: uppercase;
-      letter-spacing: 0.2em;
-      border: 1px solid var(--edge);
-      color: var(--accent);
-      background: rgba(76, 244, 199, 0.12);
-      margin-bottom: 14px;
-    }
-    .login-glow {
-      position: absolute;
-      inset: 20% -20% -30% 30%;
-      background: radial-gradient(circle, rgba(76, 244, 199, 0.25), transparent 60%);
-      filter: blur(10px);
-      pointer-events: none;
     }
     .login-card {
       max-width: 520px;
       margin: 0 auto;
+    }
+    .forgot-button {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--edge);
+      color: var(--accent);
+      background: rgba(76, 244, 199, 0.08);
+      text-decoration: none;
+      font-weight: 600;
+      transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .forgot-button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 16px rgba(45, 230, 199, 0.2);
     }
     .password-row {
       display: flex;
@@ -80,10 +68,8 @@
     }
     @media (max-width: 860px) {
       .login-wrap {
-        grid-template-columns: 1fr;
-      }
-      .login-hero {
-        min-height: 220px;
+        max-width: 100%;
+        padding: 0 16px;
       }
     }
   </style>

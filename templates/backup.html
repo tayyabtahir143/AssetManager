@@ -20,4 +20,121 @@
       <button class="button" type="submit" onclick="return confirm('Restore configuration from this backup? This will replace current configuration.');">Restore Backup</button>
     </form>
   </div>
+
+  <div class="card" style="max-width: 720px; margin-top: 18px;">
+    <h2>Scheduled Backup Email</h2>
+    <p class="muted">
+      Send a configuration backup to your email on a daily schedule. This backup
+      does not include asset records; it only contains configuration data.
+    </p>
+    <form method="post" action="{{ url_for('update_backup_schedule') }}" class="form-grid">
+      <div>
+        <label for="backup_email">Backup Email</label>
+        <input id="backup_email" name="backup_email" type="email" value="{{ schedule.email or '' }}" placeholder="you@company.com">
+      </div>
+      <div>
+        <label for="backup_time">Backup Time ({{ timezone_name }})</label>
+        <input id="backup_time" name="backup_time" type="time" value="{{ schedule.run_time or '02:00' }}">
+      </div>
+      <div>
+        <label for="backup_frequency">Frequency</label>
+        <select id="backup_frequency" name="backup_frequency">
+          <option value="daily" {% if schedule.frequency == 'daily' %}selected{% endif %}>Daily</option>
+          <option value="weekly" {% if schedule.frequency == 'weekly' %}selected{% endif %}>Weekly</option>
+          <option value="monthly" {% if schedule.frequency == 'monthly' %}selected{% endif %}>Monthly</option>
+        </select>
+      </div>
+      <div>
+        <label for="backup_day_of_week">Day of Week</label>
+        <select id="backup_day_of_week" name="backup_day_of_week">
+          {% set weekday = schedule.day_of_week if schedule.day_of_week is not none else 0 %}
+          {% for idx, name in [(0,'Mon'),(1,'Tue'),(2,'Wed'),(3,'Thu'),(4,'Fri'),(5,'Sat'),(6,'Sun')] %}
+            <option value="{{ idx }}" {% if weekday == idx %}selected{% endif %}>{{ name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="backup_day_of_month">Day of Month</label>
+        <select id="backup_day_of_month" name="backup_day_of_month">
+          {% set dom = schedule.day_of_month if schedule.day_of_month is not none else 1 %}
+          {% for day in range(1, 32) %}
+            <option value="{{ day }}" {% if dom == day %}selected{% endif %}>{{ day }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <label class="checkbox-row">
+        <input type="checkbox" name="backup_enabled" {% if schedule.enabled %}checked{% endif %}>
+        <span class="muted">Enable scheduled backup email</span>
+      </label>
+      <button class="button" type="submit">Save Schedule</button>
+    </form>
+  </div>
+
+  <div class="card" style="max-width: 720px; margin-top: 18px;">
+    <h2>Asset Backup</h2>
+    <p class="muted">
+      Download a ZIP containing asset records only (built‑in assets, custom asset items,
+      assignment history, and comments). Configuration is not included.
+    </p>
+    <a class="button" href="{{ url_for('backup_full_download') }}">Download Asset Backup</a>
+  </div>
+
+  <div class="card" style="max-width: 720px; margin-top: 18px;">
+    <h2>Restore Asset Backup</h2>
+    <p class="muted">
+      Restoring an asset backup replaces all asset records. Configuration stays untouched.
+    </p>
+    <form method="post" action="{{ url_for('restore_full_backup') }}" enctype="multipart/form-data" style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+      <input type="file" name="file" accept=".zip" required>
+      <button class="button" type="submit" onclick="return confirm('Restore asset backup? This will replace all asset data.');">Restore Asset Backup</button>
+    </form>
+  </div>
+
+  <div class="card" style="max-width: 720px; margin-top: 18px;">
+    <h2>Scheduled Asset Backup Email</h2>
+    <p class="muted">
+      Send an asset backup (assets only) to your email on a schedule.
+    </p>
+    <form method="post" action="{{ url_for('update_full_backup_schedule') }}" class="form-grid">
+      <div>
+        <label for="full_backup_email">Backup Email</label>
+        <input id="full_backup_email" name="full_backup_email" type="email" value="{{ full_schedule.email or '' }}" placeholder="you@company.com">
+      </div>
+      <div>
+        <label for="full_backup_time">Backup Time ({{ timezone_name }})</label>
+        <input id="full_backup_time" name="full_backup_time" type="time" value="{{ full_schedule.run_time or '02:30' }}">
+      </div>
+      <div>
+        <label for="full_backup_frequency">Frequency</label>
+        <select id="full_backup_frequency" name="full_backup_frequency">
+          <option value="daily" {% if full_schedule.frequency == 'daily' %}selected{% endif %}>Daily</option>
+          <option value="weekly" {% if full_schedule.frequency == 'weekly' %}selected{% endif %}>Weekly</option>
+          <option value="monthly" {% if full_schedule.frequency == 'monthly' %}selected{% endif %}>Monthly</option>
+        </select>
+      </div>
+      <div>
+        <label for="full_backup_day_of_week">Day of Week</label>
+        <select id="full_backup_day_of_week" name="full_backup_day_of_week">
+          {% set weekday_full = full_schedule.day_of_week if full_schedule.day_of_week is not none else 0 %}
+          {% for idx, name in [(0,'Mon'),(1,'Tue'),(2,'Wed'),(3,'Thu'),(4,'Fri'),(5,'Sat'),(6,'Sun')] %}
+            <option value="{{ idx }}" {% if weekday_full == idx %}selected{% endif %}>{{ name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label for="full_backup_day_of_month">Day of Month</label>
+        <select id="full_backup_day_of_month" name="full_backup_day_of_month">
+          {% set dom_full = full_schedule.day_of_month if full_schedule.day_of_month is not none else 1 %}
+          {% for day in range(1, 32) %}
+            <option value="{{ day }}" {% if dom_full == day %}selected{% endif %}>{{ day }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <label class="checkbox-row">
+        <input type="checkbox" name="full_backup_enabled" {% if full_schedule.enabled %}checked{% endif %}>
+        <span class="muted">Enable asset backup email</span>
+      </label>
+      <button class="button" type="submit">Save Schedule</button>
+    </form>
+  </div>
 {% endblock %}

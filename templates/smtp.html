@@ -4,7 +4,7 @@
     <h2>SMTP Settings</h2>
     <form method="post" class="smtp-grid">
       <div class="smtp-section">
-        <div class="smtp-toggle">
+        <div class="smtp-toggle boxed">
           <label for="enabled">Enable notifications</label>
           <input id="enabled" name="enabled" type="checkbox" {% if config and config.enabled %}checked{% endif %}>
         </div>
@@ -33,7 +33,7 @@
           <label for="password">Password</label>
           <input id="password" name="password" type="password" value="" placeholder="Leave blank to keep existing">
         </div>
-        <div class="smtp-toggle">
+        <div class="smtp-toggle boxed">
           <label for="skip_auth">Skip authentication</label>
           <input id="skip_auth" name="skip_auth" type="checkbox" {% if config and config.skip_auth %}checked{% endif %}>
         </div>
@@ -43,15 +43,19 @@
         </div>
       </div>
       <div class="smtp-section">
-        <div class="smtp-toggle">
+        <div class="smtp-toggle boxed">
           <label for="monthly_report_enabled">Enable monthly report</label>
           <input id="monthly_report_enabled" name="monthly_report_enabled" type="checkbox" {% if config and config.monthly_report_enabled %}checked{% endif %}>
+        </div>
+        <div class="smtp-toggle boxed">
+          <label for="assignment_enabled">Send Asset Assignment Email to User</label>
+          <input id="assignment_enabled" name="assignment_enabled" type="checkbox" {% if config and config.assignment_enabled %}checked{% endif %}>
         </div>
         <div class="smtp-field">
           <label for="monthly_report_day">Monthly report day (1-28)</label>
           <input id="monthly_report_day" name="monthly_report_day" type="number" min="1" max="28" value="{{ config.monthly_report_day if config else 1 }}">
         </div>
-        <div class="smtp-toggle">
+        <div class="smtp-toggle boxed">
           <label for="low_stock_enabled">Enable low stock alerts</label>
           <input id="low_stock_enabled" name="low_stock_enabled" type="checkbox" {% if config and config.low_stock_enabled %}checked{% endif %}>
         </div>
@@ -169,6 +173,15 @@
       gap: 8px;
       justify-content: flex-start;
       white-space: nowrap;
+    }
+    .smtp-toggle.boxed {
+      width: 100%;
+      justify-content: space-between;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--edge);
+      background: rgba(12, 20, 36, 0.6);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.02);
     }
     .smtp-recipient-grid {
       display: grid;

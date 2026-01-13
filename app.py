@@ -12,6 +12,8 @@ import html
 import logging
 import json
 import hashlib
+import secrets
+import threading
 from datetime import timedelta
 from logging.handlers import RotatingFileHandler
 from urllib.parse import urlparse
@@ -19,6 +21,7 @@ from urllib.request import urlopen
 from functools import wraps
 from email.message import EmailMessage
 from openpyxl import Workbook, load_workbook
+from zoneinfo import ZoneInfo
 
 from flask import Flask, render_template, request, redirect, url_for, session, flash, send_file, jsonify
 from flask_sqlalchemy import SQLAlchemy
@@ -27,6 +30,7 @@ from ldap3 import Connection, Server, SUBTREE, Tls
 from ldap3.core.exceptions import LDAPExceptionError, LDAPInvalidFilterError
 from ldap3.utils.conv import escape_filter_chars
 from sqlalchemy import func, text, cast, String, or_
+from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.security import generate_password_hash, check_password_hash
 
 
@@ -89,6 +93,7 @@ _LDAP_GROUP_CACHE = {"groups": [], "timestamp": 0.0}
 _LDAP_USER_RECORDS_CACHE = {"records": [], "timestamp": 0.0}
 _DEPT_CACHE = {"items": [], "timestamp": 0.0}
 _DB_INIT_DONE = False
+_BACKUP_SCHEDULER_STARTED = False
 _REPORT_CACHE = {"items": {}}
 REPORT_CACHE_SECONDS = 30
 DEFAULT_PAGE_SIZE = 25
@@ -231,6 +236,7 @@ class User(db.Model):
     username = db.Column(db.String(80), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(50), nullable=False)
+    is_ldap = db.Column(db.Boolean, nullable=False, default=False)
     email = db.Column(db.String(255), nullable=True)
 
 
@@ -339,6 +345,7 @@ class SMTPConfig(db.Model):
     low_stock_enabled = db.Column(db.Boolean, nullable=False, default=False)
     low_stock_threshold = db.Column(db.Integer, nullable=False, default=5)
     low_stock_frequency_days = db.Column(db.Integer, nullable=False, default=1)
+    assignment_enabled = db.Column(db.Boolean, nullable=False, default=True)
 
 
 class SMTPRecipient(db.Model):
@@ -352,6 +359,18 @@ class SMTPRecipient(db.Model):
     notify_low_stock = db.Column(db.Boolean, nullable=False, default=False)
 
 
+class BackupSchedule(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    kind = db.Column(db.String(20), nullable=False, default="config")
+    enabled = db.Column(db.Boolean, nullable=False, default=False)
+    email = db.Column(db.String(255))
+    run_time = db.Column(db.String(5), nullable=False, default="02:00")
+    frequency = db.Column(db.String(10), nullable=False, default="daily")
+    day_of_week = db.Column(db.Integer, nullable=True)
+    day_of_month = db.Column(db.Integer, nullable=True)
+    last_sent_at = db.Column(db.DateTime, nullable=True)
+
+
 class RefreshToken(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, nullable=False, index=True)
@@ -359,6 +378,15 @@ class RefreshToken(db.Model):
     issued_at = db.Column(db.DateTime, default=datetime.datetime.utcnow, nullable=False)
     expires_at = db.Column(db.DateTime, nullable=False)
     revoked = db.Column(db.Boolean, nullable=False, default=False)
+
+
+class PasswordResetToken(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=False, index=True)
+    token_hash = db.Column(db.String(128), nullable=False, unique=True)
+    expires_at = db.Column(db.DateTime, nullable=False)
+    used = db.Column(db.Boolean, nullable=False, default=False)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=func.now())
 
 
 class AssetAssignmentHistory(db.Model):
@@ -705,9 +733,18 @@ def send_smtp_notification(action, entity_type, entity_id, success, details):
     if not user and request:
         user = getattr(request, "api_user", None)
     user_name = user.username if user else "-"
+    entity_name = "-"
+    if entity_id and str(entity_id).isdigit():
+        if entity_type == "group":
+            group = Group.query.get(int(entity_id))
+            entity_name = group.name if group else "-"
+        elif entity_type == "user":
+            user_row = User.query.get(int(entity_id))
+            entity_name = user_row.username if user_row else "-"
     body_lines = [
         f"Action: {action}",
         f"Entity: {entity_type}",
+        f"Entity Name: {entity_name}",
         f"Entity ID: {entity_id or '-'}",
         f"User: {user_name}",
         f"Success: {success}",
@@ -721,6 +758,7 @@ def send_smtp_notification(action, entity_type, entity_id, success, details):
     meta_lines = [
         ("Action", action),
         ("Entity", entity_type),
+        ("Entity Name", entity_name),
         ("Entity ID", entity_id or "-"),
         ("User", user_name),
         ("Status", "Success" if success else "Failed"),
@@ -735,6 +773,44 @@ def send_smtp_notification(action, entity_type, entity_id, success, details):
         return value
 
     detail_rows = []
+    changes_rows = []
+    label_overrides = {
+        "asset_tag": "Asset Tag",
+        "asset_tags": "Asset Tags",
+        "assigned_to": "User",
+        "hard_disk": "Hard Disk",
+        "screen_size": "Screen Size",
+        "ram": "RAM",
+        "vendor": "Vendor",
+        "model": "Model",
+        "processor": "Processor",
+        "dept": "Dept",
+        "status": "Status",
+        "type": "Type",
+    }
+    def pretty_label(key):
+        return label_overrides.get(key, key.replace("_", " ").title())
+
+    def format_list_change(field_name, raw_value):
+        text = str(raw_value or "").strip()
+        if text in {"", "[]"}:
+            return "-"
+        ids = [int(item) for item in re.findall(r"\d+", text)]
+        if not ids:
+            return text
+        if field_name == "roles":
+            names = [
+                role.name
+                for role in Role.query.filter(Role.id.in_(ids)).order_by(Role.name.asc()).all()
+            ]
+            return ", ".join(names) if names else text
+        if field_name == "members":
+            names = [
+                user.username
+                for user in User.query.filter(User.id.in_(ids)).order_by(User.username.asc()).all()
+            ]
+            return ", ".join(names) if names else text
+        return text
     for label, value in (
         ("Type", parsed.get("type")),
         ("Asset Tag", parsed.get("asset_tag")),
@@ -754,34 +830,76 @@ def send_smtp_notification(action, entity_type, entity_id, success, details):
             detail_rows.append(("Deleted Assets", str(deleted_count)))
     if parsed.get("changes"):
         for field_name, change in parsed["changes"].items():
-            old_value = display_value(change.get("old", "-"))
-            new_value = display_value(change.get("new", "-"))
-            detail_rows.append(
-                (
-                    f"{field_name}",
-                    f"{old_value} → {new_value}",
-                )
-            )
+            old_raw = display_value(change.get("old", "-"))
+            new_raw = display_value(change.get("new", "-"))
+            if field_name in {"roles", "members"}:
+                old_value = format_list_change(field_name, old_raw)
+                new_value = format_list_change(field_name, new_raw)
+            else:
+                old_value = old_raw
+                new_value = new_raw
+            changes_rows.append((pretty_label(field_name), old_value, new_value))
     if not detail_rows:
+        for key, value in _parse_detail_pairs(details or ""):
+            if key in {"changes"}:
+                continue
+            detail_rows.append((pretty_label(key), display_value(value)))
+    if not detail_rows and not changes_rows:
         detail_rows.append(("Details", display_value(details or "-")))
-    detail_html = "".join(
-        "<tr>"
-        "<td style=\"padding:8px 10px; border-bottom:1px solid #1f2a44;\">{label}</td>"
-        "<td style=\"padding:8px 10px; border-bottom:1px solid #1f2a44;\">{value}</td>"
-        "</tr>".format(
-            label=html.escape(str(label)),
-            value=html.escape(str(value)),
+    detail_html = ""
+    if detail_rows:
+        detail_table = "".join(
+            "<tr>"
+            "<td style=\"padding:8px 10px; border-bottom:1px solid #1f2a44; color:#9fb1c9;\">{label}</td>"
+            "<td style=\"padding:8px 10px; border-bottom:1px solid #1f2a44;\">{value}</td>"
+            "</tr>".format(
+                label=html.escape(str(label)),
+                value=html.escape(str(value)),
+            )
+            for label, value in detail_rows
         )
-        for label, value in detail_rows
-    )
-    detail_html = (
-        "<div style=\"color:#7dd3fc; font-weight:600; margin-bottom:8px;\">Details</div>"
-        "<table style=\"width:100%; border-collapse:collapse; font-size:14px;\">"
-        "<tbody>"
-        f"{detail_html}"
-        "</tbody>"
-        "</table>"
-    )
+        detail_html += (
+            "<div style=\"margin-bottom:16px; padding:12px; border-radius:12px; "
+            "background:rgba(15,23,42,0.7); border:1px solid #24324a;\">"
+            "<div style=\"color:#7dd3fc; font-weight:600; margin-bottom:8px;\">Details</div>"
+            "<table style=\"width:100%; border-collapse:collapse; font-size:14px;\">"
+            "<tbody>"
+            f"{detail_table}"
+            "</tbody>"
+            "</table>"
+            "</div>"
+        )
+    if changes_rows:
+        change_table = "".join(
+            "<tr>"
+            "<td style=\"padding:8px 10px; border-bottom:1px solid #1f2a44; color:#9fb1c9;\">{label}</td>"
+            "<td style=\"padding:8px 10px; border-bottom:1px solid #1f2a44;\">{old}</td>"
+            "<td style=\"padding:8px 10px; border-bottom:1px solid #1f2a44;\">{new}</td>"
+            "</tr>".format(
+                label=html.escape(str(label)),
+                old=html.escape(str(old)),
+                new=html.escape(str(new)),
+            )
+            for label, old, new in changes_rows
+        )
+        detail_html += (
+            "<div style=\"padding:12px; border-radius:12px; "
+            "background:rgba(15,23,42,0.7); border:1px solid #24324a;\">"
+            "<div style=\"color:#7dd3fc; font-weight:600; margin-bottom:8px;\">Changes</div>"
+            "<table style=\"width:100%; border-collapse:collapse; font-size:14px;\">"
+            "<thead>"
+            "<tr style=\"color:#7dd3fc; text-align:left;\">"
+            "<th style=\"padding:6px 10px;\">Field</th>"
+            "<th style=\"padding:6px 10px;\">Previous</th>"
+            "<th style=\"padding:6px 10px;\">New</th>"
+            "</tr>"
+            "</thead>"
+            "<tbody>"
+            f"{change_table}"
+            "</tbody>"
+            "</table>"
+            "</div>"
+        )
     html_body = _render_report_html(
         "Asset Notification",
         f"{action.upper()} event",
@@ -833,7 +951,7 @@ def send_email(subject, body, recipients, html_body=None):
 
 def send_assignment_email(username, asset_label, specs):
     config = get_smtp_config()
-    if not config or not config.enabled:
+    if not config or not config.enabled or not getattr(config, "assignment_enabled", True):
         return False
     email = resolve_user_email(username)
     if not email:
@@ -1008,6 +1126,13 @@ def _parse_audit_details(details):
                 "new": old_new[1].strip(),
             }
     return parsed
+
+
+def _parse_detail_pairs(details):
+    if not details:
+        return []
+    pairs = re.findall(r"([A-Za-z0-9_]+)=([^\s]+)", details)
+    return [(key.strip(), value.strip()) for key, value in pairs if key.strip()]
 
 
 def _get_stock_snapshot():
@@ -1542,10 +1667,11 @@ def get_ldap_config_from_db():
         "base_dn": (config.base_dn or "").strip(),
         "bind_dn": (config.bind_dn or "").strip(),
         "bind_password": config.bind_password or "",
-        "user_filter": config.user_filter or "(uid={username})",
-        "list_filter": config.list_filter or "(&(objectClass=user)(!(objectClass=computer))(sAMAccountName=*))",
-        "user_attribute": config.user_attribute or "uid",
-        "email_attribute": config.email_attribute or "mail",
+        "user_filter": config.user_filter or "(sAMAccountName={username})",
+        "list_filter": config.list_filter
+        or "(&(objectClass=user)(!(objectClass=computer))(sAMAccountName=*))",
+        "user_attribute": config.user_attribute or "sAMAccountName",
+        "email_attribute": config.email_attribute or "userPrincipalName",
         "user_dn_template": (config.user_dn_template or "").strip(),
         "use_ssl": bool(config.use_ssl),
         "start_tls": bool(config.start_tls),
@@ -1565,13 +1691,13 @@ def _ldap_config():
         "base_dn": os.environ.get("LDAP_BASE_DN", "").strip(),
         "bind_dn": os.environ.get("LDAP_BIND_DN", "").strip(),
         "bind_password": os.environ.get("LDAP_BIND_PASSWORD", ""),
-        "user_filter": os.environ.get("LDAP_USER_FILTER", "(uid={username})"),
+        "user_filter": os.environ.get("LDAP_USER_FILTER", "(sAMAccountName={username})"),
         "list_filter": os.environ.get(
             "LDAP_USER_LIST_FILTER",
             "(&(objectClass=user)(!(objectClass=computer))(sAMAccountName=*))",
         ),
-        "user_attribute": os.environ.get("LDAP_USER_ATTRIBUTE", "uid"),
-        "email_attribute": os.environ.get("LDAP_EMAIL_ATTRIBUTE", "mail"),
+        "user_attribute": os.environ.get("LDAP_USER_ATTRIBUTE", "sAMAccountName"),
+        "email_attribute": os.environ.get("LDAP_EMAIL_ATTRIBUTE", "userPrincipalName"),
         "user_dn_template": os.environ.get("LDAP_USER_DN_TEMPLATE", "").strip(),
         "use_ssl": _parse_bool(os.environ.get("LDAP_USE_SSL")),
         "start_tls": _parse_bool(os.environ.get("LDAP_START_TLS")),
@@ -1686,13 +1812,18 @@ def ldap_authenticate(username, password):
     search_filter = config["user_filter"].format(
         username=escape_filter_chars(username_norm)
     )
-    conn.search(
-        config["base_dn"],
-        search_filter,
-        search_scope=SUBTREE,
-        attributes=["dn"],
-        size_limit=1,
-    )
+    try:
+        _ldap_safe_search(
+            conn,
+            config["base_dn"],
+            search_filter,
+            ["dn"],
+            1,
+            "User filter",
+        )
+    except LDAPConfigError:
+        conn.unbind()
+        raise
     if not conn.entries:
         conn.unbind()
         return False
@@ -1709,7 +1840,7 @@ def _ldap_bind(user_dn, password, config=None):
     return True
 
 
-def get_ldap_users(force_refresh=False):
+def get_ldap_users(force_refresh=False, raise_on_error=False):
     if not ldap_enabled():
         return []
     config = _ldap_config()
@@ -1723,13 +1854,23 @@ def get_ldap_users(force_refresh=False):
         _LDAP_USER_CACHE["timestamp"] = now
         log_audit("sync_failed", "ldap_users", success=False, details="Bind failed")
         return []
-    conn.search(
-        config["base_dn"],
-        config["list_filter"],
-        search_scope=SUBTREE,
-        attributes=[config["user_attribute"], "objectClass"],
-        size_limit=config["list_limit"],
-    )
+    try:
+        _ldap_safe_search(
+            conn,
+            config["base_dn"],
+            config["list_filter"],
+            [config["user_attribute"], "objectClass"],
+            config["list_limit"],
+            "User list",
+        )
+    except LDAPConfigError as exc:
+        conn.unbind()
+        _LDAP_USER_CACHE["users"] = []
+        _LDAP_USER_CACHE["timestamp"] = now
+        log_audit("sync_failed", "ldap_users", success=False, details=str(exc))
+        if raise_on_error:
+            raise
+        return []
     usernames = set()
     for entry in conn.entries:
         if _ldap_is_computer_entry(entry, config["user_attribute"]):
@@ -1749,7 +1890,7 @@ def get_ldap_users(force_refresh=False):
     return list(users_sorted)
 
 
-def get_ldap_user_records(force_refresh=False):
+def get_ldap_user_records(force_refresh=False, raise_on_error=False):
     if not ldap_enabled():
         return []
     config = _ldap_config()
@@ -1764,13 +1905,23 @@ def get_ldap_user_records(force_refresh=False):
         log_audit("sync_failed", "ldap_users", success=False, details="Bind failed")
         return []
     email_attr = config.get("email_attribute") or "mail"
-    conn.search(
-        config["base_dn"],
-        config["list_filter"],
-        search_scope=SUBTREE,
-        attributes=[config["user_attribute"], email_attr, "objectClass"],
-        size_limit=config["list_limit"],
-    )
+    try:
+        _ldap_safe_search(
+            conn,
+            config["base_dn"],
+            config["list_filter"],
+            [config["user_attribute"], email_attr, "objectClass"],
+            config["list_limit"],
+            "User list",
+        )
+    except LDAPConfigError as exc:
+        conn.unbind()
+        _LDAP_USER_RECORDS_CACHE["records"] = []
+        _LDAP_USER_RECORDS_CACHE["timestamp"] = now
+        log_audit("sync_failed", "ldap_users", success=False, details=str(exc))
+        if raise_on_error:
+            raise
+        return []
     records = []
     for entry in conn.entries:
         if _ldap_is_computer_entry(entry, config["user_attribute"]):
@@ -1827,7 +1978,7 @@ def get_dept_options_cached():
     return list(items)
 
 
-def get_ldap_groups(force_refresh=False):
+def get_ldap_groups(force_refresh=False, raise_on_error=False):
     if not ldap_enabled():
         return []
     config = _ldap_config()
@@ -1841,13 +1992,23 @@ def get_ldap_groups(force_refresh=False):
         _LDAP_GROUP_CACHE["timestamp"] = now
         log_audit("sync_failed", "ldap_groups", success=False, details="Bind failed")
         return []
-    conn.search(
-        config["base_dn"],
-        config["group_filter"],
-        search_scope=SUBTREE,
-        attributes=[config["group_attribute"], config["group_member_attribute"]],
-        size_limit=config["list_limit"],
-    )
+    try:
+        _ldap_safe_search(
+            conn,
+            config["base_dn"],
+            config["group_filter"],
+            [config["group_attribute"], config["group_member_attribute"]],
+            config["list_limit"],
+            "Group list",
+        )
+    except LDAPConfigError as exc:
+        conn.unbind()
+        _LDAP_GROUP_CACHE["groups"] = []
+        _LDAP_GROUP_CACHE["timestamp"] = now
+        log_audit("sync_failed", "ldap_groups", success=False, details=str(exc))
+        if raise_on_error:
+            raise
+        return []
     groups = []
     for entry in conn.entries:
         try:
@@ -1879,6 +2040,9 @@ def ensure_ldap_user(username):
     username_norm = normalize_username(username)
     user = get_user_by_username_ci(username_norm)
     if user:
+        if not user.is_ldap:
+            user.is_ldap = True
+            db.session.commit()
         return user
     config = _ldap_config()
     admin_users = {
@@ -1891,12 +2055,17 @@ def ensure_ldap_user(username):
     if not Role.query.filter_by(name=role).first():
         role = "reader"
     random_password = os.urandom(24).hex()
-    email = ldap_lookup_user_email(username_norm, config=config)
+    try:
+        email = ldap_lookup_user_email(username_norm, config=config)
+    except LDAPConfigError as exc:
+        app.logger.warning("LDAP email lookup failed: %s", exc)
+        email = None
     user = User(
         username=username_norm,
         password_hash=generate_password_hash(random_password),
         role=role,
         email=email,
+        is_ldap=True,
     )
     db.session.add(user)
     db.session.commit()
@@ -1926,9 +2095,10 @@ def _ldap_config_from_form(form, existing=None):
         "bind_dn": get_text("bind_dn"),
         "bind_password": bind_password,
         "user_filter": get_text("user_filter") or "(sAMAccountName={username})",
-        "list_filter": get_text("list_filter") or "(&(objectClass=user)(!(objectClass=computer))(sAMAccountName=*))",
+        "list_filter": get_text("list_filter")
+        or "(&(objectClass=user)(!(objectClass=computer))(sAMAccountName=*))",
         "user_attribute": get_text("user_attribute") or "sAMAccountName",
-        "email_attribute": get_text("email_attribute") or "mail",
+        "email_attribute": get_text("email_attribute") or "userPrincipalName",
         "user_dn_template": get_text("user_dn_template"),
         "use_ssl": "use_ssl" in form,
         "start_tls": "start_tls" in form,
@@ -1984,13 +2154,18 @@ def _ldap_test_connection(config):
             message = get_message()
             conn.unbind()
             return False, f"Unable to bind to LDAP with the provided credentials. {message}"
-        searched = conn.search(
-            config["base_dn"],
-            config["list_filter"],
-            search_scope=SUBTREE,
-            attributes=[config["user_attribute"], config.get("email_attribute") or "mail"],
-            size_limit=1,
-        )
+        try:
+            searched = _ldap_safe_search(
+                conn,
+                config["base_dn"],
+                config["list_filter"],
+                [config["user_attribute"], config.get("email_attribute") or "mail"],
+                1,
+                "User list",
+            )
+        except LDAPConfigError as exc:
+            conn.unbind()
+            return False, str(exc)
         diagnostics = ""
         if conn.last_error:
             diagnostics = f" Last error: {conn.last_error}"
@@ -2009,11 +2184,11 @@ def _ldap_form_values(config_row):
             "base_dn": config_row.base_dn or "",
             "bind_dn": config_row.bind_dn or "",
             "bind_password": "",
-            "user_filter": config_row.user_filter or "(uid={username})",
+            "user_filter": config_row.user_filter or "(sAMAccountName={username})",
             "list_filter": config_row.list_filter
             or "(&(objectClass=user)(!(objectClass=computer))(sAMAccountName=*))",
-            "user_attribute": config_row.user_attribute or "uid",
-            "email_attribute": config_row.email_attribute or "mail",
+            "user_attribute": config_row.user_attribute or "sAMAccountName",
+            "email_attribute": config_row.email_attribute or "userPrincipalName",
             "user_dn_template": config_row.user_dn_template or "",
             "use_ssl": bool(config_row.use_ssl),
             "start_tls": bool(config_row.start_tls),
@@ -2027,6 +2202,13 @@ def _ldap_form_values(config_row):
         }
     config = _ldap_config()
     config["bind_password"] = ""
+    config["user_filter"] = config.get("user_filter") or "(sAMAccountName={username})"
+    config["list_filter"] = config.get("list_filter") or "(&(objectClass=user)(!(objectClass=computer))(sAMAccountName=*))"
+    config["user_attribute"] = config.get("user_attribute") or "sAMAccountName"
+    config["email_attribute"] = config.get("email_attribute") or "userPrincipalName"
+    config["group_filter"] = config.get("group_filter") or "(&(objectClass=group)(cn=*))"
+    config["group_attribute"] = config.get("group_attribute") or "cn"
+    config["group_member_attribute"] = config.get("group_member_attribute") or "member"
     return config
 
 
@@ -2043,17 +2225,15 @@ def ldap_lookup_user_email(username, config=None):
         username=safe_username
     )
     try:
-        conn.search(
+        _ldap_safe_search(
+            conn,
             config["base_dn"],
             search_filter,
-            search_scope=SUBTREE,
-            attributes=[email_attr],
-            size_limit=1,
+            [email_attr],
+            1,
+            "User filter",
         )
-    except LDAPInvalidFilterError:
-        conn.unbind()
-        raise
-    except LDAPExceptionError:
+    except LDAPConfigError:
         conn.unbind()
         raise
     email_value = None
@@ -2082,11 +2262,84 @@ def resolve_user_email(username):
     user = get_user_by_username_ci(username_norm)
     if user and user.email:
         return user.email
-    email = ldap_lookup_user_email(username_norm)
+    try:
+        email = ldap_lookup_user_email(username_norm)
+    except LDAPConfigError as exc:
+        app.logger.warning("LDAP email lookup failed: %s", exc)
+        email = None
     if email and user:
         user.email = email
         db.session.commit()
     return email
+
+
+def is_ldap_account(user, username=None):
+    if user and getattr(user, "is_ldap", False):
+        return True
+    if not ldap_enabled():
+        return False
+    name = normalize_username(username or (user.username if user else ""))
+    if not name:
+        return False
+    try:
+        return name in {normalize_username(item) for item in get_ldap_users()}
+    except Exception:
+        return False
+
+
+def send_password_reset_email(user, reset_url):
+    config = get_smtp_config()
+    if not config or not config.enabled:
+        return False, "SMTP is not configured."
+    recipient = user.email or ""
+    if not recipient:
+        return False, "User does not have an email configured."
+    subject = f"[{get_branding_name()}] Password reset request"
+    message = EmailMessage()
+    message["Subject"] = subject
+    message["From"] = config.sender_email or config.username or "no-reply@inventory.local"
+    message["To"] = recipient
+    text_body = (
+        "We received a password reset request for your account.\n"
+        f"Reset your password using this link: {reset_url}\n"
+        "If you did not request this, you can ignore this email."
+    )
+    html_body = f"""
+    <html>
+      <body style="font-family: Arial, sans-serif; background: #0b1220; color: #e7eef7; padding: 24px;">
+        <div style="max-width: 600px; margin: 0 auto; background: #101826; border-radius: 12px; padding: 24px;">
+          <h2 style="margin-top: 0;">Password reset request</h2>
+          <p>We received a password reset request for your account.</p>
+          <p>
+            <a href="{html.escape(reset_url)}" style="display: inline-block; padding: 10px 18px; background: #2de6c7; color: #0b1220; text-decoration: none; border-radius: 999px; font-weight: bold;">
+              Reset Password
+            </a>
+          </p>
+          <p style="color: #9fb1c9;">If you did not request this, you can ignore this email.</p>
+        </div>
+      </body>
+    </html>
+    """
+    message.set_content(text_body)
+    message.add_alternative(html_body, subtype="html")
+    try:
+        use_ssl = bool(config.encryption and config.encryption.lower() == "ssl")
+        host = config.host or ""
+        port = config.port or 0
+        if use_ssl:
+            server = smtplib.SMTP_SSL(host, port)
+        else:
+            server = smtplib.SMTP(host, port)
+        if config.encryption and config.encryption.lower() == "starttls":
+            server.starttls()
+        if not config.skip_auth and config.username:
+            server.login(config.username, config.password or "")
+        server.send_message(message)
+        server.quit()
+        return True, None
+    except Exception as exc:
+        app.logger.warning("Password reset email failed: %s", exc)
+        return False, str(exc)
 
 
 def get_branding():
@@ -2397,6 +2650,39 @@ def serialize_model_list(model):
     return rows
 
 
+def build_config_backup_bytes():
+    config_dump = {
+        "generated_at": datetime.datetime.utcnow().isoformat(),
+        "branding_config": serialize_model_list(BrandingConfig),
+        "departments": serialize_model_list(Department),
+        "roles": serialize_model_list(Role),
+        "role_permissions": serialize_model_list(RolePermission),
+        "user_roles": serialize_model_list(UserRole),
+        "asset_types": serialize_model_list(AssetType),
+        "asset_fields": serialize_model_list(AssetField),
+        "builtin_asset_types": serialize_model_list(BuiltinAssetTypeSetting),
+        "builtin_asset_fields": serialize_model_list(BuiltinAssetFieldSetting),
+        "ldap_config": serialize_model_list(LdapConfig),
+        "smtp_config": serialize_model_list(SMTPConfig),
+        "smtp_recipients": serialize_model_list(SMTPRecipient),
+        "backup_schedule": serialize_model_list(BackupSchedule),
+        "groups": serialize_model_list(Group),
+        "group_roles": serialize_model_list(GroupRole),
+        "group_members": serialize_model_list(GroupMember),
+    }
+    output = io.BytesIO()
+    with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("config.json", json.dumps(config_dump, default=str, indent=2))
+        branding = BrandingConfig.query.first()
+        if branding and branding.logo_filename:
+            logo_path = os.path.join("/data/branding", branding.logo_filename)
+            if os.path.exists(logo_path):
+                archive.write(logo_path, arcname=f"branding/{branding.logo_filename}")
+    output.seek(0)
+    filename = f"asset-config-backup-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}.zip"
+    return filename, output.read()
+
+
 def _filter_model_fields(model, data):
     allowed = {column.name for column in model.__table__.columns}
     return {key: value for key, value in data.items() if key in allowed}
@@ -2424,6 +2710,225 @@ def _reset_sequences(table_names):
             )
         except Exception:
             db.session.rollback()
+
+
+def get_backup_schedule(kind="config"):
+    schedule = BackupSchedule.query.filter_by(kind=kind).first()
+    if schedule:
+        return schedule
+    schedule = BackupSchedule(
+        kind=kind,
+        enabled=False,
+        email="",
+        run_time="02:00" if kind == "config" else "02:30",
+        frequency="daily",
+        day_of_week=0,
+        day_of_month=1,
+        last_sent_at=None,
+    )
+    db.session.add(schedule)
+    db.session.commit()
+    return schedule
+
+
+def _parse_schedule_time(value):
+    value = (value or "").strip()
+    if not value:
+        return None
+    match = re.match(r"^([01]?\d|2[0-3]):([0-5]\d)$", value)
+    if not match:
+        return None
+    return f"{int(match.group(1)):02d}:{int(match.group(2)):02d}"
+
+
+def _get_timezone():
+    tz_name = os.environ.get("TZ", "").strip() or "UTC"
+    try:
+        return ZoneInfo(tz_name)
+    except Exception:
+        return ZoneInfo("UTC")
+
+
+def send_config_backup_email(schedule):
+    config = get_smtp_config()
+    if not config or not config.enabled:
+        return False, "SMTP is not configured."
+    recipient = (schedule.email or "").strip()
+    if not recipient:
+        return False, "Backup email is not configured."
+    filename, data = build_config_backup_bytes()
+    subject = f"[{get_branding_name()}] Configuration backup"
+    message = EmailMessage()
+    message["Subject"] = subject
+    message["From"] = config.sender_email or config.username or "no-reply@inventory.local"
+    message["To"] = recipient
+    text_body = (
+        "Attached is your configuration backup.\n\n"
+        "This backup does not include asset records; it only contains configuration data."
+    )
+    html_body = f"""
+    <html>
+      <body style="font-family: Arial, sans-serif; background: #0b1220; color: #e7eef7; padding: 24px;">
+        <div style="max-width: 600px; margin: 0 auto; background: #101826; border-radius: 12px; padding: 24px;">
+          <h2 style="margin-top: 0;">Configuration backup</h2>
+          <p>Attached is your configuration backup.</p>
+          <p style="color: #9fb1c9;">
+            This backup does not include asset records; it only contains configuration data.
+          </p>
+        </div>
+      </body>
+    </html>
+    """
+    message.set_content(text_body)
+    message.add_alternative(html_body, subtype="html")
+    message.add_attachment(data, maintype="application", subtype="zip", filename=filename)
+    try:
+        use_ssl = bool(config.encryption and config.encryption.lower() == "ssl")
+        host = config.host or ""
+        port = config.port or 0
+        if use_ssl:
+            server = smtplib.SMTP_SSL(host, port)
+        else:
+            server = smtplib.SMTP(host, port)
+        if config.encryption and config.encryption.lower() == "starttls":
+            server.starttls()
+        if not config.skip_auth and config.username:
+            server.login(config.username, config.password or "")
+        server.send_message(message)
+        server.quit()
+        return True, None
+    except Exception as exc:
+        app.logger.warning("Backup email failed: %s", exc)
+        return False, str(exc)
+
+
+def build_full_backup_bytes():
+    assets_dump = {
+        "generated_at": datetime.datetime.utcnow().isoformat(),
+        "assets": {},
+        "custom_items": serialize_model_list(AssetItem),
+        "assignment_history": serialize_model_list(AssetAssignmentHistory),
+        "asset_comments": serialize_model_list(AssetComment),
+    }
+    for key, definition in ASSET_DEFS.items():
+        assets_dump["assets"][key] = serialize_model_list(definition["model"])
+    output = io.BytesIO()
+    with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("assets.json", json.dumps(assets_dump, default=str, indent=2))
+    output.seek(0)
+    filename = f"asset-backup-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}.zip"
+    return filename, output.read()
+
+
+def send_full_backup_email(schedule):
+    config = get_smtp_config()
+    if not config or not config.enabled:
+        return False, "SMTP is not configured."
+    recipient = (schedule.email or "").strip()
+    if not recipient:
+        return False, "Backup email is not configured."
+    filename, data = build_full_backup_bytes()
+    subject = f"[{get_branding_name()}] Asset backup"
+    message = EmailMessage()
+    message["Subject"] = subject
+    message["From"] = config.sender_email or config.username or "no-reply@inventory.local"
+    message["To"] = recipient
+    text_body = (
+        "Attached is your asset backup.\n\n"
+        "This backup includes asset records and history only."
+    )
+    html_body = f"""
+    <html>
+      <body style="font-family: Arial, sans-serif; background: #0b1220; color: #e7eef7; padding: 24px;">
+        <div style="max-width: 600px; margin: 0 auto; background: #101826; border-radius: 12px; padding: 24px;">
+          <h2 style="margin-top: 0;">Asset backup</h2>
+          <p>Attached is your asset backup.</p>
+          <p style="color: #9fb1c9;">
+            This backup includes asset records and history only.
+          </p>
+        </div>
+      </body>
+    </html>
+    """
+    message.set_content(text_body)
+    message.add_alternative(html_body, subtype="html")
+    message.add_attachment(data, maintype="application", subtype="zip", filename=filename)
+    try:
+        use_ssl = bool(config.encryption and config.encryption.lower() == "ssl")
+        host = config.host or ""
+        port = config.port or 0
+        if use_ssl:
+            server = smtplib.SMTP_SSL(host, port)
+        else:
+            server = smtplib.SMTP(host, port)
+        if config.encryption and config.encryption.lower() == "starttls":
+            server.starttls()
+        if not config.skip_auth and config.username:
+            server.login(config.username, config.password or "")
+        server.send_message(message)
+        server.quit()
+        return True, None
+    except Exception as exc:
+        app.logger.warning("Full backup email failed: %s", exc)
+        return False, str(exc)
+
+
+def _backup_scheduler_loop():
+    lock_path = "/tmp/assetmanager-backup.lock"
+    try:
+        lock_file = open(lock_path, "w")
+        import fcntl
+
+        fcntl.flock(lock_file, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except Exception:
+        app.logger.info("Backup scheduler already running in another process.")
+        return
+    while True:
+        try:
+            with app.app_context():
+                tz = _get_timezone()
+                now = datetime.datetime.now(tz)
+                for kind, sender in (
+                    ("config", send_config_backup_email),
+                    ("full", send_full_backup_email),
+                ):
+                    schedule = get_backup_schedule(kind)
+                    if not schedule.enabled:
+                        continue
+                    run_time = _parse_schedule_time(schedule.run_time) or "02:00"
+                    run_hour, run_minute = [int(part) for part in run_time.split(":")]
+                    if not (now.hour == run_hour and now.minute == run_minute):
+                        continue
+                    if schedule.frequency == "weekly":
+                        if schedule.day_of_week is None or now.weekday() != schedule.day_of_week:
+                            continue
+                    if schedule.frequency == "monthly":
+                        if schedule.day_of_month is None or now.day != schedule.day_of_month:
+                            continue
+                    last_sent = schedule.last_sent_at
+                    last_date = None
+                    if last_sent:
+                        last_date = last_sent.astimezone(tz).date()
+                    if last_date == now.date():
+                        continue
+                    ok, error = sender(schedule)
+                    if ok:
+                        schedule.last_sent_at = datetime.datetime.utcnow()
+                        db.session.commit()
+                    else:
+                        app.logger.warning("Scheduled %s backup failed: %s", kind, error)
+        except Exception as exc:
+            app.logger.warning("Backup scheduler error: %s", exc)
+        time.sleep(30)
+
+
+def start_backup_scheduler():
+    global _BACKUP_SCHEDULER_STARTED
+    if _BACKUP_SCHEDULER_STARTED:
+        return
+    _BACKUP_SCHEDULER_STARTED = True
+    thread = threading.Thread(target=_backup_scheduler_loop, daemon=True)
+    thread.start()
 
 
 def build_asset_summary():
@@ -2994,6 +3499,25 @@ def ensure_user_email_column():
     db.session.commit()
 
 
+def ensure_user_ldap_column():
+    if db.engine.dialect.name == "sqlite":
+        result = db.session.execute(text("PRAGMA table_info(user)")).fetchall()
+        if not result:
+            return
+        columns = {row[1] for row in result}
+        if "is_ldap" not in columns:
+            db.session.execute(text("ALTER TABLE user ADD COLUMN is_ldap BOOLEAN DEFAULT 0"))
+        db.session.commit()
+        return
+    try:
+        db.session.execute(
+            text("ALTER TABLE \"user\" ADD COLUMN IF NOT EXISTS is_ldap BOOLEAN DEFAULT FALSE")
+        )
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+
 def ensure_role_permission_bulk_column():
     if db.engine.dialect.name != "sqlite":
         return
@@ -3075,6 +3599,47 @@ def ensure_role_assignments():
 
 def ensure_smtp_columns():
     if db.engine.dialect.name != "sqlite":
+        db.session.execute(
+            text(
+                "ALTER TABLE smtp_config ADD COLUMN IF NOT EXISTS monthly_report_enabled BOOLEAN DEFAULT FALSE"
+            )
+        )
+        db.session.execute(
+            text(
+                "ALTER TABLE smtp_config ADD COLUMN IF NOT EXISTS monthly_report_day INTEGER DEFAULT 1"
+            )
+        )
+        db.session.execute(
+            text(
+                "ALTER TABLE smtp_config ADD COLUMN IF NOT EXISTS low_stock_enabled BOOLEAN DEFAULT FALSE"
+            )
+        )
+        db.session.execute(
+            text(
+                "ALTER TABLE smtp_config ADD COLUMN IF NOT EXISTS low_stock_threshold INTEGER DEFAULT 5"
+            )
+        )
+        db.session.execute(
+            text(
+                "ALTER TABLE smtp_config ADD COLUMN IF NOT EXISTS low_stock_frequency_days INTEGER DEFAULT 1"
+            )
+        )
+        db.session.execute(
+            text(
+                "ALTER TABLE smtp_config ADD COLUMN IF NOT EXISTS assignment_enabled BOOLEAN DEFAULT TRUE"
+            )
+        )
+        db.session.execute(
+            text(
+                "ALTER TABLE smtp_recipient ADD COLUMN IF NOT EXISTS notify_monthly BOOLEAN DEFAULT FALSE"
+            )
+        )
+        db.session.execute(
+            text(
+                "ALTER TABLE smtp_recipient ADD COLUMN IF NOT EXISTS notify_low_stock BOOLEAN DEFAULT FALSE"
+            )
+        )
+        db.session.commit()
         return
     result = db.session.execute(text("PRAGMA table_info(smtp_config)")).fetchall()
     if result:
@@ -3099,6 +3664,10 @@ def ensure_smtp_columns():
             db.session.execute(
                 text("ALTER TABLE smtp_config ADD COLUMN low_stock_frequency_days INTEGER DEFAULT 1")
             )
+        if "assignment_enabled" not in columns:
+            db.session.execute(
+                text("ALTER TABLE smtp_config ADD COLUMN assignment_enabled BOOLEAN DEFAULT 1")
+            )
     recipient_result = db.session.execute(text("PRAGMA table_info(smtp_recipient)")).fetchall()
     if recipient_result:
         recipient_columns = {row[1] for row in recipient_result}
@@ -3110,6 +3679,45 @@ def ensure_smtp_columns():
             db.session.execute(
                 text("ALTER TABLE smtp_recipient ADD COLUMN notify_low_stock BOOLEAN DEFAULT 0")
             )
+    db.session.commit()
+
+
+def ensure_backup_schedule_columns():
+    if db.engine.dialect.name == "sqlite":
+        result = db.session.execute(text("PRAGMA table_info(backup_schedule)")).fetchall()
+        if not result:
+            return
+        columns = {row[1] for row in result}
+        if "kind" not in columns:
+            db.session.execute(
+                text("ALTER TABLE backup_schedule ADD COLUMN kind TEXT DEFAULT 'config'")
+            )
+        if "frequency" not in columns:
+            db.session.execute(
+                text("ALTER TABLE backup_schedule ADD COLUMN frequency TEXT DEFAULT 'daily'")
+            )
+        if "day_of_week" not in columns:
+            db.session.execute(
+                text("ALTER TABLE backup_schedule ADD COLUMN day_of_week INTEGER")
+            )
+        if "day_of_month" not in columns:
+            db.session.execute(
+                text("ALTER TABLE backup_schedule ADD COLUMN day_of_month INTEGER")
+            )
+        db.session.commit()
+        return
+    db.session.execute(
+        text("ALTER TABLE backup_schedule ADD COLUMN IF NOT EXISTS kind TEXT DEFAULT 'config'")
+    )
+    db.session.execute(
+        text("ALTER TABLE backup_schedule ADD COLUMN IF NOT EXISTS frequency TEXT DEFAULT 'daily'")
+    )
+    db.session.execute(
+        text("ALTER TABLE backup_schedule ADD COLUMN IF NOT EXISTS day_of_week INTEGER")
+    )
+    db.session.execute(
+        text("ALTER TABLE backup_schedule ADD COLUMN IF NOT EXISTS day_of_month INTEGER")
+    )
     db.session.commit()
 
 
@@ -3367,12 +3975,14 @@ def init_db():
         ensure_ram_type_column()
         ensure_role_admin_column()
         ensure_user_email_column()
+        ensure_user_ldap_column()
         ensure_role_permission_bulk_column()
         ensure_ldap_group_columns()
         ensure_role_assignment_tables()
         ensure_default_roles()
         ensure_role_assignments()
         ensure_smtp_columns()
+        ensure_backup_schedule_columns()
         ensure_low_stock_table()
         ensure_branding_table()
         ensure_department_table()
@@ -3386,6 +3996,7 @@ def init_db():
         ensure_indexes()
         normalize_ram_quantities()
         _DB_INIT_DONE = True
+        start_backup_scheduler()
     if request.method == "GET":
         endpoint = request.endpoint
         if endpoint in SECTION_ENDPOINTS:
@@ -3399,7 +4010,17 @@ def get_current_user():
     user_id = session.get("user_id")
     if not user_id:
         return None
-    return User.query.get(user_id)
+    user = User.query.get(user_id)
+    if not user:
+        session.clear()
+        return None
+    if user_has_app_admin(user):
+        return user
+    perms = get_role_permissions(user)
+    if not any(perms.values()):
+        session.clear()
+        return None
+    return user
 
 
 def get_user_role_names(user):
@@ -3448,6 +4069,20 @@ def user_has_app_admin(user):
     return any(role.is_app_admin for role in roles)
 
 
+def _permission_denied_redirect(user, fallback="index"):
+    referrer = request.referrer or ""
+    current_path = urlparse(request.url).path if request.url else ""
+    if referrer:
+        ref_path = urlparse(referrer).path
+        if ref_path and ref_path != current_path:
+            return redirect(referrer)
+    perms = get_role_permissions(user)
+    if not perms.get("can_read", False):
+        session.clear()
+        return redirect(url_for("login"))
+    return redirect(url_for(fallback))
+
+
 def login_required(view):
     @wraps(view)
     def wrapped(*args, **kwargs):
@@ -3467,10 +4102,10 @@ def require_roles(*roles):
             allowed = user.role in roles
             if not allowed:
                 group_roles = set(get_user_role_names(user))
-                allowed = bool(group_roles.intersection(set(roles)))
+            allowed = bool(group_roles.intersection(set(roles)))
             if not allowed:
                 flash("You do not have permission to perform this action.", "error")
-                return redirect(request.referrer or url_for("index"))
+                return _permission_denied_redirect(user)
             return view(*args, **kwargs)
 
         return wrapped
@@ -3543,6 +4178,13 @@ def get_role_asset_permissions(user, asset_type):
     }
 
 
+def _cleanup_user_refs(user_id):
+    UserRole.query.filter_by(user_id=user_id).delete()
+    GroupMember.query.filter_by(user_id=user_id).delete()
+    RefreshToken.query.filter_by(user_id=user_id).delete()
+    PasswordResetToken.query.filter_by(user_id=user_id).delete()
+
+
 def require_static_permission(permission):
     def decorator(view):
         @wraps(view)
@@ -3563,7 +4205,7 @@ def require_static_permission(permission):
                         details=f"Permission denied: {permission}",
                     )
                 flash("You do not have permission to perform this action.", "error")
-                return redirect(request.referrer or url_for("index"))
+                return _permission_denied_redirect(user)
             return view(asset_type, *args, **kwargs)
 
         return wrapped
@@ -3589,7 +4231,7 @@ def require_custom_permission(permission):
                         details=f"Permission denied: {permission}",
                     )
                 flash("You do not have permission to perform this action.", "error")
-                return redirect(request.referrer or url_for("index"))
+                return _permission_denied_redirect(user)
             return view(asset_key, *args, **kwargs)
 
         return wrapped
@@ -3607,7 +4249,7 @@ def require_permission(permission):
             perms = get_role_permissions(user)
             if not perms.get(permission, False):
                 flash("You do not have permission to perform this action.", "error")
-                return redirect(request.referrer or url_for("index"))
+                return _permission_denied_redirect(user)
             return view(*args, **kwargs)
 
         return wrapped
@@ -3629,7 +4271,7 @@ def require_app_admin(view):
                 details="App admin access denied",
             )
             flash("You do not have permission to perform this action.", "error")
-            return redirect(request.referrer or url_for("index"))
+            return _permission_denied_redirect(user)
         return view(*args, **kwargs)
 
     return wrapped
@@ -3649,7 +4291,7 @@ def require_bulk_delete(view):
                 details="App admin access denied",
             )
             flash("You do not have permission to perform this action.", "error")
-            return redirect(request.referrer or url_for("index"))
+            return _permission_denied_redirect(user)
         perms = get_role_permissions(user)
         if not perms.get("can_bulk_delete", False):
             log_audit(
@@ -3659,7 +4301,7 @@ def require_bulk_delete(view):
                 details="Bulk delete permission denied",
             )
             flash("You do not have permission to perform this action.", "error")
-            return redirect(request.referrer or url_for("index"))
+            return _permission_denied_redirect(user)
         return view(*args, **kwargs)
 
     return wrapped
@@ -3783,6 +4425,80 @@ def login():
         flash("Invalid username or password.", "error")
         return redirect(url_for("login"))
     return render_template("login.html")
+
+
+@app.route("/forgot-password", methods=["GET", "POST"])
+def forgot_password():
+    if request.method == "POST":
+        identifier = normalize_username(request.form.get("username", ""))
+        if not identifier:
+            flash("Enter your username or email.", "error")
+            return redirect(url_for("forgot_password"))
+        user = get_user_by_username_ci(identifier)
+        if not user and "@" in identifier:
+            user = User.query.filter(func.lower(User.email) == identifier.lower()).first()
+        if user and is_ldap_account(user, identifier):
+            flash("This account is managed by Active Directory. Contact your AD administrator.", "error")
+            return redirect(url_for("forgot_password"))
+        if not user and ldap_enabled() and identifier in {normalize_username(u) for u in get_ldap_users()}:
+            flash("This account is managed by Active Directory. Contact your AD administrator.", "error")
+            return redirect(url_for("forgot_password"))
+        if not user:
+            flash("If the account exists, a reset link has been sent.", "success")
+            return redirect(url_for("login"))
+        token = secrets.token_urlsafe(32)
+        token_hash = _hash_token(token)
+        PasswordResetToken.query.filter_by(user_id=user.id, used=False).update({"used": True})
+        expires_at = datetime.datetime.utcnow() + datetime.timedelta(hours=1)
+        db.session.add(
+            PasswordResetToken(
+                user_id=user.id,
+                token_hash=token_hash,
+                expires_at=expires_at,
+                used=False,
+            )
+        )
+        db.session.commit()
+        reset_url = url_for("reset_password", token=token, _external=True)
+        ok, error = send_password_reset_email(user, reset_url)
+        if not ok:
+            flash(error or "Unable to send reset email.", "error")
+            return redirect(url_for("forgot_password"))
+        flash("Password reset link sent to your email.", "success")
+        return redirect(url_for("login"))
+    return render_template("forgot_password.html")
+
+
+@app.route("/reset-password/<token>", methods=["GET", "POST"])
+def reset_password(token):
+    if not token:
+        flash("Invalid or expired reset link.", "error")
+        return redirect(url_for("login"))
+    token_hash = _hash_token(token)
+    entry = PasswordResetToken.query.filter_by(token_hash=token_hash, used=False).first()
+    if not entry or entry.expires_at < datetime.datetime.utcnow():
+        flash("Reset link is invalid or expired.", "error")
+        return redirect(url_for("login"))
+    user = User.query.get(entry.user_id)
+    if not user:
+        flash("Reset link is invalid or expired.", "error")
+        return redirect(url_for("login"))
+    if request.method == "POST":
+        new_password = request.form.get("password", "")
+        confirm = request.form.get("confirm_password", "")
+        if not new_password:
+            flash("Password is required.", "error")
+            return redirect(url_for("reset_password", token=token))
+        if new_password != confirm:
+            flash("Passwords do not match.", "error")
+            return redirect(url_for("reset_password", token=token))
+        user.password_hash = generate_password_hash(new_password)
+        entry.used = True
+        db.session.commit()
+        log_audit("reset_password", "user", entity_id=user.id, details=user.username)
+        flash("Password updated. You can sign in now.", "success")
+        return redirect(url_for("login"))
+    return render_template("reset_password.html")
 
 
 @app.route("/logout")
@@ -5876,6 +6592,7 @@ def inject_user():
         "update_status": get_update_status(),
         "dockerhub_repo": DOCKERHUB_REPO,
         "app_version": APP_VERSION or "dev",
+        "tz_name": os.environ.get("TZ", "UTC"),
     }
 
 
@@ -6141,6 +6858,7 @@ def manage_departments():
             return redirect(url_for("manage_departments"))
         db.session.add(Department(name=name))
         db.session.commit()
+        _DEPT_CACHE["timestamp"] = 0.0
         flash("Department added.", "success")
         return redirect(url_for("manage_departments"))
     departments = Department.query.order_by(Department.name.asc()).all()
@@ -6154,6 +6872,7 @@ def delete_department(dept_id):
     dept = Department.query.get_or_404(dept_id)
     db.session.delete(dept)
     db.session.commit()
+    _DEPT_CACHE["timestamp"] = 0.0
     flash("Department deleted.", "success")
     return redirect(url_for("manage_departments"))
 
@@ -6182,42 +6901,31 @@ def logs_tail():
 @login_required
 @require_app_admin
 def backup_settings():
-    return render_template("backup.html")
+    schedule = get_backup_schedule("config")
+    full_schedule = get_backup_schedule("full")
+    tz_name = os.environ.get("TZ", "UTC")
+    return render_template(
+        "backup.html",
+        schedule=schedule,
+        full_schedule=full_schedule,
+        timezone_name=tz_name,
+    )
 
 
 @app.route("/backups/config")
 @login_required
 @require_app_admin
 def backup_config_download():
-    config_dump = {
-        "generated_at": datetime.datetime.utcnow().isoformat(),
-        "branding_config": serialize_model_list(BrandingConfig),
-        "departments": serialize_model_list(Department),
-        "roles": serialize_model_list(Role),
-        "role_permissions": serialize_model_list(RolePermission),
-        "user_roles": serialize_model_list(UserRole),
-        "asset_types": serialize_model_list(AssetType),
-        "asset_fields": serialize_model_list(AssetField),
-        "builtin_asset_types": serialize_model_list(BuiltinAssetTypeSetting),
-        "builtin_asset_fields": serialize_model_list(BuiltinAssetFieldSetting),
-        "ldap_config": serialize_model_list(LdapConfig),
-        "smtp_config": serialize_model_list(SMTPConfig),
-        "smtp_recipients": serialize_model_list(SMTPRecipient),
-        "groups": serialize_model_list(Group),
-        "group_roles": serialize_model_list(GroupRole),
-        "group_members": serialize_model_list(GroupMember),
-    }
-    output = io.BytesIO()
-    with zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as archive:
-        archive.writestr("config.json", json.dumps(config_dump, default=str, indent=2))
-        branding = BrandingConfig.query.first()
-        if branding and branding.logo_filename:
-            logo_path = os.path.join("/data/branding", branding.logo_filename)
-            if os.path.exists(logo_path):
-                archive.write(logo_path, arcname=f"branding/{branding.logo_filename}")
-    output.seek(0)
-    filename = f"asset-config-backup-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}.zip"
-    return send_file(output, as_attachment=True, download_name=filename, mimetype="application/zip")
+    filename, data = build_config_backup_bytes()
+    return send_file(io.BytesIO(data), as_attachment=True, download_name=filename, mimetype="application/zip")
+
+
+@app.route("/backups/full")
+@login_required
+@require_app_admin
+def backup_full_download():
+    filename, data = build_full_backup_bytes()
+    return send_file(io.BytesIO(data), as_attachment=True, download_name=filename, mimetype="application/zip")
 
 
 @app.route("/backups/config/restore", methods=["POST"])
@@ -6244,53 +6952,120 @@ def restore_config_backup():
         return redirect(url_for("backup_settings"))
     try:
         config_data = json.loads(archive.read("config.json"))
-    except Exception:
+    except Exception as exc:
+        app.logger.warning("Config backup read failed: %s", exc)
         flash("Backup config.json could not be read.", "error")
         return redirect(url_for("backup_settings"))
+    if not isinstance(config_data, dict):
+        flash("Backup config.json has an invalid structure.", "error")
+        return redirect(url_for("backup_settings"))
+    expected_sections = [
+        "branding_config",
+        "departments",
+        "roles",
+        "role_permissions",
+        "user_roles",
+        "asset_types",
+        "asset_fields",
+        "builtin_asset_types",
+        "builtin_asset_fields",
+        "ldap_config",
+        "smtp_config",
+        "smtp_recipients",
+        "backup_schedule",
+        "groups",
+        "group_roles",
+        "group_members",
+    ]
+    missing_sections = [key for key in expected_sections if key not in config_data]
+    if missing_sections:
+        flash(
+            "Backup is missing sections: "
+            + ", ".join(missing_sections)
+            + ". Those settings will be skipped.",
+            "error",
+        )
+    invalid_sections = [
+        key
+        for key in expected_sections
+        if key in config_data and not isinstance(config_data.get(key), list)
+    ]
+    if invalid_sections:
+        flash(
+            "Backup sections have invalid format: "
+            + ", ".join(invalid_sections)
+            + ". Please use a backup created by this app.",
+            "error",
+        )
+        return redirect(url_for("backup_settings"))
 
-    db.session.query(RolePermission).delete()
-    db.session.query(UserRole).delete()
-    db.session.query(GroupRole).delete()
-    db.session.query(GroupMember).delete()
-    db.session.query(AssetField).delete()
-    db.session.query(AssetType).delete()
-    db.session.query(BuiltinAssetFieldSetting).delete()
-    db.session.query(BuiltinAssetTypeSetting).delete()
-    db.session.query(LdapConfig).delete()
-    db.session.query(SMTPRecipient).delete()
-    db.session.query(SMTPConfig).delete()
-    db.session.query(Department).delete()
-    db.session.query(BrandingConfig).delete()
-    db.session.query(Group).delete()
-    db.session.query(Role).delete()
-    db.session.commit()
+    try:
+        db.session.query(RolePermission).delete()
+        db.session.query(UserRole).delete()
+        db.session.query(GroupRole).delete()
+        db.session.query(GroupMember).delete()
+        db.session.query(AssetItem).delete()
+        db.session.query(AssetField).delete()
+        db.session.query(AssetType).delete()
+        db.session.query(BuiltinAssetFieldSetting).delete()
+        db.session.query(BuiltinAssetTypeSetting).delete()
+        db.session.query(LdapConfig).delete()
+        db.session.query(SMTPRecipient).delete()
+        db.session.query(SMTPConfig).delete()
+        db.session.query(Department).delete()
+        db.session.query(BrandingConfig).delete()
+        db.session.query(BackupSchedule).delete()
+        db.session.query(Group).delete()
+        db.session.query(Role).delete()
+        db.session.commit()
 
-    _restore_model_rows(Role, config_data.get("roles", []))
-    _restore_model_rows(RolePermission, config_data.get("role_permissions", []))
-    _restore_model_rows(UserRole, config_data.get("user_roles", []))
-    _restore_model_rows(Group, config_data.get("groups", []))
-    _restore_model_rows(GroupRole, config_data.get("group_roles", []))
-    _restore_model_rows(GroupMember, config_data.get("group_members", []))
-    _restore_model_rows(Department, config_data.get("departments", []))
-    _restore_model_rows(AssetType, config_data.get("asset_types", []))
-    _restore_model_rows(AssetField, config_data.get("asset_fields", []))
-    _restore_model_rows(BuiltinAssetTypeSetting, config_data.get("builtin_asset_types", []))
-    _restore_model_rows(BuiltinAssetFieldSetting, config_data.get("builtin_asset_fields", []))
-    _restore_model_rows(LdapConfig, config_data.get("ldap_config", []))
-    _restore_model_rows(SMTPConfig, config_data.get("smtp_config", []))
-    _restore_model_rows(SMTPRecipient, config_data.get("smtp_recipients", []))
-    _restore_model_rows(BrandingConfig, config_data.get("branding_config", []))
-    db.session.commit()
+        _restore_model_rows(Role, config_data.get("roles", []))
+        _restore_model_rows(RolePermission, config_data.get("role_permissions", []))
+        _restore_model_rows(UserRole, config_data.get("user_roles", []))
+        _restore_model_rows(Group, config_data.get("groups", []))
+        _restore_model_rows(GroupRole, config_data.get("group_roles", []))
+        _restore_model_rows(GroupMember, config_data.get("group_members", []))
+        _restore_model_rows(Department, config_data.get("departments", []))
+        _restore_model_rows(AssetType, config_data.get("asset_types", []))
+        _restore_model_rows(AssetField, config_data.get("asset_fields", []))
+        _restore_model_rows(BuiltinAssetTypeSetting, config_data.get("builtin_asset_types", []))
+        _restore_model_rows(BuiltinAssetFieldSetting, config_data.get("builtin_asset_fields", []))
+        _restore_model_rows(LdapConfig, config_data.get("ldap_config", []))
+        _restore_model_rows(SMTPConfig, config_data.get("smtp_config", []))
+        _restore_model_rows(SMTPRecipient, config_data.get("smtp_recipients", []))
+        _restore_model_rows(BackupSchedule, config_data.get("backup_schedule", []))
+        _restore_model_rows(BrandingConfig, config_data.get("branding_config", []))
+        db.session.commit()
+    except SQLAlchemyError as exc:
+        db.session.rollback()
+        app.logger.warning("Config restore failed: %s", exc)
+        flash(
+            "Config restore failed due to database constraints. "
+            "This backup may be from a different version.",
+            "error",
+        )
+        return redirect(url_for("backup_settings"))
+    except Exception as exc:
+        db.session.rollback()
+        app.logger.warning("Config restore failed: %s", exc)
+        flash(f"Config restore failed: {exc}", "error")
+        return redirect(url_for("backup_settings"))
 
-    os.makedirs("/data/branding", exist_ok=True)
-    for name in archive.namelist():
-        if not name.startswith("branding/"):
-            continue
-        filename = os.path.basename(name)
-        if not filename:
-            continue
-        with archive.open(name) as source, open(os.path.join("/data/branding", filename), "wb") as target:
-            target.write(source.read())
+    try:
+        os.makedirs("/data/branding", exist_ok=True)
+        for name in archive.namelist():
+            if not name.startswith("branding/"):
+                continue
+            filename = os.path.basename(name)
+            if not filename:
+                continue
+            with archive.open(name) as source, open(
+                os.path.join("/data/branding", filename), "wb"
+            ) as target:
+                target.write(source.read())
+    except Exception as exc:
+        app.logger.warning("Branding restore failed: %s", exc)
+        flash("Config restored, but branding files could not be restored.", "error")
 
     _reset_sequences(
         [
@@ -6309,11 +7084,158 @@ def restore_config_backup():
             "smtp_config",
             "smtp_recipient",
             "branding_config",
+            "backup_schedule",
         ]
     )
     _DEPT_CACHE["timestamp"] = 0.0
     log_audit("update", "config_backup", details="Configuration restored")
     flash("Configuration restored.", "success")
+    return redirect(url_for("backup_settings"))
+
+
+@app.route("/backups/full/restore", methods=["POST"])
+@login_required
+@require_app_admin
+def restore_full_backup():
+    if "file" not in request.files:
+        flash("No backup file uploaded.", "error")
+        return redirect(url_for("backup_settings"))
+    file = request.files["file"]
+    if not file or not file.filename:
+        flash("No backup file selected.", "error")
+        return redirect(url_for("backup_settings"))
+    if not file.filename.lower().endswith(".zip"):
+        flash("Upload a .zip backup file.", "error")
+        return redirect(url_for("backup_settings"))
+    try:
+        archive = zipfile.ZipFile(file, "r")
+    except zipfile.BadZipFile:
+        flash("Invalid backup file.", "error")
+        return redirect(url_for("backup_settings"))
+    if "assets.json" not in archive.namelist():
+        flash("Backup does not include assets.json.", "error")
+        return redirect(url_for("backup_settings"))
+    try:
+        assets_data = json.loads(archive.read("assets.json"))
+    except Exception as exc:
+        app.logger.warning("Full backup read failed: %s", exc)
+        flash("Backup files could not be read.", "error")
+        return redirect(url_for("backup_settings"))
+    if not isinstance(assets_data, dict):
+        flash("Backup has an invalid structure.", "error")
+        return redirect(url_for("backup_settings"))
+    try:
+        db.session.query(AssetAssignmentHistory).delete()
+        db.session.query(AssetComment).delete()
+        db.session.query(AssetItem).delete()
+        for _, definition in ASSET_DEFS.items():
+            db.session.query(definition["model"]).delete()
+        db.session.commit()
+
+        for key, definition in ASSET_DEFS.items():
+            _restore_model_rows(definition["model"], assets_data.get("assets", {}).get(key, []))
+        _restore_model_rows(AssetItem, assets_data.get("custom_items", []))
+        _restore_model_rows(AssetAssignmentHistory, assets_data.get("assignment_history", []))
+        _restore_model_rows(AssetComment, assets_data.get("asset_comments", []))
+        db.session.commit()
+    except SQLAlchemyError as exc:
+        db.session.rollback()
+        app.logger.warning("Full restore failed: %s", exc)
+        flash(
+            "Full restore failed due to database constraints. "
+            "This backup may be from a different version.",
+            "error",
+        )
+        return redirect(url_for("backup_settings"))
+    except Exception as exc:
+        db.session.rollback()
+        app.logger.warning("Full restore failed: %s", exc)
+        flash(f"Full restore failed: {exc}", "error")
+        return redirect(url_for("backup_settings"))
+
+    _reset_sequences(
+        [
+            "asset_assignment_history",
+            "asset_comment",
+            "asset_type",
+            "asset_field",
+        ]
+    )
+    _DEPT_CACHE["timestamp"] = 0.0
+    log_audit("update", "asset_backup", details="Asset backup restored")
+    flash("Asset backup restored.", "success")
+    return redirect(url_for("backup_settings"))
+
+
+@app.route("/backups/schedule", methods=["POST"])
+@login_required
+@require_app_admin
+def update_backup_schedule():
+    schedule = get_backup_schedule("config")
+    email = request.form.get("backup_email", "").strip()
+    run_time = _parse_schedule_time(request.form.get("backup_time", ""))
+    enabled = "backup_enabled" in request.form
+    frequency = (request.form.get("backup_frequency") or "daily").strip().lower()
+    day_of_week = request.form.get("backup_day_of_week", "").strip()
+    day_of_month = request.form.get("backup_day_of_month", "").strip()
+    if enabled and not email:
+        flash("Backup email is required when scheduling is enabled.", "error")
+        return redirect(url_for("backup_settings"))
+    if enabled and not run_time:
+        flash("Backup time must be in HH:MM format.", "error")
+        return redirect(url_for("backup_settings"))
+    if enabled and frequency == "weekly":
+        if day_of_week == "" or not day_of_week.isdigit():
+            flash("Weekly backups require a day of week.", "error")
+            return redirect(url_for("backup_settings"))
+    if enabled and frequency == "monthly":
+        if day_of_month == "" or not day_of_month.isdigit():
+            flash("Monthly backups require a day of month.", "error")
+            return redirect(url_for("backup_settings"))
+    schedule.frequency = frequency
+    schedule.day_of_week = int(day_of_week) if day_of_week.isdigit() else None
+    schedule.day_of_month = int(day_of_month) if day_of_month.isdigit() else None
+    schedule.email = email
+    schedule.run_time = run_time or schedule.run_time
+    schedule.enabled = enabled
+    db.session.commit()
+    flash("Backup schedule updated.", "success")
+    return redirect(url_for("backup_settings"))
+
+
+@app.route("/backups/full/schedule", methods=["POST"])
+@login_required
+@require_app_admin
+def update_full_backup_schedule():
+    schedule = get_backup_schedule("full")
+    email = request.form.get("full_backup_email", "").strip()
+    run_time = _parse_schedule_time(request.form.get("full_backup_time", ""))
+    enabled = "full_backup_enabled" in request.form
+    frequency = (request.form.get("full_backup_frequency") or "daily").strip().lower()
+    day_of_week = request.form.get("full_backup_day_of_week", "").strip()
+    day_of_month = request.form.get("full_backup_day_of_month", "").strip()
+    if enabled and not email:
+        flash("Backup email is required when scheduling is enabled.", "error")
+        return redirect(url_for("backup_settings"))
+    if enabled and not run_time:
+        flash("Backup time must be in HH:MM format.", "error")
+        return redirect(url_for("backup_settings"))
+    if enabled and frequency == "weekly":
+        if day_of_week == "" or not day_of_week.isdigit():
+            flash("Weekly backups require a day of week.", "error")
+            return redirect(url_for("backup_settings"))
+    if enabled and frequency == "monthly":
+        if day_of_month == "" or not day_of_month.isdigit():
+            flash("Monthly backups require a day of month.", "error")
+            return redirect(url_for("backup_settings"))
+    schedule.frequency = frequency
+    schedule.day_of_week = int(day_of_week) if day_of_week.isdigit() else None
+    schedule.day_of_month = int(day_of_month) if day_of_month.isdigit() else None
+    schedule.email = email
+    schedule.run_time = run_time or schedule.run_time
+    schedule.enabled = enabled
+    db.session.commit()
+    flash("Full backup schedule updated.", "success")
     return redirect(url_for("backup_settings"))
 
 
@@ -6326,7 +7248,11 @@ def ldap_sync_users():
         flash("LDAP is not configured. Save LDAP settings first.", "error")
         return redirect(url_for("list_users"))
     try:
-        records = get_ldap_user_records(force_refresh=True)
+        records = get_ldap_user_records(force_refresh=True, raise_on_error=True)
+    except LDAPConfigError as exc:
+        log_audit("sync_failed", "ldap_users", success=False, details=str(exc))
+        flash(f"LDAP sync failed. {exc}", "error")
+        return redirect(url_for("list_users"))
     except LDAPInvalidFilterError as exc:
         log_audit("sync_failed", "ldap_users", success=False, details=str(exc))
         flash(
@@ -6359,9 +7285,15 @@ def ldap_sync_users():
             if email and existing.email != email:
                 existing.email = email
                 updated += 1
+            if not existing.is_ldap:
+                existing.is_ldap = True
             continue
         try:
             new_user = ensure_ldap_user(username_norm)
+        except LDAPConfigError as exc:
+            log_audit("sync_failed", "ldap_users", success=False, details=str(exc))
+            flash(f"LDAP sync failed. {exc}", "error")
+            return redirect(url_for("list_users"))
         except LDAPInvalidFilterError as exc:
             log_audit("sync_failed", "ldap_users", success=False, details=str(exc))
             flash(
@@ -6396,7 +7328,11 @@ def ldap_sync_groups():
         flash("LDAP is not configured. Save LDAP settings first.", "error")
         return redirect(url_for("list_groups"))
     try:
-        groups = get_ldap_groups(force_refresh=True)
+        groups = get_ldap_groups(force_refresh=True, raise_on_error=True)
+    except LDAPConfigError as exc:
+        log_audit("sync_failed", "ldap_groups", success=False, details=str(exc))
+        flash(f"LDAP sync failed. {exc}", "error")
+        return redirect(url_for("list_groups"))
     except LDAPInvalidFilterError as exc:
         log_audit("sync_failed", "ldap_groups", success=False, details=str(exc))
         flash(
@@ -6714,8 +7650,19 @@ def delete_user(user_id):
     if user.username == "admin":
         flash("Default admin user cannot be deleted.", "error")
         return redirect(url_for("list_users"))
-    db.session.delete(user)
-    db.session.commit()
+    current = get_current_user()
+    if current and user.id == current.id:
+        flash("You cannot delete your own account.", "error")
+        return redirect(url_for("list_users"))
+    try:
+        _cleanup_user_refs(user.id)
+        db.session.delete(user)
+        db.session.commit()
+    except SQLAlchemyError as exc:
+        db.session.rollback()
+        app.logger.warning("User delete failed: %s", exc)
+        flash("Unable to delete user. Remove role/group assignments first.", "error")
+        return redirect(url_for("list_users"))
     log_audit("delete", "user", entity_id=user.id, details=user.username)
     return redirect(url_for("list_users"))
 
@@ -6728,14 +7675,23 @@ def bulk_delete_users():
     if ids:
         users = User.query.filter(User.id.in_(ids)).all()
         current = get_current_user()
-        for user in users:
-            if user.username == "admin":
-                continue
-            if current and user.id == current.id:
-                continue
-            db.session.delete(user)
-        db.session.commit()
-        log_audit("bulk_delete", "user", details=f"Deleted ids: {ids}")
+        deleted_ids = []
+        try:
+            for user in users:
+                if user.username == "admin":
+                    continue
+                if current and user.id == current.id:
+                    continue
+                _cleanup_user_refs(user.id)
+                db.session.delete(user)
+                deleted_ids.append(user.id)
+            db.session.commit()
+        except SQLAlchemyError as exc:
+            db.session.rollback()
+            app.logger.warning("Bulk user delete failed: %s", exc)
+            flash("Unable to delete one or more users. Remove role/group assignments first.", "error")
+            return redirect(url_for("list_users"))
+        log_audit("bulk_delete", "user", details=f"Deleted ids: {deleted_ids}")
     return redirect(url_for("list_users"))
 
 
@@ -6795,6 +7751,7 @@ def smtp_settings():
         low_stock_enabled = "low_stock_enabled" in request.form
         low_stock_threshold = _parse_int(request.form.get("low_stock_threshold", ""), 5)
         low_stock_frequency_days = _parse_int(request.form.get("low_stock_frequency_days", ""), 1)
+        assignment_enabled = "assignment_enabled" in request.form
         if config:
             config.host = host
             config.port = port
@@ -6810,6 +7767,7 @@ def smtp_settings():
             config.low_stock_enabled = low_stock_enabled
             config.low_stock_threshold = low_stock_threshold
             config.low_stock_frequency_days = low_stock_frequency_days
+            config.assignment_enabled = assignment_enabled
         else:
             config = SMTPConfig(
                 host=host,
@@ -6825,6 +7783,7 @@ def smtp_settings():
                 low_stock_enabled=low_stock_enabled,
                 low_stock_threshold=low_stock_threshold,
                 low_stock_frequency_days=low_stock_frequency_days,
+                assignment_enabled=assignment_enabled,
             )
             db.session.add(config)
         db.session.commit()
@@ -7091,3 +8050,20 @@ def bulk_delete_roles():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+class LDAPConfigError(Exception):
+    pass
+
+
+def _ldap_safe_search(conn, base_dn, search_filter, attributes, size_limit, context):
+    try:
+        return conn.search(
+            base_dn,
+            search_filter,
+            search_scope=SUBTREE,
+            attributes=attributes,
+            size_limit=size_limit,
+        )
+    except LDAPInvalidFilterError as exc:
+        raise LDAPConfigError(f"{context} filter is invalid. {exc}") from exc
+    except LDAPExceptionError as exc:
+        raise LDAPConfigError(f"{context} search failed. {exc}") from exc
