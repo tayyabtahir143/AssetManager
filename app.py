@@ -4324,19 +4324,6 @@ def require_app_admin(view):
     return wrapped
 
 
-@app.route("/updates/run", methods=["POST"])
-@login_required
-@require_app_admin
-def run_update():
-    if not _UPDATE_LOCK.acquire(blocking=False):
-        flash("Update already running. Please wait.", "error")
-        return redirect(request.referrer or url_for("index"))
-    thread = threading.Thread(target=_run_compose_update, daemon=True)
-    thread.start()
-    flash("Update started. Containers will be refreshed automatically.", "success")
-    return redirect(request.referrer or url_for("index"))
-
-
 def require_bulk_delete(view):
     @wraps(view)
     def wrapped(*args, **kwargs):
