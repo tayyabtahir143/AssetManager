@@ -168,6 +168,11 @@
         color: var(--muted);
         text-align: center;
       }
+      .center-button {
+        display: block;
+        margin: 8px auto 0;
+        text-align: center;
+      }
       .content-wrap {
         flex: 1;
         display: flex;
@@ -491,7 +496,7 @@
                 {% endif %}
               </a>
             {% endif %}
-            <a class="button secondary" href="{{ url_for('logout') }}">Logout</a>
+            <a class="button secondary center-button" href="{{ url_for('logout') }}">Logout</a>
             <div class="version-chip">Version: {{ app_version }}</div>
           </div>
         {% endif %}
