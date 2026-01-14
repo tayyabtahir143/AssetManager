@@ -3,6 +3,7 @@ services:
     image: tayyabtahir/assetmanager:latest
     ports:
       - "5000:5000"
+    restart: always
     environment:
       - DATABASE_URL=postgresql://inventory:inventory@db:5432/inventory
       - SECRET_KEY=change-this-to-a-strong-secret
@@ -11,6 +12,7 @@ services:
       - ./data:/data
   db:
     image: postgres:16
+    restart: always
     environment:
       - POSTGRES_DB=inventory
       - POSTGRES_USER=inventory

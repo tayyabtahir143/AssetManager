@@ -3,6 +3,7 @@ services:
     image: tayyabtahir/assetmanager:latest
     ports:
       - "5000:5000"
+    restart: always
     environment:
       - DATABASE_URL=${DATABASE_URL:-sqlite:////data/inventory.db}
       - SECRET_KEY=change-me
