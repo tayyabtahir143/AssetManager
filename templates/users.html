@@ -1,11 +1,26 @@
 {% extends "base.html" %}
 {% block content %}
+  <style>
+    .users-actions .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 40px;
+      min-width: 140px;
+    }
+  </style>
   <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
     <div>
       <h2>Users</h2>
       <p class="muted">Manage application users and roles.</p>
+      <p class="muted">
+        Total users: {{ total_users }}
+        {% if query %}
+          | Found: {{ filtered_users }}
+        {% endif %}
+      </p>
     </div>
-    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+    <div class="users-actions" style="display: flex; gap: 10px; flex-wrap: wrap;">
       <form method="get" class="inline">
         <input type="text" name="q" placeholder="Search..." value="{{ query or '' }}">
         <button class="button secondary" type="submit">Search</button>

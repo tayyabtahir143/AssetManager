@@ -19,7 +19,7 @@
               {% set options = dept_options %}
             {% endif %}
             {% set current_value = item|attr(field_name) %}
-            {% if field_name == "connection" and asset_type == "mice" %}
+            {% if field_name == "connection" and asset_type in ["mice", "keyboards"] %}
               {% if item.wired %}
                 {% set current_value = "Wired" %}
               {% elif item.wireless %}
@@ -32,6 +32,9 @@
               {% set current_value = "" %}
             {% endif %}
             <select id="{{ field_name }}" name="{{ field_name }}" {% if field_name != "assigned_to" %}required{% endif %}>
+              {% if field_name == "connection" and asset_type in ["mice", "keyboards"] %}
+                <option value="" {% if not current_value %}selected{% endif %} disabled>Select connection</option>
+              {% endif %}
               {% if field_name == "dept" %}
                 <option value="">-</option>
                 {% if not dept_options %}
