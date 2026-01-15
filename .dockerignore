@@ -21,3 +21,6 @@ vendor/
 logs/
 README.md
 docker-compose.yaml
+reset_password.py
+trivy-report.html
+trivy-html.tpl
