@@ -1834,7 +1834,7 @@ def ldap_authenticate(username, password):
         username=escape_filter_chars(username_norm)
     )
     try:
-        _ldap_safe_search(
+        entries = _ldap_safe_search(
             conn,
             config["base_dn"],
             search_filter,
@@ -1845,10 +1845,10 @@ def ldap_authenticate(username, password):
     except LDAPConfigError:
         conn.unbind()
         raise
-    if not conn.entries:
+    if not entries:
         conn.unbind()
         return False
-    user_dn = conn.entries[0].entry_dn
+    user_dn = entries[0].entry_dn
     conn.unbind()
     return _ldap_bind(user_dn, password, config=config)
 
@@ -1876,7 +1876,7 @@ def get_ldap_users(force_refresh=False, raise_on_error=False):
         log_audit("sync_failed", "ldap_users", success=False, details="Bind failed")
         return []
     try:
-        _ldap_safe_search(
+        entries = _ldap_safe_search(
             conn,
             config["base_dn"],
             config["list_filter"],
@@ -1893,7 +1893,7 @@ def get_ldap_users(force_refresh=False, raise_on_error=False):
             raise
         return []
     usernames = set()
-    for entry in conn.entries:
+    for entry in entries:
         if _ldap_is_computer_entry(entry, config["user_attribute"]):
             continue
         try:
@@ -1927,7 +1927,7 @@ def get_ldap_user_records(force_refresh=False, raise_on_error=False):
         return []
     email_attr = config.get("email_attribute") or "mail"
     try:
-        _ldap_safe_search(
+        entries = _ldap_safe_search(
             conn,
             config["base_dn"],
             config["list_filter"],
@@ -1944,7 +1944,7 @@ def get_ldap_user_records(force_refresh=False, raise_on_error=False):
             raise
         return []
     records = []
-    for entry in conn.entries:
+    for entry in entries:
         if _ldap_is_computer_entry(entry, config["user_attribute"]):
             continue
         try:
@@ -2014,7 +2014,7 @@ def get_ldap_groups(force_refresh=False, raise_on_error=False):
         log_audit("sync_failed", "ldap_groups", success=False, details="Bind failed")
         return []
     try:
-        _ldap_safe_search(
+        entries = _ldap_safe_search(
             conn,
             config["base_dn"],
             config["group_filter"],
@@ -2031,7 +2031,7 @@ def get_ldap_groups(force_refresh=False, raise_on_error=False):
             raise
         return []
     groups = []
-    for entry in conn.entries:
+    for entry in entries:
         try:
             name_value = entry[config["group_attribute"]].value
         except (KeyError, AttributeError):
@@ -2246,7 +2246,7 @@ def ldap_lookup_user_email(username, config=None):
         username=safe_username
     )
     try:
-        _ldap_safe_search(
+        entries = _ldap_safe_search(
             conn,
             config["base_dn"],
             search_filter,
@@ -2258,9 +2258,9 @@ def ldap_lookup_user_email(username, config=None):
         conn.unbind()
         raise
     email_value = None
-    if conn.entries:
+    if entries:
         try:
-            email_value = conn.entries[0][email_attr].value
+            email_value = entries[0][email_attr].value
         except (KeyError, AttributeError):
             email_value = None
     conn.unbind()
@@ -8117,13 +8117,31 @@ class LDAPConfigError(Exception):
 
 def _ldap_safe_search(conn, base_dn, search_filter, attributes, size_limit, context):
     try:
-        return conn.search(
-            base_dn,
-            search_filter,
-            search_scope=SUBTREE,
-            attributes=attributes,
-            size_limit=size_limit,
-        )
+        limit = size_limit or 0
+        paged_size = min(1000, limit) if limit else 1000
+        entries = []
+        cookie = None
+        while True:
+            conn.search(
+                base_dn,
+                search_filter,
+                search_scope=SUBTREE,
+                attributes=attributes,
+                size_limit=0,
+                paged_size=paged_size,
+                paged_cookie=cookie,
+            )
+            if conn.entries:
+                entries.extend(conn.entries)
+                if limit and len(entries) >= limit:
+                    entries = entries[:limit]
+                    break
+            controls = conn.result.get("controls", {})
+            paged = controls.get("1.2.840.113556.1.4.319", {})
+            cookie = paged.get("value", {}).get("cookie")
+            if not cookie:
+                break
+        return entries
     except LDAPInvalidFilterError as exc:
         raise LDAPConfigError(f"{context} filter is invalid. {exc}") from exc
     except LDAPExceptionError as exc:
