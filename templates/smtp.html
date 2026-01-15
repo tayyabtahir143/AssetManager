@@ -54,6 +54,7 @@
         <div class="smtp-field">
           <label for="monthly_report_day">Monthly report day (1-28)</label>
           <input id="monthly_report_day" name="monthly_report_day" type="number" min="1" max="28" value="{{ config.monthly_report_day if config else 1 }}">
+          <div class="muted" style="margin-top: 6px;">The day of the month the report email is sent.</div>
         </div>
         <div class="smtp-toggle boxed">
           <label for="low_stock_enabled">Enable low stock alerts</label>
@@ -66,6 +67,7 @@
         <div class="smtp-field">
           <label for="low_stock_frequency_days">Low stock email frequency (days)</label>
           <input id="low_stock_frequency_days" name="low_stock_frequency_days" type="number" min="1" value="{{ config.low_stock_frequency_days if config else 1 }}">
+          <div class="muted" style="margin-top: 6px;">Example: 1 = daily, 7 = weekly, 30 = monthly.</div>
         </div>
         <button class="button" type="submit">Save</button>
       </div>

@@ -1,4 +1,10 @@
 services:
+  init-perms:
+    image: busybox:1.36
+    command: ["sh", "-c", "mkdir -p /data/logs /data/postgres && chown -R 65532:65532 /data && chown -R 999:999 /data/postgres"]
+    volumes:
+      - ./data:/data
+    restart: "no"
   web:
     image: tayyabtahir/assetmanager:latest
     ports:
@@ -8,6 +14,9 @@ services:
       - DATABASE_URL=postgresql+psycopg://inventory:inventory@db:5432/inventory
       - SECRET_KEY=change-this-to-a-strong-secret
       - TZ=Australia/Brisbane
+    depends_on:
+      init-perms:
+        condition: service_completed_successfully
     volumes:
       - ./data:/data
   db:
@@ -17,5 +26,8 @@ services:
       - POSTGRES_DB=inventory
       - POSTGRES_USER=inventory
       - POSTGRES_PASSWORD=inventory
+    depends_on:
+      init-perms:
+        condition: service_completed_successfully
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
