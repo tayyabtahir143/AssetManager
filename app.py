@@ -1067,7 +1067,8 @@ def _format_timestamp(value):
     if not value:
         return "-"
     if isinstance(value, datetime.datetime):
-        return value.strftime("%Y-%m-%d %H:%M:%S")
+        formatted = _format_local_time(value)
+        return formatted or "-"
     return str(value)
 
 
@@ -1392,7 +1393,9 @@ def send_monthly_report(force=False):
     lines.append("")
     lines.append("Recent activity:")
     for entry in logs:
-        lines.append(f"- {entry.created_at} {entry.username or '-'} {entry.action} {entry.entity_type} {entry.entity_id or '-'}")
+        lines.append(
+            f"- {_format_timestamp(entry.created_at)} {entry.username or '-'} {entry.action} {entry.entity_type} {entry.entity_id or '-'}"
+        )
     subject = f"[{get_branding_name()}] Monthly report"
     counts_rows = "".join(
         "<tr>"
