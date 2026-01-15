@@ -196,7 +196,7 @@ def _normalize_asset_payload(definition, payload, existing=None):
             data[field_name] = _parse_int_value(value, 0)
         else:
             data[field_name] = str(value).strip() if value is not None else ""
-    if definition["model"] is Mouse:
+    if definition["model"] in (Mouse, Keyboard):
         apply_mouse_connection_to_data(data)
     if "assigned_to" in data and data["assigned_to"] == "":
         data["assigned_to"] = "free"
@@ -612,14 +612,16 @@ ASSET_DEFS = {
         "model": Keyboard,
         "bulk_add": True,
         "fields": [
-            ("wired", "Wired", "checkbox"),
-            ("wireless", "Wireless", "checkbox"),
+            ("connection", "Connection", "select"),
             ("model", "Model", "text"),
             ("dept", "Dept", "text"),
             ("assigned_to", "User", "text"),
             ("status", "Status", "select"),
         ],
-        "field_options": {"status": STATUS_OPTIONS},
+        "field_options": {
+            "status": STATUS_OPTIONS,
+            "connection": ["Wired", "Wireless"],
+        },
     },
     "mice": {
         "label": "Mouse",
@@ -2795,6 +2797,15 @@ def _get_timezone():
         return ZoneInfo("UTC")
 
 
+def _format_local_time(value):
+    if not value:
+        return ""
+    tz = _get_timezone()
+    if value.tzinfo is None:
+        value = value.replace(tzinfo=datetime.timezone.utc)
+    return value.astimezone(tz).strftime("%Y-%m-%d %H:%M:%S")
+
+
 def send_config_backup_email(schedule):
     config = get_smtp_config()
     if not config or not config.enabled:
@@ -4678,7 +4689,7 @@ def api_assets_list(asset_type):
     if query:
         filters = []
         for field_name, _label, field_type in definition["fields"]:
-            if field_name == "connection" and definition["model"] is Mouse:
+            if field_name == "connection" and definition["model"] in (Mouse, Keyboard):
                 if query in {"wired"}:
                     filters.append(definition["model"].wired.is_(True))
                 elif query in {"wireless"}:
@@ -4705,7 +4716,7 @@ def api_assets_list(asset_type):
     for item in items:
         row = {"id": item.id}
         for field_name, _label, field_type in definition["fields"]:
-            if field_name == "connection" and definition["model"] is Mouse:
+            if field_name == "connection" and definition["model"] in (Mouse, Keyboard):
                 value = get_mouse_connection(item)
                 field_type = "text"
             else:
@@ -4734,7 +4745,7 @@ def api_assets_get(asset_type, item_id):
     item = definition["model"].query.get_or_404(item_id)
     row = {"id": item.id}
     for field_name, _label, field_type in definition["fields"]:
-        if field_name == "connection" and definition["model"] is Mouse:
+        if field_name == "connection" and definition["model"] in (Mouse, Keyboard):
             value = get_mouse_connection(item)
             field_type = "text"
         else:
@@ -5000,7 +5011,7 @@ def list_assets(asset_type):
     if query:
         filters = []
         for field_name, _label, field_type in definition["fields"]:
-            if field_name == "connection" and definition["model"] is Mouse:
+            if field_name == "connection" and definition["model"] in (Mouse, Keyboard):
                 if query in {"wired"}:
                     filters.append(definition["model"].wired.is_(True))
                 elif query in {"wireless"}:
@@ -5080,7 +5091,7 @@ def view_asset(asset_type, item_id):
             label,
             field_type,
             get_mouse_connection(item)
-            if field_name == "connection" and definition["model"] is Mouse
+            if field_name == "connection" and definition["model"] in (Mouse, Keyboard)
             else getattr(item, field_name, None),
         )
         for field_name, label, field_type in definition["fields"]
@@ -5164,7 +5175,7 @@ def list_assets_page(asset_type):
     for item in items:
         row = {"id": item.id, "fields": {}}
         for field_name, _label, field_type in definition["fields"]:
-            if field_name == "connection" and definition["model"] is Mouse:
+            if field_name == "connection" and definition["model"] in (Mouse, Keyboard):
                 value = get_mouse_connection(item)
                 field_type = "text"
             else:
@@ -5194,7 +5205,7 @@ def export_assets_excel(asset_type):
     for item in definition["model"].query.order_by(definition["model"].id.asc()).all():
         row = [item.id]
         for field_name, _label, field_type in definition["fields"]:
-            if field_name == "connection" and definition["model"] is Mouse:
+            if field_name == "connection" and definition["model"] in (Mouse, Keyboard):
                 value = get_mouse_connection(item)
                 field_type = "text"
             else:
@@ -5290,7 +5301,7 @@ def import_assets_excel(asset_type):
                 data["status"] = "Assigned"
             else:
                 data["status"] = "In Stock"
-        if definition["model"] is Mouse:
+        if definition["model"] in (Mouse, Keyboard):
             apply_mouse_connection_to_data(data)
         if "asset_tag" in data and data["asset_tag"]:
             existing = definition["model"].query.filter_by(asset_tag=data["asset_tag"]).first()
@@ -5326,7 +5337,7 @@ def add_asset(asset_type):
         data = {}
         bulk_quantity = request.form.get("bulk_quantity", "1")
         for field_name, _, field_type in definition["fields"]:
-            if field_name == "connection" and definition["model"] is Mouse:
+            if field_name == "connection" and definition["model"] in (Mouse, Keyboard):
                 data[field_name] = request.form.get(field_name, "").strip()
             elif field_type == "checkbox":
                 data[field_name] = field_name in request.form
@@ -5336,7 +5347,16 @@ def add_asset(asset_type):
             else:
                 value = request.form.get(field_name, "").strip()
                 data[field_name] = value
-        if definition["model"] is Mouse:
+        if definition["model"] in (Mouse, Keyboard) and not data.get("connection"):
+            flash("Please select a connection type (wired or wireless).", "error")
+            return render_template(
+                "add.html",
+                asset_type=asset_type,
+                definition=definition,
+                form_data=data,
+                bulk_quantity=bulk_quantity,
+            )
+        if definition["model"] in (Mouse, Keyboard):
             apply_mouse_connection_to_data(data)
         if "assigned_to" in data and data["assigned_to"] == "":
             data["assigned_to"] = "free"
@@ -5491,14 +5511,14 @@ def edit_asset(asset_type, item_id):
     user = get_current_user()
     old_values = {}
     for field_name, _, _ in definition["fields"]:
-        if field_name == "connection" and definition["model"] is Mouse:
+        if field_name == "connection" and definition["model"] in (Mouse, Keyboard):
             old_values[field_name] = get_mouse_connection(item)
         else:
             old_values[field_name] = getattr(item, field_name, None)
     if request.method == "POST":
         connection_value = None
         for field_name, _, field_type in definition["fields"]:
-            if field_name == "connection" and definition["model"] is Mouse:
+            if field_name == "connection" and definition["model"] in (Mouse, Keyboard):
                 connection_value = request.form.get(field_name, "").strip()
                 continue
             if field_type == "checkbox":
@@ -5511,7 +5531,19 @@ def edit_asset(asset_type, item_id):
                 if field_name == "assigned_to" and value == "":
                     value = "free"
                 setattr(item, field_name, value)
-        if definition["model"] is Mouse and connection_value is not None:
+        if definition["model"] in (Mouse, Keyboard):
+            if connection_value is None or connection_value == "":
+                flash("Please select a connection type (wired or wireless).", "error")
+                return render_template(
+                    "edit.html",
+                    asset_type=asset_type,
+                    definition=definition,
+                    item=item,
+                )
+            conn_norm = normalize_connection(connection_value)
+            item.wired = conn_norm == "wired"
+            item.wireless = conn_norm == "wireless"
+        elif connection_value is not None:
             conn_norm = normalize_connection(connection_value)
             item.wired = conn_norm == "wired"
             item.wireless = conn_norm == "wireless"
@@ -5570,7 +5602,7 @@ def edit_asset(asset_type, item_id):
         db.session.commit()
         new_values = {}
         for field_name, _, _ in definition["fields"]:
-            if field_name == "connection" and definition["model"] is Mouse:
+            if field_name == "connection" and definition["model"] in (Mouse, Keyboard):
                 new_values[field_name] = get_mouse_connection(item)
             else:
                 new_values[field_name] = getattr(item, field_name, None)
@@ -5604,7 +5636,7 @@ def copy_asset(asset_type, item_id):
     item = definition["model"].query.get_or_404(item_id)
     data = {}
     for field_name, _, _ in definition["fields"]:
-        if field_name == "connection" and definition["model"] is Mouse:
+        if field_name == "connection" and definition["model"] in (Mouse, Keyboard):
             data[field_name] = get_mouse_connection(item)
         else:
             data[field_name] = getattr(item, field_name, None)
@@ -6648,6 +6680,7 @@ def inject_user():
 @require_app_admin
 def list_users():
     users = User.query.order_by(User.username.asc()).all()
+    total_users = len(users)
     roles = Role.query.order_by(Role.name.asc()).all()
     role_map = {role.id: role.name for role in roles}
     memberships = GroupMember.query.all()
@@ -6680,6 +6713,7 @@ def list_users():
                 ", ".join(user_roles.get(user.id, [])),
             )
         ]
+    filtered_users = len(users)
     return render_template(
         "users.html",
         users=users,
@@ -6687,6 +6721,8 @@ def list_users():
         user_groups=user_groups,
         user_roles=user_roles,
         query=query,
+        total_users=total_users,
+        filtered_users=filtered_users,
     )
 
 
@@ -7790,6 +7826,8 @@ def audit_log():
                 entry.details,
             )
         ]
+    for entry in logs:
+        entry.display_time = _format_local_time(entry.created_at)
     return render_template("audit.html", logs=logs, query=query)
 
 

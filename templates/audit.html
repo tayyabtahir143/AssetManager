@@ -95,7 +95,7 @@
           {% set action_class = "action-default" %}
         {% endif %}
         <tr class="{% if not entry.success %}audit-row-fail{% endif %}">
-          <td>{{ entry.created_at }}</td>
+          <td>{{ entry.display_time or entry.created_at }}</td>
           <td>{{ entry.username or "—" }}</td>
           <td><span class="audit-pill audit-action {{ action_class }}">{{ entry.action }}</span></td>
           <td><span class="audit-pill action-default">{{ entry.entity_type }}</span></td>

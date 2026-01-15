@@ -29,6 +29,9 @@
               {% set current_value = "" %}
             {% endif %}
             <select id="{{ field_name }}" name="{{ field_name }}" {% if field_name != "assigned_to" %}required{% endif %}>
+              {% if field_name == "connection" and asset_type in ["mice", "keyboards"] %}
+                <option value="" {% if not current_value %}selected{% endif %} disabled>Select connection</option>
+              {% endif %}
               {% if field_name == "dept" %}
                 <option value="">-</option>
                 {% if not dept_options %}
