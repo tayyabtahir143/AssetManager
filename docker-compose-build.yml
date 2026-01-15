@@ -4,7 +4,7 @@ services:
     ports:
       - "5000:5000"
     environment:
-      - DATABASE_URL=postgresql://inventory:inventory@db:5432/inventory
+      - DATABASE_URL=postgresql+psycopg://inventory:inventory@db:5432/inventory
       - SECRET_KEY=change-me
       - TZ=Australia/Brisbane
     restart: always
