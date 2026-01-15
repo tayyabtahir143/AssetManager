@@ -458,6 +458,7 @@
         </div>
         {% if show_sidebar %}
           <div class="badge-row">
+            <span class="badge">User: {{ current_user.username }}</span>
             <span class="badge">Role: {{ current_user.role }}</span>
           </div>
           {% set ep = request.endpoint %}
