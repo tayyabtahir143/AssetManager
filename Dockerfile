@@ -3,7 +3,7 @@ FROM python:3.14-slim AS builder
 WORKDIR /app
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends build-essential libpq-dev \
+    && apt-get install -y --no-install-recommends build-essential libpq-dev tzdata \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
@@ -17,8 +17,10 @@ WORKDIR /app
 ARG APP_VERSION=1.0.0
 ENV APP_VERSION=${APP_VERSION}
 ENV PYTHONPATH=/usr/local/lib/python3.14/site-packages
+ENV TZ=UTC
 
 COPY --from=builder /install /usr/local
+COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 COPY . .
 
 EXPOSE 5000
