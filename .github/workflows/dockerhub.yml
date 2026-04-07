@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - master
+      - feature/improvements
   workflow_dispatch:
 
 jobs:
@@ -12,6 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       APP_VERSION: 1.0.${{ github.run_number }}
+      IS_RELEASE: ${{ github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -25,7 +27,9 @@ jobs:
           username: tayyabtahir
           password: ${{ secrets.DOCKER_HUB_TOKEN }}
 
-      - name: Build and push
+      # ── Release build (main / master) — tagged :latest ───────────
+      - name: Build and push (release)
+        if: env.IS_RELEASE == 'true'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -36,3 +40,16 @@ jobs:
             tayyabtahir/assetmanager:${{ env.APP_VERSION }}
           build-args: |
             APP_VERSION=${{ env.APP_VERSION }}
+
+      # ── Feature / non-release build — tagged :edge, never :latest ─
+      - name: Build and push (edge)
+        if: env.IS_RELEASE == 'false'
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            tayyabtahir/assetmanager:edge
+            tayyabtahir/assetmanager:${{ github.sha }}
+          build-args: |
+            APP_VERSION=${{ env.APP_VERSION }}-edge
