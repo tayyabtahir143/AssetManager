@@ -9,79 +9,80 @@
       min-width: 140px;
     }
   </style>
-  <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
-    <div>
-      <h2>Users</h2>
-      <p class="muted">Manage application users and roles.</p>
-      <p class="muted">
-        Total users: {{ total_users }}
-        {% if query %}
-          | Found: {{ filtered_users }}
+  <div class="page-header animate-in">
+    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+      <div>
+        <div class="page-title">Users</div>
+        <div class="page-subtitle">
+          Manage application users and roles.
+          Total users: {{ total_users }}{% if query %} | Found: {{ filtered_users }}{% endif %}
+        </div>
+      </div>
+      <div class="users-actions" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+        <form method="get" class="inline">
+          <input type="text" name="q" placeholder="Search..." value="{{ query or '' }}">
+          <button class="button secondary" type="submit">Search</button>
+        </form>
+        {% if app_admin and permissions.can_bulk_delete %}
+          <button class="button secondary" type="button" id="toggle-users-bulk">Bulk delete</button>
+          <button class="button secondary bulk-toggle-users" id="bulk-users-submit" type="submit" form="bulk-users-form" onclick="return confirm('Delete selected users?');" style="display: none;">Delete selected</button>
         {% endif %}
-      </p>
-    </div>
-    <div class="users-actions" style="display: flex; gap: 10px; flex-wrap: wrap;">
-      <form method="get" class="inline">
-        <input type="text" name="q" placeholder="Search..." value="{{ query or '' }}">
-        <button class="button secondary" type="submit">Search</button>
-      </form>
-      {% if app_admin and permissions.can_bulk_delete %}
-        <button class="button secondary" type="button" id="toggle-users-bulk">Bulk delete</button>
-        <button class="button secondary bulk-toggle-users" id="bulk-users-submit" type="submit" form="bulk-users-form" onclick="return confirm('Delete selected users?');" style="display: none;">Delete selected</button>
-      {% endif %}
-      <form method="post" action="{{ url_for('ldap_sync_users') }}">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <button class="button secondary" type="submit">Sync LDAP Users</button>
-      </form>
-      <a class="button" href="{{ url_for('add_user') }}">Add User</a>
+        <form method="post" action="{{ url_for('ldap_sync_users') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="button secondary" type="submit">Sync LDAP Users</button>
+        </form>
+        <a class="button" href="{{ url_for('add_user') }}">Add User</a>
+      </div>
     </div>
   </div>
 
   <form method="post" action="{{ url_for('bulk_delete_users') }}" id="bulk-users-form">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="bulk_delete_intent" id="bulk-users-intent" value="">
-    <table>
-      <thead>
-        <tr>
-          {% if app_admin and permissions.can_bulk_delete %}
-            <th><input type="checkbox" id="select-all-users" class="bulk-toggle-users" style="display: none;"></th>
-          {% endif %}
-          <th>#</th>
-          <th>Username</th>
-          <th>Email</th>
-          <th>Roles</th>
-          <th>Groups</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for user in users %}
+    <div class="table-wrap">
+      <table>
+        <thead>
           <tr>
             {% if app_admin and permissions.can_bulk_delete %}
-              <td><input type="checkbox" class="user-checkbox bulk-toggle-users" name="selected_ids" value="{{ user.id }}" style="display: none;"></td>
+              <th><input type="checkbox" id="select-all-users" class="bulk-toggle-users" style="display: none;"></th>
             {% endif %}
-              <td>{{ loop.index }}</td>
-            <td>{{ user.username }}</td>
-            <td>{{ user.email or "—" }}</td>
-            <td>{{ (user_roles.get(user.id) or [])|join(", ") or "—" }}</td>
-            <td>{{ (user_groups.get(user.id) or [])|join(", ") or "—" }}</td>
-            <td>
-              <a class="button secondary" href="{{ url_for('user_assets', user=user.username) }}">Assets</a>
-              <a class="button secondary" href="{{ url_for('edit_user', user_id=user.id) }}">Edit</a>
-              <button class="button secondary" type="submit" formaction="{{ url_for('delete_user', user_id=user.id) }}" formmethod="post" onclick="return confirm('Delete this user?');">Delete</button>
-            </td>
+            <th>#</th>
+            <th>Username</th>
+            <th>Email</th>
+            <th>Roles</th>
+            <th>Groups</th>
+            <th>Actions</th>
           </tr>
-        {% else %}
-          <tr>
-            <td colspan="7">No users found.</td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {% for user in users %}
+            <tr>
+              {% if app_admin and permissions.can_bulk_delete %}
+                <td><input type="checkbox" class="user-checkbox bulk-toggle-users" name="selected_ids" value="{{ user.id }}" style="display: none;"></td>
+              {% endif %}
+                <td>{{ loop.index }}</td>
+              <td>{{ user.username }}</td>
+              <td>{{ user.email or "—" }}</td>
+              <td>{{ (user_roles.get(user.id) or [])|join(", ") or "—" }}</td>
+              <td>{{ (user_groups.get(user.id) or [])|join(", ") or "—" }}</td>
+              <td>
+                <a class="button secondary" href="{{ url_for('user_assets', user=user.username) }}">Assets</a>
+                <a class="button secondary" href="{{ url_for('edit_user', user_id=user.id) }}">Edit</a>
+                <button class="button danger" type="submit" formaction="{{ url_for('delete_user', user_id=user.id) }}" formmethod="post" onclick="return confirm('Delete this user?');">Delete</button>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="7">No users found.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </form>
   <div id="bulk-users-overlay" style="display: none; position: fixed; inset: 0; background: rgba(3, 6, 12, 0.7); z-index: 999; align-items: center; justify-content: center;">
     <div class="card" style="min-width: 280px; text-align: center;">
-      <h3 style="margin-top: 0;">Deleting…</h3>
+      <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Deleting…</div>
       <p class="muted">Please wait while we process your request.</p>
       <div class="spinner"></div>
     </div>

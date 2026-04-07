@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
-  <div class="card" style="max-width: 520px;">
-    <h2>Edit User</h2>
+  <div class="card animate-in" style="max-width: 520px;">
+    <div style="font-size:20px; font-weight:700; letter-spacing:-0.02em; margin-bottom:4px;">Edit User</div>
     <form method="post" class="form-grid">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div>

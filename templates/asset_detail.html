@@ -1,99 +1,107 @@
 {% extends "base.html" %}
 {% block content %}
-  <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
-    <div>
-      <h2>{{ asset_title }}</h2>
-      <p class="muted">Asset detail, assignment history, and comments.</p>
-    </div>
-    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-      <a class="button secondary" href="{{ url_for('edit_asset', asset_type=asset_type, item_id=item.id) }}">Edit</a>
-      <a class="button" href="{{ url_for('list_assets', asset_type=asset_type) }}">Back</a>
+  <div class="page-header animate-in">
+    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+      <div>
+        <div class="page-title">{{ asset_title }}</div>
+        <div class="page-subtitle">Asset detail, assignment history, and comments.</div>
+      </div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+        <a class="button secondary" href="{{ url_for('edit_asset', asset_type=asset_type, item_id=item.id) }}">Edit</a>
+        <a class="button" href="{{ url_for('list_assets', asset_type=asset_type) }}">Back</a>
+      </div>
     </div>
   </div>
 
-  <div class="card" style="margin-top: 16px;">
-    <h3 style="margin-top: 0;">Asset Overview</h3>
-    <table>
-      <thead>
-        <tr>
-          <th>Field</th>
-          <th>Value</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for field_name, label, field_type, value in fields %}
+  <div class="card animate-in" style="margin-top: 16px;">
+    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Asset Overview</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
           <tr>
-            <td>{{ label }}</td>
-            <td>{{ value if value not in [None, ""] else "-" }}</td>
+            <th>Field</th>
+            <th>Value</th>
           </tr>
-        {% endfor %}
-        <tr>
-          <td>User</td>
-          <td>{{ assigned_to }}</td>
-        </tr>
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {% for field_name, label, field_type, value in fields %}
+            <tr>
+              <td>{{ label }}</td>
+              <td>{{ value if value not in [None, ""] else "-" }}</td>
+            </tr>
+          {% endfor %}
+          <tr>
+            <td>User</td>
+            <td>{{ assigned_to }}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
     {% if previous_users %}
       <p class="muted" style="margin-top: 10px;">Previous users (latest 2): {{ previous_users | join(", ") }}</p>
     {% endif %}
   </div>
 
-  <div class="card" style="margin-top: 16px;">
-    <h3 style="margin-top: 0;">Assignment History</h3>
+  <div class="card animate-in" style="margin-top: 16px;">
+    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Assignment History</div>
     {% if history %}
-      <table>
-        <thead>
-          <tr>
-            <th>When</th>
-            <th>Assigned By</th>
-            <th>From</th>
-            <th>To</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for entry in history %}
+      <div class="table-wrap">
+        <table>
+          <thead>
             <tr>
-              <td>{{ entry.created_at.strftime("%Y-%m-%d %H:%M:%S") }}</td>
-              <td>{{ entry.assigned_by or "-" }}</td>
-              <td>{{ display_assignee(entry.from_user) }}</td>
-              <td>{{ display_assignee(entry.to_user) }}</td>
+              <th>When</th>
+              <th>Assigned By</th>
+              <th>From</th>
+              <th>To</th>
             </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {% for entry in history %}
+              <tr>
+                <td>{{ entry.created_at.strftime("%Y-%m-%d %H:%M:%S") }}</td>
+                <td>{{ entry.assigned_by or "-" }}</td>
+                <td>{{ display_assignee(entry.from_user) }}</td>
+                <td>{{ display_assignee(entry.to_user) }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     {% else %}
       <p class="muted">No assignment history yet.</p>
     {% endif %}
   </div>
 
-  <div class="card" style="margin-top: 16px;">
-    <h3 style="margin-top: 0;">Edit History</h3>
+  <div class="card animate-in" style="margin-top: 16px;">
+    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Edit History</div>
     {% if edit_history %}
-      <table>
-        <thead>
-          <tr>
-            <th>When</th>
-            <th>Edited By</th>
-            <th>Changes</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for entry in edit_history %}
+      <div class="table-wrap">
+        <table>
+          <thead>
             <tr>
-              <td>{{ entry.created_at.strftime("%Y-%m-%d %H:%M:%S") }}</td>
-              <td>{{ entry.username or "-" }}</td>
-              <td>{{ entry.details or "-" }}</td>
+              <th>When</th>
+              <th>Edited By</th>
+              <th>Changes</th>
             </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {% for entry in edit_history %}
+              <tr>
+                <td>{{ entry.created_at.strftime("%Y-%m-%d %H:%M:%S") }}</td>
+                <td>{{ entry.username or "-" }}</td>
+                <td>{{ entry.details or "-" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     {% else %}
       <p class="muted">No edit history yet.</p>
     {% endif %}
   </div>
 
-  <div class="card" style="margin-top: 16px;">
-    <h3 style="margin-top: 0;">Comments</h3>
+  <div class="card animate-in" style="margin-top: 16px;">
+    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Comments</div>
     <form method="post" action="{{ url_for('add_asset_comment', asset_type=asset_type, item_id=item.id) }}" style="display: grid; gap: 10px;">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <textarea name="comment" rows="3" placeholder="Add a comment..." required></textarea>
