@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - master
+      - feature/improvements
   workflow_dispatch:
 
 jobs:
