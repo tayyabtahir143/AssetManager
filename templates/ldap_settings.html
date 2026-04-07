@@ -3,6 +3,7 @@
   <div class="card" style="max-width: 720px;">
     <h2>LDAP Connection</h2>
     <form method="post" class="form-grid">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div>
         <label for="server">LDAP Server</label>
         <input id="server" name="server" type="text" value="{{ config.server }}" placeholder="ldap://ldap.example.com:389">

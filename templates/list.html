@@ -35,6 +35,7 @@
         <a class="button secondary" href="{{ url_for('export_assets_excel', asset_type=asset_type) }}">Export Excel</a>
         {% if asset_perms.can_add %}
           <form method="post" action="{{ url_for('import_assets_excel', asset_type=asset_type) }}" enctype="multipart/form-data" style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="file" name="file" accept=".xlsx" required>
             <button class="button" type="submit">Import Excel</button>
           </form>
@@ -44,6 +45,7 @@
   {% endif %}
 
   <form method="post" action="{{ url_for('bulk_delete_assets', asset_type=asset_type) }}" id="bulk-delete-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="bulk_delete_intent" id="bulk-delete-intent" value="">
     {% set ns = namespace(has_asset_tag=false) %}
     {% for field_name, _label, _field_type in definition.fields %}

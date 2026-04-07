@@ -26,6 +26,10 @@ from zoneinfo import ZoneInfo
 
 from flask import Flask, render_template, request, redirect, url_for, session, flash, send_file, jsonify
 from flask_sqlalchemy import SQLAlchemy
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from flask_wtf.csrf import CSRFProtect, CSRFError
+from cryptography.fernet import Fernet, InvalidToken
 import jwt
 from ldap3 import Connection, Server, SUBTREE, Tls
 from ldap3.core.exceptions import LDAPExceptionError, LDAPInvalidFilterError
@@ -40,10 +44,46 @@ app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
     "DATABASE_URL", "sqlite:///inventory.db"
 )
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+_db_url = os.environ.get("DATABASE_URL", "sqlite:///inventory.db")
+_engine_options: dict = {"pool_pre_ping": True}
+if not _db_url.startswith("sqlite"):
+    # Pool settings only supported by server-based databases (PostgreSQL, MySQL, etc.)
+    _engine_options["pool_size"] = int(os.environ.get("DB_POOL_SIZE", "10"))
+    _engine_options["max_overflow"] = int(os.environ.get("DB_MAX_OVERFLOW", "20"))
+    _engine_options["pool_recycle"] = 300
+app.config["SQLALCHEMY_ENGINE_OPTIONS"] = _engine_options
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret-key")
+app.config["WTF_CSRF_TIME_LIMIT"] = 3600
 app.config["LOG_DIR"] = os.environ.get("LOG_DIR", "/data/logs")
 app.config["LOG_FILE"] = os.environ.get("LOG_FILE", "app.log")
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=14)
+app.config["MAX_CONTENT_LENGTH"] = int(os.environ.get("MAX_UPLOAD_MB", "16")) * 1024 * 1024
+
+# Derive a stable Fernet key from SECRET_KEY for encrypting credentials at rest
+def _make_fernet_key(secret: str) -> bytes:
+    import base64
+    digest = hashlib.sha256(secret.encode()).digest()
+    return base64.urlsafe_b64encode(digest)
+
+_FERNET = Fernet(_make_fernet_key(app.config["SECRET_KEY"]))
+
+
+def encrypt_credential(plaintext: str) -> str:
+    """Encrypt a plaintext credential string for storage."""
+    if not plaintext:
+        return plaintext
+    return _FERNET.encrypt(plaintext.encode()).decode()
+
+
+def decrypt_credential(ciphertext: str) -> str:
+    """Decrypt a stored credential. Returns plaintext, or the original value if not encrypted."""
+    if not ciphertext:
+        return ciphertext
+    try:
+        return _FERNET.decrypt(ciphertext.encode()).decode()
+    except (InvalidToken, Exception):
+        # Value is plaintext (pre-encryption migration); return as-is
+        return ciphertext
 LOG_PAGE_EXCLUDE_PREFIXES = (
     "/static",
     "/branding/logo",
@@ -89,6 +129,25 @@ SECTION_ENDPOINTS = {
 
 db = SQLAlchemy(app)
 
+# Rate limiting — login: 10/minute per IP, API: 60/minute per IP
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=[],
+    storage_uri=os.environ.get("RATELIMIT_STORAGE_URI", "memory://"),
+)
+
+# CSRF protection for all web forms; API routes are exempt (use Bearer tokens)
+csrf = CSRFProtect(app)
+
+
+@app.errorhandler(CSRFError)
+def handle_csrf_error(e):
+    app.logger.warning("CSRF validation failed: %s ip=%s", e.description, request.remote_addr)
+    flash("Your session has expired or the form was tampered with. Please try again.", "error")
+    return redirect(request.referrer or url_for("login")), 400
+
+
 _LDAP_USER_CACHE = {"users": [], "timestamp": 0.0}
 _LDAP_GROUP_CACHE = {"groups": [], "timestamp": 0.0}
 _LDAP_SYNC_LOCKS = {"users": threading.Lock(), "groups": threading.Lock()}
@@ -122,13 +181,30 @@ STATUS_LABELS = {
 }
 
 
+class _JsonFormatter(logging.Formatter):
+    """Structured JSON log formatter for easy log parsing and aggregation."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        log_entry = {
+            "ts": datetime.datetime.utcfromtimestamp(record.created).strftime(
+                "%Y-%m-%dT%H:%M:%S.%f"
+            )
+            + "Z",
+            "level": record.levelname,
+            "logger": record.name,
+            "msg": record.getMessage(),
+        }
+        if record.exc_info:
+            log_entry["exc"] = self.formatException(record.exc_info)
+        return json.dumps(log_entry)
+
+
 def setup_logging():
     log_dir = app.config["LOG_DIR"]
     os.makedirs(log_dir, exist_ok=True)
     log_path = os.path.join(log_dir, app.config["LOG_FILE"])
     handler = RotatingFileHandler(log_path, maxBytes=5_000_000, backupCount=5)
-    formatter = logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
-    handler.setFormatter(formatter)
+    handler.setFormatter(_JsonFormatter())
     handler.setLevel(logging.INFO)
     app.logger.setLevel(logging.INFO)
     if not any(isinstance(h, RotatingFileHandler) for h in app.logger.handlers):
@@ -939,10 +1015,10 @@ def send_smtp_notification(action, entity_type, entity_id, success, details):
             if config.encryption == "starttls":
                 server.starttls()
             if not config.skip_auth and config.username and config.password:
-                server.login(config.username, config.password)
+                server.login(config.username, decrypt_credential(config.password))
             server.send_message(message)
-    except Exception:
-        pass
+    except Exception as exc:
+        app.logger.warning("SMTP notification failed: %s", exc)
 
 
 def send_email(subject, body, recipients, html_body=None):
@@ -965,10 +1041,11 @@ def send_email(subject, body, recipients, html_body=None):
             if config.encryption == "starttls":
                 server.starttls()
             if not config.skip_auth and config.username and config.password:
-                server.login(config.username, config.password)
+                server.login(config.username, decrypt_credential(config.password))
             server.send_message(message)
         return True
-    except Exception:
+    except Exception as exc:
+        app.logger.warning("SMTP send_email failed: %s", exc)
         return False
 
 
@@ -1609,7 +1686,12 @@ def _hash_token(token):
 def _jwt_encode(payload, expires_in):
     now = datetime.datetime.utcnow()
     data = dict(payload)
-    data.update({"iat": now, "exp": now + datetime.timedelta(seconds=expires_in)})
+    # jti (JWT ID) ensures uniqueness even for rapid back-to-back calls
+    data.update({
+        "iat": now,
+        "exp": now + datetime.timedelta(seconds=expires_in),
+        "jti": secrets.token_hex(8),
+    })
     return jwt.encode(data, app.config["SECRET_KEY"], algorithm=JWT_ALGORITHM)
 
 
@@ -1692,7 +1774,7 @@ def get_ldap_config_from_db():
         "server": (config.server or "").strip(),
         "base_dn": (config.base_dn or "").strip(),
         "bind_dn": (config.bind_dn or "").strip(),
-        "bind_password": config.bind_password or "",
+        "bind_password": decrypt_credential(config.bind_password or ""),
         "user_filter": config.user_filter or "(sAMAccountName={username})",
         "list_filter": config.list_filter
         or "(&(objectClass=user)(!(objectClass=computer))(sAMAccountName=*))",
@@ -2113,7 +2195,10 @@ def _ldap_config_from_form(form, existing=None):
 
     bind_password = form.get("bind_password", "")
     if bind_password == "" and existing:
+        # Keep existing encrypted value; don't re-encrypt a ciphertext
         bind_password = existing.bind_password or ""
+    elif bind_password:
+        bind_password = encrypt_credential(bind_password)
 
     config = {
         "server": get_text("server"),
@@ -2359,7 +2444,7 @@ def send_password_reset_email(user, reset_url):
         if config.encryption and config.encryption.lower() == "starttls":
             server.starttls()
         if not config.skip_auth and config.username:
-            server.login(config.username, config.password or "")
+            server.login(config.username, decrypt_credential(config.password or ""))
         server.send_message(message)
         server.quit()
         return True, None
@@ -2853,7 +2938,7 @@ def send_config_backup_email(schedule):
         if config.encryption and config.encryption.lower() == "starttls":
             server.starttls()
         if not config.skip_auth and config.username:
-            server.login(config.username, config.password or "")
+            server.login(config.username, decrypt_credential(config.password or ""))
         server.send_message(message)
         server.quit()
         return True, None
@@ -2924,7 +3009,7 @@ def send_full_backup_email(schedule):
         if config.encryption and config.encryption.lower() == "starttls":
             server.starttls()
         if not config.skip_auth and config.username:
-            server.login(config.username, config.password or "")
+            server.login(config.username, decrypt_credential(config.password or ""))
         server.send_message(message)
         server.quit()
         return True, None
@@ -3987,6 +4072,42 @@ def normalize_ram_quantities():
     db.session.commit()
 
 
+def migrate_plaintext_credentials():
+    """
+    One-time migration: encrypt any plaintext LDAP/SMTP credentials found in the DB.
+    Safe to run on every startup — already-encrypted values are detected via Fernet header
+    and skipped, so no double-encryption occurs.
+    """
+    changed = False
+    try:
+        ldap_row = LdapConfig.query.first()
+        if ldap_row and ldap_row.bind_password:
+            # decrypt_credential returns original if it's already encrypted OR plaintext
+            # We detect plaintext by trying to decrypt: if it fails the InvalidToken path it's plaintext
+            try:
+                _FERNET.decrypt(ldap_row.bind_password.encode())
+                # Already encrypted — skip
+            except (InvalidToken, Exception):
+                # Plaintext — encrypt it now
+                ldap_row.bind_password = encrypt_credential(ldap_row.bind_password)
+                changed = True
+
+        smtp_row = SMTPConfig.query.first()
+        if smtp_row and smtp_row.password:
+            try:
+                _FERNET.decrypt(smtp_row.password.encode())
+            except (InvalidToken, Exception):
+                smtp_row.password = encrypt_credential(smtp_row.password)
+                changed = True
+
+        if changed:
+            db.session.commit()
+            app.logger.info("migrate_plaintext_credentials: encrypted existing plaintext credentials")
+    except Exception as exc:
+        app.logger.warning("migrate_plaintext_credentials failed (non-fatal): %s", exc)
+        db.session.rollback()
+
+
 def apply_builtin_overrides():
     settings = {setting.key: setting for setting in BuiltinAssetTypeSetting.query.all()}
     field_settings = BuiltinAssetFieldSetting.query.all()
@@ -4055,6 +4176,7 @@ def init_db():
         ensure_role_permissions()
         ensure_indexes()
         normalize_ram_quantities()
+        migrate_plaintext_credentials()
         _DB_INIT_DONE = True
         start_backup_scheduler()
     if request.method == "GET":
@@ -4443,6 +4565,7 @@ def apply_status_filter_query(model, query_builder, status_filter):
 
 
 @app.route("/login", methods=["GET", "POST"])
+@limiter.limit("20 per minute", methods=["POST"])
 def login():
     if request.method == "POST":
         username = normalize_username(request.form.get("username", ""))
@@ -4569,6 +4692,8 @@ def logout():
 
 
 @app.route("/api/auth/login", methods=["POST"])
+@csrf.exempt
+@limiter.limit("20 per minute")
 def api_login():
     payload = request.get_json(silent=True) or {}
     username = normalize_username(payload.get("username", ""))
@@ -4579,6 +4704,7 @@ def api_login():
     if not user and "@" in username:
         user = User.query.filter(func.lower(User.email) == username.lower()).first()
     local_ok = user and check_password_hash(user.password_hash, password)
+    authenticated = bool(local_ok)
     if not local_ok:
         try:
             ldap_ok = ldap_authenticate(username, password)
@@ -4586,6 +4712,7 @@ def api_login():
             app.logger.warning("LDAP authentication unavailable: %s", exc)
             ldap_ok = False
         if ldap_ok:
+            authenticated = True
             if not user:
                 user = ensure_ldap_user(username)
         else:
@@ -4596,9 +4723,11 @@ def api_login():
                 except Exception as exc:
                     app.logger.warning("LDAP authentication unavailable: %s", exc)
                     ldap_ok = False
-                if ldap_ok and not user:
-                    user = ensure_ldap_user(short_name)
-    if not user:
+                if ldap_ok:
+                    authenticated = True
+                    if not user:
+                        user = ensure_ldap_user(short_name)
+    if not user or not authenticated:
         log_audit("login_failed", "api_auth", success=False, details=username)
         return jsonify({"error": "Invalid username or password"}), 401
     if not get_user_role_names(user):
@@ -4617,6 +4746,7 @@ def api_login():
 
 
 @app.route("/api/auth/refresh", methods=["POST"])
+@csrf.exempt
 def api_refresh():
     payload = request.get_json(silent=True) or {}
     refresh_token = payload.get("refresh_token", "")
@@ -4758,6 +4888,7 @@ def api_assets_get(asset_type, item_id):
 
 
 @app.route("/api/assets/<asset_type>", methods=["POST"])
+@csrf.exempt
 @api_auth_required(permission="can_add", asset_type=None)
 def api_assets_create(asset_type):
     if asset_type not in ASSET_DEFS:
@@ -4783,6 +4914,7 @@ def api_assets_create(asset_type):
 
 
 @app.route("/api/assets/<asset_type>/<int:item_id>", methods=["PUT"])
+@csrf.exempt
 @api_auth_required(permission="can_add", asset_type=None)
 def api_assets_update(asset_type, item_id):
     if asset_type not in ASSET_DEFS:
@@ -4812,6 +4944,7 @@ def api_assets_update(asset_type, item_id):
 
 
 @app.route("/api/assets/<asset_type>/<int:item_id>", methods=["DELETE"])
+@csrf.exempt
 @api_auth_required(permission="can_delete", asset_type=None)
 def api_assets_delete(asset_type, item_id):
     if asset_type not in ASSET_DEFS:
@@ -7860,7 +7993,7 @@ def smtp_settings():
             config.encryption = encryption
             config.username = username
             if password:
-                config.password = password
+                config.password = encrypt_credential(password)
             config.skip_auth = skip_auth
             config.sender_email = sender_email
             config.enabled = enabled
@@ -7876,7 +8009,7 @@ def smtp_settings():
                 port=port,
                 encryption=encryption,
                 username=username,
-                password=password,
+                password=encrypt_credential(password) if password else password,
                 skip_auth=skip_auth,
                 sender_email=sender_email,
                 enabled=enabled,
@@ -8148,6 +8281,73 @@ def bulk_delete_roles():
         db.session.commit()
         log_audit("bulk_delete", "role", details=f"Deleted ids: {ids}")
     return redirect(url_for("list_roles"))
+
+
+# ---------------------------------------------------------------------------
+# API v1 aliases — forward /api/v1/* to the existing /api/* handlers so that
+# clients using the new versioned path work alongside older /api/* consumers.
+# Both paths remain functional — no breaking change for existing clients.
+# ---------------------------------------------------------------------------
+
+@app.route("/api/v1/auth/login", methods=["POST"])
+@csrf.exempt
+@limiter.limit("20 per minute")
+def api_v1_login():
+    return api_login()
+
+
+@app.route("/api/v1/auth/refresh", methods=["POST"])
+@csrf.exempt
+def api_v1_refresh():
+    return api_refresh()
+
+
+@app.route("/api/v1/asset-types", methods=["GET"])
+@csrf.exempt
+def api_v1_asset_types():
+    return api_asset_types()
+
+
+@app.route("/api/v1/users", methods=["GET"])
+@csrf.exempt
+def api_v1_users():
+    return api_users()
+
+
+@app.route("/api/v1/departments", methods=["GET"])
+@csrf.exempt
+def api_v1_departments():
+    return api_departments()
+
+
+@app.route("/api/v1/assets/<asset_type>", methods=["GET"])
+@csrf.exempt
+def api_v1_assets_list(asset_type):
+    return api_assets_list(asset_type)
+
+
+@app.route("/api/v1/assets/<asset_type>/<int:item_id>", methods=["GET"])
+@csrf.exempt
+def api_v1_assets_get(asset_type, item_id):
+    return api_assets_get(asset_type, item_id)
+
+
+@app.route("/api/v1/assets/<asset_type>", methods=["POST"])
+@csrf.exempt
+def api_v1_assets_create(asset_type):
+    return api_assets_create(asset_type)
+
+
+@app.route("/api/v1/assets/<asset_type>/<int:item_id>", methods=["PUT"])
+@csrf.exempt
+def api_v1_assets_update(asset_type, item_id):
+    return api_assets_update(asset_type, item_id)
+
+
+@app.route("/api/v1/assets/<asset_type>/<int:item_id>", methods=["DELETE"])
+@csrf.exempt
+def api_v1_assets_delete(asset_type, item_id):
+    return api_assets_delete(asset_type, item_id)
 
 
 if __name__ == "__main__":

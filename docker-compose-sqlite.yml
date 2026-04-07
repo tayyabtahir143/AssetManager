@@ -5,6 +5,7 @@ services:
     volumes:
       - ./data:/data
     restart: "no"
+
   web:
     image: tayyabtahir/assetmanager:latest
     ports:
@@ -12,10 +13,17 @@ services:
     restart: always
     environment:
       - DATABASE_URL=${DATABASE_URL:-sqlite:////data/inventory.db}
-      - SECRET_KEY=change-me
-      - TZ=Australia/Brisbane
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY is required. Run: cp .env.example .env and fill it in.}
+      - TZ=${TZ:-UTC}
+      - MAX_UPLOAD_MB=${MAX_UPLOAD_MB:-16}
     depends_on:
       init-perms:
         condition: service_completed_successfully
     volumes:
       - ./data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:5000/login')\" 2>/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s

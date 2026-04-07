@@ -3,6 +3,7 @@
   <div class="card smtp-settings" style="max-width: 1100px; width: 100%;">
     <h2>SMTP Settings</h2>
     <form method="post" class="smtp-grid">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="smtp-section">
         <div class="smtp-toggle boxed">
           <label for="enabled">Enable notifications</label>
@@ -74,9 +75,11 @@
     </form>
     <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px;">
       <form method="post" action="{{ url_for('smtp_send_monthly') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="button secondary" type="submit">Send monthly report now</button>
       </form>
       <form method="post" action="{{ url_for('smtp_send_low_stock') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="button secondary" type="submit">Send low stock report now</button>
       </form>
     </div>
@@ -85,6 +88,7 @@
   <div class="card smtp-settings" style="max-width: 1100px; width: 100%; margin-top: 18px;">
     <h2>Recipients</h2>
     <form method="post" action="{{ url_for('smtp_add_recipient') }}" class="smtp-recipient-grid">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="smtp-field">
         <label for="email">Recipient Email</label>
         <input id="email" name="email" type="text" placeholder="name@company.com" required>
@@ -132,9 +136,11 @@
             <td><input type="checkbox" name="notify_low_stock" form="recipient-{{ recipient.id }}" {% if recipient.notify_low_stock %}checked{% endif %}></td>
             <td>
               <form id="recipient-{{ recipient.id }}" method="post" action="{{ url_for('smtp_update_recipient', recipient_id=recipient.id) }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="button secondary" type="submit">Save</button>
               </form>
               <form class="inline" method="post" action="{{ url_for('smtp_delete_recipient', recipient_id=recipient.id) }}" onsubmit="return confirm('Delete this recipient?');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="button secondary" type="submit">Delete</button>
               </form>
             </td>

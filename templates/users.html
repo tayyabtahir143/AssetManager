@@ -30,6 +30,7 @@
         <button class="button secondary bulk-toggle-users" id="bulk-users-submit" type="submit" form="bulk-users-form" onclick="return confirm('Delete selected users?');" style="display: none;">Delete selected</button>
       {% endif %}
       <form method="post" action="{{ url_for('ldap_sync_users') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="button secondary" type="submit">Sync LDAP Users</button>
       </form>
       <a class="button" href="{{ url_for('add_user') }}">Add User</a>
@@ -37,6 +38,7 @@
   </div>
 
   <form method="post" action="{{ url_for('bulk_delete_users') }}" id="bulk-users-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="bulk_delete_intent" id="bulk-users-intent" value="">
     <table>
       <thead>

@@ -3,6 +3,7 @@
   <div class="card" style="max-width: 600px;">
     <h2>Edit {{ definition.label }}</h2>
     <form method="post" class="form-grid">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       {% for field_name, label, field_type in definition.fields %}
         <div>
           <label for="{{ field_name }}">{{ label }}</label>

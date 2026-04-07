@@ -3,6 +3,7 @@
   <div class="card" style="max-width: 600px;">
     <h2>Add Group</h2>
     <form method="post" class="form-grid">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div>
         <label for="name">Group name</label>
         <input id="name" name="name" type="text" required>

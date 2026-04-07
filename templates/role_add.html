@@ -3,6 +3,7 @@
   <div class="card" style="max-width: 520px;">
     <h2>Add Role</h2>
     <form method="post" class="form-grid">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div>
         <label for="name">Role Name</label>
         <input id="name" name="name" type="text" required>

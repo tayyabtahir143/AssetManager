@@ -15,6 +15,7 @@
   </div>
 
   <form method="post" action="{{ url_for('bulk_delete_roles') }}" id="bulk-roles-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="bulk_delete_intent" id="bulk-roles-intent" value="">
     <table>
       <thead>
