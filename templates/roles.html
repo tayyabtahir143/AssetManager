@@ -1,72 +1,76 @@
 {% extends "base.html" %}
 {% block content %}
-  <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
-    <div>
-      <h2>Roles</h2>
-      <p class="muted">Create roles by selecting permissions.</p>
-    </div>
-    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-      {% if app_admin and permissions.can_bulk_delete %}
-        <button class="button secondary" type="button" id="toggle-roles-bulk">Bulk delete</button>
-        <button class="button secondary bulk-toggle-roles" id="bulk-roles-submit" type="submit" form="bulk-roles-form" onclick="return confirm('Delete selected roles?');" style="display: none;">Delete selected</button>
-      {% endif %}
-      <a class="button" href="{{ url_for('add_role') }}">Add Role</a>
+  <div class="page-header animate-in">
+    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+      <div>
+        <div class="page-title">Roles</div>
+        <div class="page-subtitle">Create roles by selecting permissions.</div>
+      </div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+        {% if app_admin and permissions.can_bulk_delete %}
+          <button class="button secondary" type="button" id="toggle-roles-bulk">Bulk delete</button>
+          <button class="button secondary bulk-toggle-roles" id="bulk-roles-submit" type="submit" form="bulk-roles-form" onclick="return confirm('Delete selected roles?');" style="display: none;">Delete selected</button>
+        {% endif %}
+        <a class="button" href="{{ url_for('add_role') }}">Add Role</a>
+      </div>
     </div>
   </div>
 
   <form method="post" action="{{ url_for('bulk_delete_roles') }}" id="bulk-roles-form">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="bulk_delete_intent" id="bulk-roles-intent" value="">
-    <table>
-      <thead>
-        <tr>
-          {% if app_admin and permissions.can_bulk_delete %}
-            <th><input type="checkbox" id="select-all-roles" class="bulk-toggle-roles" style="display: none;"></th>
-          {% endif %}
-          <th>#</th>
-          <th>Name</th>
-          <th>Dept</th>
-          {% for asset in assets %}
-            <th>{{ asset.label }}</th>
-          {% endfor %}
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for role in roles %}
+    <div class="table-wrap">
+      <table>
+        <thead>
           <tr>
             {% if app_admin and permissions.can_bulk_delete %}
-              <td><input type="checkbox" class="role-checkbox bulk-toggle-roles" name="selected_ids" value="{{ role.id }}" style="display: none;"></td>
+              <th><input type="checkbox" id="select-all-roles" class="bulk-toggle-roles" style="display: none;"></th>
             {% endif %}
-              <td>{{ loop.index }}</td>
-            <td>{{ role.name }}</td>
-            <td>{{ "Yes" if role.can_manage_depts else "-" }}</td>
+            <th>#</th>
+            <th>Name</th>
+            <th>Dept</th>
             {% for asset in assets %}
-              {% set perm = perms_map.get(role.id, {}).get(asset.key) %}
-              <td>
-                {% if perm %}
-                  {{ "R" if perm.can_read else "-" }} / {{ "A" if perm.can_add else "-" }} / {{ "D" if perm.can_delete else "-" }} / {{ "B" if perm.can_bulk_delete else "-" }}
-                {% else %}
-                  - / - / - / -
-                {% endif %}
-              </td>
+              <th>{{ asset.label }}</th>
             {% endfor %}
-            <td>
-              <a class="button secondary" href="{{ url_for('edit_role', role_id=role.id) }}">Edit</a>
-              <button class="button secondary" type="submit" formaction="{{ url_for('delete_role', role_id=role.id) }}" formmethod="post" onclick="return confirm('Delete this role?');">Delete</button>
-            </td>
+            <th>Actions</th>
           </tr>
-        {% else %}
-          <tr>
-            <td colspan="{{ assets|length + (5 if app_admin and permissions.can_bulk_delete else 4) }}">No roles found.</td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {% for role in roles %}
+            <tr>
+              {% if app_admin and permissions.can_bulk_delete %}
+                <td><input type="checkbox" class="role-checkbox bulk-toggle-roles" name="selected_ids" value="{{ role.id }}" style="display: none;"></td>
+              {% endif %}
+                <td>{{ loop.index }}</td>
+              <td>{{ role.name }}</td>
+              <td>{{ "Yes" if role.can_manage_depts else "-" }}</td>
+              {% for asset in assets %}
+                {% set perm = perms_map.get(role.id, {}).get(asset.key) %}
+                <td>
+                  {% if perm %}
+                    {{ "R" if perm.can_read else "-" }} / {{ "A" if perm.can_add else "-" }} / {{ "D" if perm.can_delete else "-" }} / {{ "B" if perm.can_bulk_delete else "-" }}
+                  {% else %}
+                    - / - / - / -
+                  {% endif %}
+                </td>
+              {% endfor %}
+              <td>
+                <a class="button secondary" href="{{ url_for('edit_role', role_id=role.id) }}">Edit</a>
+                <button class="button danger" type="submit" formaction="{{ url_for('delete_role', role_id=role.id) }}" formmethod="post" onclick="return confirm('Delete this role?');">Delete</button>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="{{ assets|length + (5 if app_admin and permissions.can_bulk_delete else 4) }}">No roles found.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </form>
   <div id="bulk-roles-overlay" style="display: none; position: fixed; inset: 0; background: rgba(3, 6, 12, 0.7); z-index: 999; align-items: center; justify-content: center;">
     <div class="card" style="min-width: 280px; text-align: center;">
-      <h3 style="margin-top: 0;">Deleting…</h3>
+      <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Deleting…</div>
       <p class="muted">Please wait while we process your request.</p>
       <div class="spinner"></div>
     </div>

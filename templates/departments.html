@@ -1,13 +1,15 @@
 {% extends "base.html" %}
 {% block content %}
-  <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
-    <div>
-      <h2>Departments</h2>
-      <p class="muted">Manage department options used in asset assignments.</p>
+  <div class="page-header animate-in">
+    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+      <div>
+        <div class="page-title">Departments</div>
+        <div class="page-subtitle">Manage department options used in asset assignments.</div>
+      </div>
     </div>
   </div>
 
-  <div class="card" style="max-width: 520px; margin-top: 12px;">
+  <div class="card animate-in" style="max-width: 520px; margin-top: 12px;">
     <form method="post" class="form-grid">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div>
@@ -18,33 +20,35 @@
     </form>
   </div>
 
-  <div class="card" style="margin-top: 18px;">
-    <table>
-      <thead>
-        <tr>
-          <th>#</th>
-          <th>Department</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for dept in departments %}
+  <div class="card animate-in" style="margin-top: 18px;">
+    <div class="table-wrap">
+      <table>
+        <thead>
           <tr>
-            <td>{{ loop.index }}</td>
-            <td>{{ dept.name }}</td>
-            <td>
-              <form class="inline" method="post" action="{{ url_for('delete_department', dept_id=dept.id) }}" onsubmit="return confirm('Delete this department?');">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <button class="button secondary" type="submit">Delete</button>
-              </form>
-            </td>
+            <th>#</th>
+            <th>Department</th>
+            <th>Actions</th>
           </tr>
-        {% else %}
-          <tr>
-            <td colspan="3">No departments yet.</td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {% for dept in departments %}
+            <tr>
+              <td>{{ loop.index }}</td>
+              <td>{{ dept.name }}</td>
+              <td>
+                <form class="inline" method="post" action="{{ url_for('delete_department', dept_id=dept.id) }}" onsubmit="return confirm('Delete this department?');">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <button class="button danger" type="submit">Delete</button>
+                </form>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="3">No departments yet.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </div>
 {% endblock %}

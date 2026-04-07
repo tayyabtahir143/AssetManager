@@ -1,19 +1,23 @@
 {% extends "base.html" %}
 {% block content %}
-  <div class="report-header">
-    <div>
-      <h2>Asset Reports</h2>
-      <p class="muted">Generate printable, department-focused reports with full asset details.</p>
-      <p class="muted">Generated: {{ generated_at.strftime("%Y-%m-%d %H:%M:%S") }}</p>
-    </div>
-    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-      <a class="button secondary" href="{{ url_for('export_report', dept=dept_filter, asset=asset_filter, status=status_filter) }}">Export Excel</a>
-      <button class="button" type="button" onclick="window.print()">Print report</button>
+  <div class="page-header animate-in">
+    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+      <div>
+        <div class="page-title">Asset Reports</div>
+        <div class="page-subtitle">
+          Generate printable, department-focused reports with full asset details.
+          Generated: {{ generated_at.strftime("%Y-%m-%d %H:%M:%S") }}
+        </div>
+      </div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+        <a class="button secondary" href="{{ url_for('export_report', dept=dept_filter, asset=asset_filter, status=status_filter) }}">Export Excel</a>
+        <button class="button" type="button" onclick="window.print()">Print report</button>
+      </div>
     </div>
   </div>
 
-  <div class="card" style="margin-top: 18px;">
-    <h3 style="margin-top: 0;">Filters</h3>
+  <div class="card animate-in" style="margin-top: 18px;">
+    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Filters</div>
     <form method="get" class="filter-grid">
       <div>
         <label for="dept">Department</label>
@@ -49,84 +53,81 @@
     </form>
   </div>
 
-  <div class="card" style="margin-top: 18px;">
-    <h3 style="margin-top: 0;">Assets by Type</h3>
+  <div class="card animate-in" style="margin-top: 18px;">
+    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Assets by Type</div>
     <p class="muted">Assigned vs available totals for the selected filters.</p>
     {% if asset_summary %}
-      <table>
-        <thead>
-          <tr>
-            <th>Asset</th>
-            <th>Assigned</th>
-            <th>Available</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for item in asset_summary %}
+      <div class="table-wrap">
+        <table>
+          <thead>
             <tr>
-              <td>{{ item.label }}</td>
-              <td>{{ item.assigned }}</td>
-              <td>{{ item.available }}</td>
+              <th>Asset</th>
+              <th>Assigned</th>
+              <th>Available</th>
             </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {% for item in asset_summary %}
+              <tr>
+                <td>{{ item.label }}</td>
+                <td>{{ item.assigned }}</td>
+                <td>{{ item.available }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     {% else %}
       <p>No asset data for this filter.</p>
     {% endif %}
   </div>
 
-  <div class="card" style="margin-top: 18px;">
-    <h3 style="margin-top: 0;">Detailed Asset List</h3>
+  <div class="card animate-in" style="margin-top: 18px;">
+    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Detailed Asset List</div>
     <p class="muted">Includes asset tags, specs, assigned user, and department.</p>
     {% if report_rows %}
-      <table>
-        <thead>
-          <tr>
-            <th>Asset</th>
-            <th>Asset Tag</th>
-            <th>Vendor</th>
-            <th>Model</th>
-            <th>Processor</th>
-            <th>RAM</th>
-            <th>Hard Disk</th>
-            <th>User</th>
-            <th>Department</th>
-            <th>Status</th>
-            <th>Qty</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in report_rows %}
+      <div class="table-wrap">
+        <table>
+          <thead>
             <tr>
-              <td>{{ row.asset }}</td>
-              <td>{{ row.asset_tag }}</td>
-              <td>{{ row.vendor }}</td>
-              <td>{{ row.model }}</td>
-              <td>{{ row.processor }}</td>
-              <td>{{ row.ram }}</td>
-              <td>{{ row.hard_disk }}</td>
-              <td>{{ row.user }}</td>
-              <td>{{ row.dept }}</td>
-              <td>{{ row.status }}</td>
-              <td>{{ row.quantity or "-" }}</td>
+              <th>Asset</th>
+              <th>Asset Tag</th>
+              <th>Vendor</th>
+              <th>Model</th>
+              <th>Processor</th>
+              <th>RAM</th>
+              <th>Hard Disk</th>
+              <th>User</th>
+              <th>Department</th>
+              <th>Status</th>
+              <th>Qty</th>
             </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {% for row in report_rows %}
+              <tr>
+                <td>{{ row.asset }}</td>
+                <td>{{ row.asset_tag }}</td>
+                <td>{{ row.vendor }}</td>
+                <td>{{ row.model }}</td>
+                <td>{{ row.processor }}</td>
+                <td>{{ row.ram }}</td>
+                <td>{{ row.hard_disk }}</td>
+                <td>{{ row.user }}</td>
+                <td>{{ row.dept }}</td>
+                <td>{{ row.status }}</td>
+                <td>{{ row.quantity or "-" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     {% else %}
       <p>No assets match this filter.</p>
     {% endif %}
   </div>
 
   <style>
-    .report-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 16px;
-      flex-wrap: wrap;
-    }
     .filter-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -142,9 +143,9 @@
       .sidebar,
       .topbar,
       .back-row,
-      .report-header button,
+      .page-header button,
       .filter-grid,
-      .report-header a {
+      .page-header a {
         display: none !important;
       }
       main {

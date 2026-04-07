@@ -1,7 +1,13 @@
 {% extends "base.html" %}
 {% block content %}
-  <h2>Available Assets</h2>
-  <p class="muted">Unassigned assets are listed here, grouped by type.</p>
+  <div class="page-header animate-in">
+    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+      <div>
+        <div class="page-title">Available Assets</div>
+        <div class="page-subtitle">Unassigned assets are listed here, grouped by type.</div>
+      </div>
+    </div>
+  </div>
 
   {% if sections %}
     <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; position: sticky; top: 0; z-index: 20; padding: 10px 0; background: rgba(7, 10, 18, 0.9); backdrop-filter: blur(6px);">
@@ -13,103 +19,111 @@
     </div>
 
     {% for section in sections %}
-      <div class="card" id="available-{{ section.key }}" style="margin-bottom: 18px;">
-        <h3 style="margin-top: 0;">{{ section.label }}</h3>
+      <div class="card animate-in" id="available-{{ section.key }}" style="margin-bottom: 18px;">
+        <div style="font-size:15px; font-weight:700; margin-bottom:12px;">{{ section.label }}</div>
         {% if section.available_count is not none %}
           <p class="muted">{{ section.available_count }} available · {{ section.assigned_count }} assigned</p>
         {% endif %}
         {% if section["items"] %}
           {% if section.consumable %}
-            <table>
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Model</th>
-                  <th>Available</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for item in section["items"] %}
+            <div class="table-wrap">
+              <table>
+                <thead>
                   <tr>
-                    <td>{{ loop.index }}</td>
-                    <td>{{ item.model }}</td>
-                    <td>{{ item.available }}</td>
+                    <th>#</th>
+                    <th>Model</th>
+                    <th>Available</th>
                   </tr>
-                {% endfor %}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {% for item in section["items"] %}
+                    <tr>
+                      <td>{{ loop.index }}</td>
+                      <td>{{ item.model }}</td>
+                      <td>{{ item.available }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
           {% elif section.grouped %}
-            <table>
-              <thead>
-                <tr>
-                  <th>Model</th>
-                  <th>Quantity</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for item in section["items"] %}
+            <div class="table-wrap">
+              <table>
+                <thead>
                   <tr>
-                    <td>{{ item.model }}</td>
-                    <td>{{ item.quantity }}</td>
+                    <th>Model</th>
+                    <th>Quantity</th>
                   </tr>
-                {% endfor %}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {% for item in section["items"] %}
+                    <tr>
+                      <td>{{ item.model }}</td>
+                      <td>{{ item.quantity }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
           {% else %}
             {% if section.key in ["laptops", "computers"] %}
-              <table>
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    <th>Asset Tag</th>
-                    <th>Vendor</th>
-                    <th>Model</th>
-                    <th>Processor</th>
-                    <th>RAM</th>
-                    <th>Hard Disk</th>
-                    <th>User</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for item in section["items"] %}
+              <div class="table-wrap">
+                <table>
+                  <thead>
                     <tr>
-                      <td>{{ loop.index }}</td>
-                      <td>{{ item.asset_tag or "-" }}</td>
-                      <td>{{ item.vendor or "-" }}</td>
-                      <td>{{ item.model }}</td>
-                      <td>{{ item.processor or "-" }}</td>
-                      <td>{{ item.ram or "-" }}</td>
-                      <td>{{ item.hard_disk or "-" }}</td>
-                      <td>{{ "In Stock" if not item.assigned_to or item.assigned_to|lower == "free" else item.assigned_to }}</td>
-                    </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
-            {% else %}
-              <table>
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    {% if section.show_asset_tag %}
+                      <th>#</th>
                       <th>Asset Tag</th>
-                    {% endif %}
-                    <th>Model</th>
-                    <th>User</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {% for item in section["items"] %}
-                    <tr>
-                      <td>{{ loop.index }}</td>
-                      {% if section.show_asset_tag %}
-                        <td>{{ item.asset_tag or "-" }}</td>
-                      {% endif %}
-                      <td>{{ item.model }}</td>
-                      <td>{{ "In Stock" if not item.assigned_to or item.assigned_to|lower == "free" else item.assigned_to }}</td>
+                      <th>Vendor</th>
+                      <th>Model</th>
+                      <th>Processor</th>
+                      <th>RAM</th>
+                      <th>Hard Disk</th>
+                      <th>User</th>
                     </tr>
-                  {% endfor %}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {% for item in section["items"] %}
+                      <tr>
+                        <td>{{ loop.index }}</td>
+                        <td>{{ item.asset_tag or "-" }}</td>
+                        <td>{{ item.vendor or "-" }}</td>
+                        <td>{{ item.model }}</td>
+                        <td>{{ item.processor or "-" }}</td>
+                        <td>{{ item.ram or "-" }}</td>
+                        <td>{{ item.hard_disk or "-" }}</td>
+                        <td>{{ "In Stock" if not item.assigned_to or item.assigned_to|lower == "free" else item.assigned_to }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            {% else %}
+              <div class="table-wrap">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      {% if section.show_asset_tag %}
+                        <th>Asset Tag</th>
+                      {% endif %}
+                      <th>Model</th>
+                      <th>User</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for item in section["items"] %}
+                      <tr>
+                        <td>{{ loop.index }}</td>
+                        {% if section.show_asset_tag %}
+                          <td>{{ item.asset_tag or "-" }}</td>
+                        {% endif %}
+                        <td>{{ item.model }}</td>
+                        <td>{{ "In Stock" if not item.assigned_to or item.assigned_to|lower == "free" else item.assigned_to }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
             {% endif %}
           {% endif %}
         {% else %}
@@ -118,7 +132,7 @@
       </div>
     {% endfor %}
   {% else %}
-    <div class="card">
+    <div class="card animate-in">
       <p>No available assets right now.</p>
     </div>
   {% endif %}

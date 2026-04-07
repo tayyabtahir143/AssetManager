@@ -47,6 +47,26 @@
   {% endif %}
 </div>
 
+<!-- Charts row -->
+{% if total_assets > 0 %}
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-top:24px;" class="animate-in">
+  <div class="card">
+    <div style="font-size:15px; font-weight:700; margin-bottom:2px;">Status Distribution</div>
+    <div class="muted text-sm" style="margin-bottom:14px;">Overall asset breakdown by status.</div>
+    <div style="position:relative; height:220px;">
+      <canvas id="statusChart"></canvas>
+    </div>
+  </div>
+  <div class="card">
+    <div style="font-size:15px; font-weight:700; margin-bottom:2px;">Department Breakdown</div>
+    <div class="muted text-sm" style="margin-bottom:14px;">Assigned vs. available per department.</div>
+    <div style="position:relative; height:220px;">
+      <canvas id="deptChart"></canvas>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <!-- Asset types grid -->
 <div style="margin-top: 24px;" class="animate-in">
   <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
@@ -135,4 +155,138 @@
     </div>
   {% endif %}
 </div>
+{% endblock %}
+
+{% block scripts %}
+{% if total_assets > 0 %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script>
+(function () {
+  function tok(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+
+  function buildCharts() {
+    ['statusChart', 'deptChart'].forEach(id => {
+      const existing = Chart.getChart(id);
+      if (existing) existing.destroy();
+    });
+
+    const blue    = tok('--blue');
+    const green   = tok('--green');
+    const danger  = tok('--danger');
+    const warning = tok('--warning');
+    const accent  = tok('--accent');
+    const ink2    = tok('--ink-2');
+    const border2 = tok('--border-2');
+
+    Chart.defaults.font.family = "'Inter', system-ui, sans-serif";
+    Chart.defaults.font.size   = 12;
+    Chart.defaults.color       = ink2;
+
+    /* ── Donut: Status distribution ─────────────────────── */
+    const assigned = {{ total_assigned }};
+    const instock  = {{ total_available }};
+    const broken   = Math.max(0, {{ total_assets }} - assigned - instock);
+    const donutData = [assigned, instock, broken].filter((_, i) =>
+      [assigned, instock, broken][i] > 0
+    );
+    const donutLabels  = ['Assigned', 'In Stock', 'Broken / Write Off'].filter((_, i) =>
+      [assigned, instock, broken][i] > 0
+    );
+    const donutColors  = [blue, green, danger].filter((_, i) =>
+      [assigned, instock, broken][i] > 0
+    );
+
+    new Chart(document.getElementById('statusChart'), {
+      type: 'doughnut',
+      data: {
+        labels: donutLabels,
+        datasets: [{
+          data: [assigned, instock, broken].filter(v => v > 0),
+          backgroundColor: donutColors.map(c => c + '44'),
+          borderColor:     donutColors,
+          borderWidth: 2,
+          hoverOffset: 8,
+        }]
+      },
+      options: {
+        cutout: '68%',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: { padding: 14, usePointStyle: true, pointStyleWidth: 9, color: ink2 }
+          },
+          tooltip: {
+            callbacks: {
+              label: ctx => ` ${ctx.label}: ${ctx.parsed} (${Math.round(ctx.parsed / {{ total_assets }} * 100)}%)`
+            }
+          }
+        }
+      }
+    });
+
+    /* ── Horizontal bar: Department breakdown ────────────── */
+    const special = new Set(['In Stock', 'Broken', 'Write Off']);
+    const depts = {{ dept_summary | tojson }}
+      .filter(d => !special.has(d.dept) && (d.assigned + d.available) > 0)
+      .sort((a, b) => (b.assigned + b.available) - (a.assigned + a.available))
+      .slice(0, 8);
+
+    const deptLabels   = depts.length ? depts.map(d => d.dept) : ['No departments'];
+    const deptAssigned = depts.length ? depts.map(d => d.assigned) : [0];
+    const deptAvail    = depts.length ? depts.map(d => d.available) : [0];
+
+    new Chart(document.getElementById('deptChart'), {
+      type: 'bar',
+      data: {
+        labels: deptLabels,
+        datasets: [
+          {
+            label: 'Assigned',
+            data: deptAssigned,
+            backgroundColor: blue  + '66',
+            borderColor:     blue,
+            borderWidth: 1,
+            borderRadius: 4,
+          },
+          {
+            label: 'Available',
+            data: deptAvail,
+            backgroundColor: green + '66',
+            borderColor:     green,
+            borderWidth: 1,
+            borderRadius: 4,
+          }
+        ]
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: { padding: 14, usePointStyle: true, pointStyleWidth: 9, color: ink2 }
+          }
+        },
+        scales: {
+          x: { grid: { color: border2 }, ticks: { color: ink2 }, beginAtZero: true },
+          y: { grid: { display: false }, ticks: { color: ink2 } }
+        }
+      }
+    });
+  }
+
+  buildCharts();
+
+  /* Re-render when theme toggles so colors match */
+  document.getElementById('theme-toggle')?.addEventListener('click', () => {
+    setTimeout(buildCharts, 80);
+  });
+})();
+</script>
+{% endif %}
 {% endblock %}

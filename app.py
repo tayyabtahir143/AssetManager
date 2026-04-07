@@ -6792,7 +6792,10 @@ def inject_user():
     ldap_users = []
     dept_options = []
     if user:
-        ldap_users = get_ldap_user_display_list()
+        # Merge local DB users + LDAP users into one sorted list for the assignee datalist
+        local_usernames = [u.username for u in User.query.with_entities(User.username).all()]
+        ldap_display = get_ldap_user_display_list()
+        ldap_users = sorted(set(local_usernames) | set(ldap_display), key=str.lower)
         dept_options = get_dept_options_cached()
     return {
         "current_user": user,

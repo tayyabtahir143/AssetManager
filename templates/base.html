@@ -745,6 +745,7 @@
     {% if ldap_users %}
       <datalist id="ldap-users">
         {% for u in ldap_users %}<option value="{{ u }}">{% endfor %}
+        <option value="free">
       </datalist>
     {% endif %}
 
@@ -797,5 +798,6 @@
         tick(); setInterval(tick, 1000);
       }
     </script>
+    {% block scripts %}{% endblock %}
   </body>
 </html>

@@ -1,7 +1,16 @@
 {% extends "base.html" %}
 {% block content %}
-  <div class="card" style="max-width: 720px;">
-    <h2>Configuration Backup</h2>
+  <div class="page-header animate-in">
+    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+      <div>
+        <div class="page-title">Backup &amp; Restore</div>
+        <div class="page-subtitle">Download, restore, and schedule configuration and asset backups.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card animate-in" style="max-width: 720px; margin-top: 18px;">
+    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Configuration Backup</div>
     <p class="muted">
       Download a ZIP containing all configuration data (roles, permissions, asset types,
       LDAP/SMTP settings, departments, branding). Asset records are not included.
@@ -9,8 +18,8 @@
     <a class="button" href="{{ url_for('backup_config_download') }}">Download Config Backup</a>
   </div>
 
-  <div class="card" style="max-width: 720px; margin-top: 18px;">
-    <h2>Restore Configuration</h2>
+  <div class="card animate-in" style="max-width: 720px; margin-top: 18px;">
+    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Restore Configuration</div>
     <p class="muted">
       Restoring will replace current configuration (roles, permissions, asset types,
       departments, LDAP/SMTP, branding) and role/group assignments. Asset data is untouched.
@@ -22,8 +31,8 @@
     </form>
   </div>
 
-  <div class="card" style="max-width: 720px; margin-top: 18px;">
-    <h2>Scheduled Backup Email</h2>
+  <div class="card animate-in" style="max-width: 720px; margin-top: 18px;">
+    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Scheduled Backup Email</div>
     <p class="muted">
       Send a configuration backup to your email on a daily schedule. This backup
       does not include asset records; it only contains configuration data.
@@ -77,8 +86,8 @@
     </form>
   </div>
 
-  <div class="card" style="max-width: 720px; margin-top: 18px;">
-    <h2>Asset Backup</h2>
+  <div class="card animate-in" style="max-width: 720px; margin-top: 18px;">
+    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Asset Backup</div>
     <p class="muted">
       Download a ZIP containing asset records only (built‑in assets, custom asset items,
       assignment history, and comments). Configuration is not included.
@@ -86,8 +95,8 @@
     <a class="button" href="{{ url_for('backup_full_download') }}">Download Asset Backup</a>
   </div>
 
-  <div class="card" style="max-width: 720px; margin-top: 18px;">
-    <h2>Restore Asset Backup</h2>
+  <div class="card animate-in" style="max-width: 720px; margin-top: 18px;">
+    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Restore Asset Backup</div>
     <p class="muted">
       Restoring an asset backup replaces all asset records. Configuration stays untouched.
     </p>
@@ -98,8 +107,8 @@
     </form>
   </div>
 
-  <div class="card" style="max-width: 720px; margin-top: 18px;">
-    <h2>Scheduled Asset Backup Email</h2>
+  <div class="card animate-in" style="max-width: 720px; margin-top: 18px;">
+    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Scheduled Asset Backup Email</div>
     <p class="muted">
       Send an asset backup (assets only) to your email on a schedule.
     </p>
