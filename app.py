@@ -2385,6 +2385,10 @@ def get_branding_logo_url():
 
 
 def get_update_status():
+    # Edge / pre-release builds (version ends with "-edge") are not tracked
+    # against :latest — they are not official releases.
+    if APP_VERSION and APP_VERSION.endswith("-edge"):
+        return UPDATE_CHECK_CACHE  # available stays False forever for edge builds
     now = time.time()
     if now - UPDATE_CHECK_CACHE["timestamp"] < 300:
         return UPDATE_CHECK_CACHE
