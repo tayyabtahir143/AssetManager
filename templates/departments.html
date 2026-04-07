@@ -9,6 +9,7 @@
 
   <div class="card" style="max-width: 520px; margin-top: 12px;">
     <form method="post" class="form-grid">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div>
         <label for="name">Department Name</label>
         <input id="name" name="name" type="text" required>
@@ -33,6 +34,7 @@
             <td>{{ dept.name }}</td>
             <td>
               <form class="inline" method="post" action="{{ url_for('delete_department', dept_id=dept.id) }}" onsubmit="return confirm('Delete this department?');">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="button secondary" type="submit">Delete</button>
               </form>
             </td>

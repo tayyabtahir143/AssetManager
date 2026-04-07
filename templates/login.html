@@ -4,6 +4,7 @@
     <div class="card login-card">
       <h2>Sign in</h2>
       <form method="post" class="form-grid">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <div>
           <label for="username">Username</label>
           <input id="username" name="username" type="text" autocomplete="username" required>

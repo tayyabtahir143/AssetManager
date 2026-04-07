@@ -3,6 +3,7 @@
   <div class="card" style="max-width: 820px;">
     <h2>Edit Asset Type</h2>
     <form method="post" class="form-grid">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div>
         <label for="label">Display Label</label>
         <input id="label" name="label" type="text" value="{{ asset_type.label }}" required>

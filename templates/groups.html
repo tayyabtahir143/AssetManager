@@ -15,6 +15,7 @@
         <button class="button secondary bulk-toggle-groups" id="bulk-groups-submit" type="submit" form="bulk-groups-form" onclick="return confirm('Delete selected groups?');" style="display: none;">Delete selected</button>
       {% endif %}
       <form method="post" action="{{ url_for('ldap_sync_groups') }}">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="button secondary" type="submit">Sync LDAP Groups</button>
       </form>
       <a class="button" href="{{ url_for('add_group') }}">Add Group</a>
@@ -22,6 +23,7 @@
   </div>
 
   <form method="post" action="{{ url_for('bulk_delete_groups') }}" id="bulk-groups-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="bulk_delete_intent" id="bulk-groups-intent" value="">
     <table>
       <thead>

@@ -4,6 +4,7 @@
     <h2>Add Asset Type</h2>
     <p class="muted">Define fields (name + label + type). Use a field named "assigned_to" to enable free inventory.</p>
     <form method="post" class="form-grid">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div>
         <label for="label">Display Label</label>
         <input id="label" name="label" type="text" required>

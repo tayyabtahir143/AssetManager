@@ -16,6 +16,7 @@
       departments, LDAP/SMTP, branding) and role/group assignments. Asset data is untouched.
     </p>
     <form method="post" action="{{ url_for('restore_config_backup') }}" enctype="multipart/form-data" style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="file" name="file" accept=".zip" required>
       <button class="button" type="submit" onclick="return confirm('Restore configuration from this backup? This will replace current configuration.');">Restore Backup</button>
     </form>
@@ -28,6 +29,7 @@
       does not include asset records; it only contains configuration data.
     </p>
     <form method="post" action="{{ url_for('update_backup_schedule') }}" class="form-grid">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div>
         <label for="backup_email">Backup Email</label>
         <input id="backup_email" name="backup_email" type="email" value="{{ schedule.email or '' }}" placeholder="you@company.com">
@@ -90,6 +92,7 @@
       Restoring an asset backup replaces all asset records. Configuration stays untouched.
     </p>
     <form method="post" action="{{ url_for('restore_full_backup') }}" enctype="multipart/form-data" style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="file" name="file" accept=".zip" required>
       <button class="button" type="submit" onclick="return confirm('Restore asset backup? This will replace all asset data.');">Restore Asset Backup</button>
     </form>
@@ -101,6 +104,7 @@
       Send an asset backup (assets only) to your email on a schedule.
     </p>
     <form method="post" action="{{ url_for('update_full_backup_schedule') }}" class="form-grid">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div>
         <label for="full_backup_email">Backup Email</label>
         <input id="full_backup_email" name="full_backup_email" type="email" value="{{ full_schedule.email or '' }}" placeholder="you@company.com">
