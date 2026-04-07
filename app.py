@@ -6703,6 +6703,8 @@ def free_inventory():
                 "grouped": (not is_consumable and not has_asset_tag),
                 "available_count": total_available,
                 "assigned_count": total_assigned,
+                "can_edit": perms.get("can_add", False),
+                "is_custom": False,
             }
         )
     for asset_type in get_custom_asset_types():
@@ -6781,6 +6783,9 @@ def free_inventory():
                 "assigned_count": total_assigned,
                 "show_asset_tag": has_asset_tag,
                 "grouped": bool(assigned_fields and not has_asset_tag),
+                "can_edit": perms.get("can_add", False),
+                "is_custom": True,
+                "custom_key": asset_type.key,
             }
         )
     return render_template("free.html", user=user, sections=sections)
