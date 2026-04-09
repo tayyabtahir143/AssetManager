@@ -134,60 +134,126 @@
       gap: 12px;
       margin-top: 10px;
     }
+
+    /* ── Print-only report header (hidden on screen) ─────────── */
+    .print-report-header { display: none; }
+
     @media print {
+      @page { size: A4 landscape; margin: 10mm 12mm; }
+
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+
       body {
         background: #ffffff !important;
-        color: #111827 !important;
-        font-family: "Times New Roman", Times, serif;
+        color: #1e293b !important;
+        font-family: 'Inter', 'Segoe UI', system-ui, sans-serif !important;
+        font-size: 11px;
+        line-height: 1.5;
       }
-      .sidebar,
-      .topbar,
-      .back-row,
-      .page-header button,
-      .filter-grid,
-      .page-header a {
-        display: none !important;
+
+      /* Hide everything not needed */
+      .sidebar, .topbar, .back-row, .page-footer,
+      .page-header .button, .filter-grid, .animate-in { display: none !important; }
+
+      /* Reset layout */
+      .content-wrap { margin-left: 0 !important; }
+      main { max-width: 100% !important; padding: 0 !important; margin: 0 !important; }
+
+      /* Show print-only header */
+      .print-report-header {
+        display: flex !important;
+        align-items: flex-start;
+        justify-content: space-between;
+        border-bottom: 2px solid #1e293b;
+        padding-bottom: 8px;
+        margin-bottom: 14px;
       }
-      main {
-        max-width: 100%;
-        padding: 0;
+      .print-report-header .prt-title {
+        font-size: 18px; font-weight: 800; color: #1e293b; letter-spacing: -0.02em;
       }
+      .print-report-header .prt-meta {
+        font-size: 10px; color: #64748b; margin-top: 2px;
+      }
+      .print-report-header .prt-logo {
+        font-size: 11px; color: #64748b; text-align: right;
+      }
+
+      /* Cards */
       .card {
         box-shadow: none !important;
-        border: 1px solid #cbd5e1 !important;
+        border: none !important;
         border-radius: 0 !important;
         background: #ffffff !important;
+        padding: 0 0 16px 0 !important;
+        margin-top: 16px !important;
         page-break-inside: avoid;
       }
-      h2, h3, p, th, td {
-        color: #111827 !important;
-      }
-      table {
-        width: 100%;
-        border-collapse: collapse;
-        background: #ffffff !important;
-        font-size: 13px;
-        line-height: 1.4;
-      }
-      th, td {
-        border: 1px solid #cbd5e1;
-        padding: 7px 9px !important;
-        vertical-align: top;
-        word-break: break-word;
-      }
+      .card > div:first-child { font-size: 13px !important; font-weight: 700; color: #1e293b !important; margin-bottom: 4px !important; }
+      .card > p { font-size: 10px !important; color: #64748b !important; margin-bottom: 8px !important; }
+
+      /* Filters card — completely hidden */
+      .card:first-of-type { display: none !important; }
+
+      /* Summary table */
+      .table-wrap { border: none !important; box-shadow: none !important; border-radius: 0 !important; margin-top: 6px !important; }
+      table { width: 100%; border-collapse: collapse; background: #ffffff !important; }
+
+      /* Detailed report table */
       th {
-        background: #e2e8f0 !important;
+        background: #1e293b !important;
+        color: #ffffff !important;
+        font-size: 9px !important;
+        font-weight: 700 !important;
         text-transform: uppercase;
-        letter-spacing: 0.4px;
-        font-size: 11px;
+        letter-spacing: 0.06em;
+        padding: 6px 8px !important;
+        white-space: nowrap;
+        border: 1px solid #334155 !important;
       }
-      tbody tr:nth-child(even) {
-        background: #f8fafc !important;
+      td {
+        font-size: 10.5px !important;
+        color: #1e293b !important;
+        padding: 5px 8px !important;
+        border: 1px solid #e2e8f0 !important;
+        vertical-align: middle;
+        white-space: nowrap;
       }
-      @page {
-        size: A4;
-        margin: 12mm;
-      }
+      tbody tr:nth-child(even) td { background: #f8fafc !important; }
+      tbody tr:hover td { background: #f1f5f9 !important; }
+
+      /* Column widths — prevent word-breaking */
+      td:nth-child(1)  { min-width: 60px;  }  /* Asset */
+      td:nth-child(2)  { min-width: 80px;  font-weight: 600; }  /* Asset Tag */
+      td:nth-child(3)  { min-width: 55px;  }  /* Vendor */
+      td:nth-child(4)  { min-width: 90px;  }  /* Model */
+      td:nth-child(5)  { min-width: 60px;  }  /* Processor */
+      td:nth-child(6)  { min-width: 40px;  }  /* RAM */
+      td:nth-child(7)  { min-width: 65px;  }  /* Hard Disk */
+      td:nth-child(8)  { min-width: 55px;  }  /* Generation */
+      td:nth-child(9)  { min-width: 120px; font-weight: 600; color: #0f172a !important; }  /* User — wider */
+      td:nth-child(10) { min-width: 90px;  }  /* Department */
+      td:nth-child(11) { min-width: 65px;  font-weight: 600; }  /* Status */
+
+      /* Status color coding in print */
+      td:nth-child(11) { color: #1e293b !important; }
     }
   </style>
+
+  <!-- Print-only report header (hidden on screen, shown when printing) -->
+  <div class="print-report-header">
+    <div>
+      <div class="prt-title">Asset Report</div>
+      <div class="prt-meta">
+        Generated: {{ generated_at.strftime("%d %b %Y, %H:%M") }}
+        &nbsp;·&nbsp; Dept: {{ dept_filter | title }}
+        &nbsp;·&nbsp; Asset: {{ asset_filter | title }}
+        &nbsp;·&nbsp; Status: {{ status_filter | title }}
+        &nbsp;·&nbsp; Total rows: {{ report_rows | length }}
+      </div>
+    </div>
+    <div class="prt-logo">
+      <strong>{{ branding_name or "Asset" }} Manager</strong><br>
+      Confidential — Internal Use Only
+    </div>
+  </div>
 {% endblock %}
