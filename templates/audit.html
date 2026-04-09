@@ -33,11 +33,58 @@
     .status-bad { background: rgba(255, 122, 122, 0.2); color: var(--danger); border-color: rgba(255, 122, 122, 0.4); }
     .audit-row-fail { background: rgba(255, 122, 122, 0.05); }
     .audit-meta { font-size: 12px; color: var(--muted); }
-    .audit-details {
-      white-space: pre-wrap;
+    .audit-details { display: none; }
+    .audit-diff {
       margin: 8px 0 0 0;
-      font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border);
       font-size: 12px;
+    }
+    .audit-diff-meta {
+      padding: 5px 10px;
+      background: rgba(255,255,255,0.04);
+      border-bottom: 1px solid var(--border);
+      display: flex; gap: 8px; flex-wrap: wrap;
+    }
+    .audit-diff-meta span {
+      font-size: 11px; padding: 2px 7px; border-radius: 999px;
+      background: rgba(255,255,255,0.07); color: var(--ink-2);
+    }
+    .audit-diff-row {
+      display: grid;
+      grid-template-columns: 90px 1fr 1fr;
+      border-bottom: 1px solid var(--border);
+    }
+    .audit-diff-row:last-child { border-bottom: none; }
+    .audit-diff-field {
+      padding: 5px 10px;
+      font-weight: 600; font-size: 11px; color: var(--ink-3);
+      text-transform: uppercase; letter-spacing: 0.05em;
+      border-right: 1px solid var(--border);
+      display: flex; align-items: center;
+    }
+    .audit-diff-old {
+      padding: 5px 10px;
+      background: rgba(248,113,113,0.07);
+      color: #fca5a5;
+      border-right: 1px solid var(--border);
+      word-break: break-word;
+    }
+    .audit-diff-new {
+      padding: 5px 10px;
+      background: rgba(56,232,192,0.07);
+      color: var(--accent);
+      word-break: break-word;
+    }
+    .audit-diff-old::before { content: "−  "; opacity: 0.6; }
+    .audit-diff-new::before { content: "+  "; opacity: 0.6; }
+    [data-theme="light"] .audit-diff-old { background: rgba(220,38,38,0.08); color: #b91c1c; }
+    [data-theme="light"] .audit-diff-new { background: rgba(5,150,105,0.08); color: #047857; }
+    .audit-plain {
+      margin: 6px 0 0 0;
+      font-size: 12px; color: var(--ink-2);
+      white-space: pre-wrap;
     }
     [data-theme="light"] .action-create { color: #0a7b5d; }
     [data-theme="light"] .action-update { color: #2a6db4; }
@@ -158,9 +205,39 @@
                   —
                 {% endif %}
               </td>
-              <td style="max-width:280px; overflow:hidden;">
+              <td style="max-width:320px;">
                 {% if entry.details %}
-                  <pre class="audit-details">{{ entry.details|replace("=free", "=-") }}</pre>
+                  {% set parsed = entry.details | parse_audit_details %}
+                  {% if parsed.changes %}
+                    <div class="audit-diff">
+                      {% if parsed.meta %}
+                        <div class="audit-diff-meta">
+                          {% for k, v in parsed.meta.items() %}
+                            {% if k not in ('type', 'asset_tag') %}
+                              <span>{{ k }}: {{ v }}</span>
+                            {% endif %}
+                          {% endfor %}
+                        </div>
+                      {% endif %}
+                      {% for ch in parsed.changes %}
+                        <div class="audit-diff-row">
+                          <div class="audit-diff-field">{{ ch.field | replace("_"," ") }}</div>
+                          <div class="audit-diff-old">{{ ch.old if ch.old and ch.old != 'free' else '—' }}</div>
+                          <div class="audit-diff-new">{{ ch.new if ch.new and ch.new != 'free' else '—' }}</div>
+                        </div>
+                      {% endfor %}
+                    </div>
+                  {% elif parsed.meta %}
+                    <div class="audit-diff">
+                      <div class="audit-diff-meta">
+                        {% for k, v in parsed.meta.items() %}
+                          <span>{{ k }}: {{ v }}</span>
+                        {% endfor %}
+                      </div>
+                    </div>
+                  {% else %}
+                    <div class="audit-plain">{{ entry.details }}</div>
+                  {% endif %}
                 {% else %}
                   —
                 {% endif %}

@@ -3048,6 +3048,44 @@ def send_full_backup_email(schedule):
         return False, str(exc)
 
 
+def _run_scheduled_ldap_sync():
+    """Run LDAP user+group sync in background. Returns (ok, message)."""
+    if not ldap_enabled():
+        return False, "LDAP not configured"
+    created = updated = 0
+    try:
+        records = get_ldap_users(force_refresh=True, raise_on_error=True)
+        if records:
+            for record in records:
+                username_norm = normalize_username(record.get("username", ""))
+                if not username_norm:
+                    continue
+                email = (record.get("email") or "").strip() or None
+                existing = get_user_by_username_ci(username_norm)
+                if existing:
+                    if email and existing.email != email:
+                        existing.email = email
+                        updated += 1
+                    if not existing.is_ldap:
+                        existing.is_ldap = True
+                    continue
+                try:
+                    new_user = ensure_ldap_user(username_norm)
+                    if email and new_user.email != email:
+                        new_user.email = email
+                    created += 1
+                except Exception:
+                    pass
+            if updated:
+                db.session.commit()
+        get_ldap_groups(force_refresh=True)
+        log_audit("sync", "ldap_users", details=f"Scheduled sync: added {created}, updated {updated}")
+        return True, f"Added {created} users, updated {updated}"
+    except Exception as exc:
+        log_audit("sync_failed", "ldap_users", success=False, details=str(exc))
+        return False, str(exc)
+
+
 def _backup_scheduler_loop():
     lock_path = "/tmp/assetmanager-backup.lock"
     try:
@@ -3092,6 +3130,35 @@ def _backup_scheduler_loop():
                         db.session.commit()
                     else:
                         app.logger.warning("Scheduled %s backup failed: %s", kind, error)
+
+                # LDAP auto-sync
+                ldap_schedule = get_backup_schedule("ldap")
+                if ldap_schedule.enabled:
+                    run_time = _parse_schedule_time(ldap_schedule.run_time) or "03:00"
+                    run_hour, run_minute = [int(p) for p in run_time.split(":")]
+                    if now.hour == run_hour and now.minute == run_minute:
+                        if ldap_schedule.frequency == "weekly":
+                            if ldap_schedule.day_of_week is None or now.weekday() != ldap_schedule.day_of_week:
+                                goto_next = True
+                            else:
+                                goto_next = False
+                        elif ldap_schedule.frequency == "monthly":
+                            if ldap_schedule.day_of_month is None or now.day != ldap_schedule.day_of_month:
+                                goto_next = True
+                            else:
+                                goto_next = False
+                        else:
+                            goto_next = False
+                        if not goto_next:
+                            last_sent = ldap_schedule.last_sent_at
+                            last_date = last_sent.astimezone(tz).date() if last_sent else None
+                            if last_date != now.date():
+                                ok, msg = _run_scheduled_ldap_sync()
+                                if ok:
+                                    ldap_schedule.last_sent_at = datetime.datetime.utcnow()
+                                    db.session.commit()
+                                else:
+                                    app.logger.warning("Scheduled LDAP sync failed: %s", msg)
         except Exception as exc:
             app.logger.warning("Backup scheduler error: %s", exc)
         time.sleep(30)
@@ -3232,10 +3299,10 @@ def build_report_rows(dept_filter="all", asset_filter="all", status_filter="all"
         for item in model.query.all():
             assigned_to = getattr(item, "assigned_to", None)
             status = get_item_status(item)
-            if status in {"broken", "write off"}:
+            if status == "assigned":
                 dept_value = getattr(item, "dept", None)
             else:
-                dept_value = getattr(item, "dept", None) if status == "assigned" else "In Stock"
+                dept_value = None
             if not include_status(status):
                 continue
             if not _dept_filter_match(dept_filter, status, dept_value):
@@ -3276,7 +3343,7 @@ def build_report_rows(dept_filter="all", asset_filter="all", status_filter="all"
                 dept_value = (item.data or {}).get(field_name)
                 if dept_value:
                     break
-            dept_value = dept_value if status == "assigned" else ("In Stock" if status == "in stock" else "-")
+            dept_value = dept_value if status == "assigned" else None
             if not _dept_filter_match(dept_filter, status, dept_value):
                 continue
             model_value = None
@@ -7103,7 +7170,7 @@ def ldap_settings():
             flash(message, "success" if ok else "error")
             display_config = dict(form_config)
             display_config["bind_password"] = ""
-            return render_template("ldap_settings.html", config=display_config)
+            return render_template("ldap_settings.html", config=display_config, ldap_sync_sched=get_backup_schedule("ldap"))
         if config_row:
             for key, value in form_config.items():
                 setattr(config_row, key, value)
@@ -7113,7 +7180,8 @@ def ldap_settings():
         db.session.commit()
         flash("LDAP settings saved.", "success")
         return redirect(url_for("ldap_settings"))
-    return render_template("ldap_settings.html", config=_ldap_form_values(config_row))
+    ldap_sync_sched = get_backup_schedule("ldap")
+    return render_template("ldap_settings.html", config=_ldap_form_values(config_row), ldap_sync_sched=ldap_sync_sched)
 
 
 @app.route("/branding", methods=["GET", "POST"])
@@ -7252,65 +7320,47 @@ def backup_sql_download():
         flash("SQL backup is only supported for PostgreSQL databases.", "error")
         return redirect(url_for("backup_settings"))
     try:
-        import psycopg2
-        import psycopg2.extras
-        conn = psycopg2.connect(db_url)
-        cur = conn.cursor()
+        from sqlalchemy import text as _text, inspect as _inspect
+
+        def _pg_val(v):
+            if v is None:
+                return "NULL"
+            if isinstance(v, bool):
+                return "TRUE" if v else "FALSE"
+            if isinstance(v, (int, float)):
+                return str(v)
+            if isinstance(v, datetime.datetime):
+                return f"'{v.strftime('%Y-%m-%d %H:%M:%S')}'"
+            if isinstance(v, datetime.date):
+                return f"'{v.isoformat()}'"
+            if isinstance(v, dict):
+                return "'" + json.dumps(v).replace("'", "''") + "'"
+            return "'" + str(v).replace("'", "''") + "'"
 
         out = io.StringIO()
-        out.write(f"-- AssetManager SQL Dump\n")
-        out.write(f"-- Generated: {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC\n")
-        out.write(f"-- Database: {db_url.split('@')[-1] if '@' in db_url else 'unknown'}\n\n")
+        out.write("-- AssetManager SQL Dump\n")
+        out.write(f"-- Generated: {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC\n\n")
         out.write("SET client_encoding = 'UTF8';\n")
         out.write("SET standard_conforming_strings = on;\n\n")
 
-        cur.execute(
-            "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename"
-        )
-        tables = [row[0] for row in cur.fetchall()]
+        inspector = _inspect(db.engine)
+        tables = inspector.get_table_names()
 
-        for table in tables:
-            cur.execute(
-                "SELECT column_name, data_type FROM information_schema.columns "
-                "WHERE table_schema='public' AND table_name=%s ORDER BY ordinal_position",
-                (table,)
-            )
-            col_info = cur.fetchall()
-            if not col_info:
-                continue
-            cols = [c[0] for c in col_info]
-
-            out.write(f"-- Table: {table}\n")
-            cur.execute(f"SELECT COUNT(*) FROM {table}")
-            count = cur.fetchone()[0]
-            out.write(f"-- Rows: {count}\n")
-
-            if count > 0:
-                cur.execute(f"SELECT * FROM {table}")
-                rows = cur.fetchall()
-                col_list = ", ".join(f'"{c}"' for c in cols)
-                for row in rows:
-                    def _pg_val(v):
-                        if v is None:
-                            return "NULL"
-                        if isinstance(v, bool):
-                            return "TRUE" if v else "FALSE"
-                        if isinstance(v, (int, float)):
-                            return str(v)
-                        if isinstance(v, datetime.datetime):
-                            return f"'{v.strftime('%Y-%m-%d %H:%M:%S')}'"
-                        if isinstance(v, datetime.date):
-                            return f"'{v.isoformat()}'"
-                        if isinstance(v, dict):
-                            import json as _json
-                            return "'" + _json.dumps(v).replace("'", "''") + "'"
-                        return "'" + str(v).replace("'", "''") + "'"
-                    val_list = ", ".join(_pg_val(v) for v in row)
-                    out.write(f"INSERT INTO \"{table}\" ({col_list}) VALUES ({val_list});\n")
-            out.write("\n")
-
-        cur.close()
-        conn.close()
+        with db.engine.connect() as conn:
+            for table in sorted(tables):
+                cols = [c["name"] for c in inspector.get_columns(table)]
+                if not cols:
+                    continue
+                count_row = conn.execute(_text(f'SELECT COUNT(*) FROM "{table}"')).fetchone()
+                count = count_row[0] if count_row else 0
+                out.write(f"-- Table: {table} ({count} rows)\n")
+                if count > 0:
+                    col_list = ", ".join(f'"{c}"' for c in cols)
+                    result = conn.execute(_text(f'SELECT * FROM "{table}"'))
+                    for row in result:
+                        val_list = ", ".join(_pg_val(v) for v in row)
+                        out.write(f'INSERT INTO "{table}" ({col_list}) VALUES ({val_list});\n')
+                out.write("\n")
 
         filename = f"db_dump_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.sql"
         return send_file(
@@ -7634,6 +7684,37 @@ def update_full_backup_schedule():
     db.session.commit()
     flash("Full backup schedule updated.", "success")
     return redirect(url_for("backup_settings"))
+
+
+@app.route("/ldap/schedule", methods=["POST"])
+@login_required
+@require_app_admin
+def update_ldap_sync_schedule():
+    schedule = get_backup_schedule("ldap")
+    run_time = _parse_schedule_time(request.form.get("ldap_sync_time", ""))
+    enabled = "ldap_sync_enabled" in request.form
+    frequency = (request.form.get("ldap_sync_frequency") or "daily").strip().lower()
+    day_of_week = request.form.get("ldap_sync_day_of_week", "").strip()
+    day_of_month = request.form.get("ldap_sync_day_of_month", "").strip()
+    if enabled and not run_time:
+        flash("Sync time must be in HH:MM format.", "error")
+        return redirect(url_for("ldap_settings"))
+    if enabled and frequency == "weekly":
+        if day_of_week == "" or not day_of_week.isdigit():
+            flash("Weekly sync requires a day of week.", "error")
+            return redirect(url_for("ldap_settings"))
+    if enabled and frequency == "monthly":
+        if day_of_month == "" or not day_of_month.isdigit():
+            flash("Monthly sync requires a day of month.", "error")
+            return redirect(url_for("ldap_settings"))
+    schedule.frequency = frequency
+    schedule.day_of_week = int(day_of_week) if day_of_week.isdigit() else None
+    schedule.day_of_month = int(day_of_month) if day_of_month.isdigit() else None
+    schedule.run_time = run_time or schedule.run_time
+    schedule.enabled = enabled
+    db.session.commit()
+    flash("LDAP sync schedule updated.", "success")
+    return redirect(url_for("ldap_settings"))
 
 
 @app.route("/ldap/sync", methods=["POST"])
