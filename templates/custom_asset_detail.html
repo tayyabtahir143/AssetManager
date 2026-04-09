@@ -73,27 +73,57 @@
   </div>
 
   <div class="card animate-in" style="margin-top: 16px;">
-    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Edit History</div>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+      <div style="font-size:15px; font-weight:700;">Edit History</div>
+      {% if edit_history %}
+        <span style="font-size:12px; color:var(--muted); background:var(--surface-2); padding:3px 10px; border-radius:12px;">{{ edit_history|length }} edit{{ 's' if edit_history|length != 1 }}</span>
+      {% endif %}
+    </div>
     {% if edit_history %}
-      <div class="table-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>When</th>
-              <th>Edited By</th>
-              <th>Changes</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for entry in edit_history %}
-              <tr>
-                <td>{{ entry.created_at.strftime("%Y-%m-%d %H:%M:%S") }}</td>
-                <td>{{ entry.username or "-" }}</td>
-                <td>{{ entry.details or "-" }}</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
+      <div style="display:grid; gap:14px;">
+        {% for entry in edit_history %}
+          {% set parsed = entry.details | parse_audit_details %}
+          <div style="border-left:3px solid var(--accent); padding-left:16px; padding-top:4px; padding-bottom:4px;">
+            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:6px;">
+              <span style="font-size:13px; font-weight:600;">{{ entry.created_at.strftime("%d %b %Y, %H:%M:%S") }}</span>
+              <span style="font-size:12px; color:var(--muted);">by <strong style="color:var(--text);">{{ entry.username or "System" }}</strong></span>
+              {% if entry.ip_address %}
+                <span style="font-size:11px; color:var(--muted); background:var(--surface-2); padding:2px 7px; border-radius:4px; font-family:monospace;">{{ entry.ip_address }}</span>
+              {% endif %}
+            </div>
+            {% if parsed.meta %}
+              <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px;">
+                {% for k, v in parsed.meta.items() %}
+                  <span style="font-size:11px; background:var(--surface-2); padding:2px 8px; border-radius:4px; color:var(--muted); font-weight:500;">{{ k | replace('_',' ') | title }}: {{ v }}</span>
+                {% endfor %}
+              </div>
+            {% endif %}
+            {% if parsed.changes %}
+              <div style="background:var(--surface-2); border-radius:8px; overflow:hidden; border:1px solid var(--border);">
+                <table style="width:100%; border-collapse:collapse; font-size:12.5px;">
+                  <thead>
+                    <tr style="border-bottom:1px solid var(--border);">
+                      <th style="text-align:left; padding:7px 12px; font-size:10.5px; text-transform:uppercase; letter-spacing:0.6px; color:var(--muted); font-weight:600; width:28%;">Field</th>
+                      <th style="text-align:left; padding:7px 12px; font-size:10.5px; text-transform:uppercase; letter-spacing:0.6px; color:var(--muted); font-weight:600; width:36%;">Before</th>
+                      <th style="text-align:left; padding:7px 12px; font-size:10.5px; text-transform:uppercase; letter-spacing:0.6px; color:var(--muted); font-weight:600; width:36%;">After</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for change in parsed.changes %}
+                      <tr {% if not loop.last %}style="border-bottom:1px solid var(--border);"{% endif %}>
+                        <td style="padding:7px 12px; font-weight:500; color:var(--text);">{{ change.field | replace('_', ' ') | title }}</td>
+                        <td style="padding:7px 12px; color:#f87171; font-family:monospace;">{{ change.old if change.old and change.old != 'None' else '—' }}</td>
+                        <td style="padding:7px 12px; color:#4ade80; font-family:monospace; font-weight:600;">{{ change.new if change.new and change.new != 'None' else '—' }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            {% elif entry.details %}
+              <p style="margin:0; font-size:12px; color:var(--muted); font-family:monospace; word-break:break-all;">{{ entry.details }}</p>
+            {% endif %}
+          </div>
+        {% endfor %}
       </div>
     {% else %}
       <p class="muted">No edit history yet.</p>
