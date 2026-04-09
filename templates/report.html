@@ -97,10 +97,10 @@
               <th>Processor</th>
               <th>RAM</th>
               <th>Hard Disk</th>
+              <th>Generation</th>
               <th>User</th>
               <th>Department</th>
               <th>Status</th>
-              <th>Qty</th>
             </tr>
           </thead>
           <tbody>
@@ -113,10 +113,10 @@
                 <td>{{ row.processor }}</td>
                 <td>{{ row.ram }}</td>
                 <td>{{ row.hard_disk }}</td>
+                <td>{{ row.generation or "-" }}</td>
                 <td>{{ row.user }}</td>
                 <td>{{ row.dept }}</td>
                 <td>{{ row.status }}</td>
-                <td>{{ row.quantity or "-" }}</td>
               </tr>
             {% endfor %}
           </tbody>

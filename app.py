@@ -559,6 +559,7 @@ class Laptop(db.Model):
     ram = db.Column(db.String(50), nullable=False)
     processor = db.Column(db.String(50), nullable=False)
     hard_disk = db.Column(db.String(50), nullable=False)
+    generation = db.Column(db.String(50), nullable=True)
     asset_tag = db.Column(db.String(80), nullable=True)
     model = db.Column(db.String(80), nullable=False)
     vendor = db.Column(db.String(80), nullable=False)
@@ -644,6 +645,7 @@ ASSET_DEFS = {
             ("processor", "Processor", "text"),
             ("ram", "RAM", "text"),
             ("hard_disk", "Hard Disk", "text"),
+            ("generation", "Generation", "text"),
             ("screen_size", "Screen size", "text"),
             ("dept", "Dept", "text"),
             ("assigned_to", "User", "text"),
@@ -3159,7 +3161,7 @@ def build_report_rows(dept_filter="all", asset_filter="all", status_filter="all"
             return True
         return status_filter_norm == status
 
-    def append_row(label, asset_tag, vendor, model, processor, ram, hard_disk, user, dept, status, quantity=None):
+    def append_row(label, asset_tag, vendor, model, processor, ram, hard_disk, user, dept, status, quantity=None, generation=None):
         rows.append(
             {
                 "asset": label,
@@ -3169,6 +3171,7 @@ def build_report_rows(dept_filter="all", asset_filter="all", status_filter="all"
                 "processor": processor or "-",
                 "ram": ram or "-",
                 "hard_disk": hard_disk or "-",
+                "generation": generation or "-",
                 "user": user or "-",
                 "dept": dept or "-",
                 "status": format_status_label(status),
@@ -3220,6 +3223,7 @@ def build_report_rows(dept_filter="all", asset_filter="all", status_filter="all"
                 display_assignee(assigned_to) if status == "assigned" else ("In Stock" if status == "in stock" else "-"),
                 dept_value,
                 status,
+                generation=getattr(item, "generation", None),
             )
 
     for asset_type in get_custom_asset_types():
@@ -3607,6 +3611,23 @@ def ensure_ram_type_column():
             )
         except Exception:
             db.session.rollback()
+    db.session.commit()
+
+
+def ensure_laptop_generation_column():
+    if db.engine.dialect.name == "sqlite":
+        result = db.session.execute(text("PRAGMA table_info(laptop)")).fetchall()
+        if not result:
+            return
+        columns = {row[1] for row in result}
+        if "generation" not in columns:
+            db.session.execute(text("ALTER TABLE laptop ADD COLUMN generation VARCHAR(50)"))
+        db.session.commit()
+        return
+    try:
+        db.session.execute(text("ALTER TABLE laptop ADD COLUMN IF NOT EXISTS generation VARCHAR(50)"))
+    except Exception:
+        db.session.rollback()
     db.session.commit()
 
 
@@ -4154,6 +4175,7 @@ def init_db():
         ensure_dept_columns()
         ensure_status_columns()
         ensure_ram_type_column()
+        ensure_laptop_generation_column()
         ensure_role_admin_column()
         ensure_user_email_column()
         ensure_user_ldap_column()
@@ -5096,10 +5118,10 @@ def export_report():
         "Processor",
         "RAM",
         "Hard Disk",
+        "Generation",
         "User",
         "Department",
         "Status",
-        "Quantity",
     ]
     lines = [
         "<table>",
@@ -5117,10 +5139,10 @@ def export_report():
             row.get("processor", ""),
             row.get("ram", ""),
             row.get("hard_disk", ""),
+            row.get("generation", ""),
             row.get("user", ""),
             row.get("dept", ""),
             row.get("status", ""),
-            str(row.get("quantity") or ""),
         ]
         cells = "".join(f"<td>{html.escape(str(value))}</td>" for value in values)
         lines.append(f"<tr>{cells}</tr>")
@@ -6894,6 +6916,7 @@ def user_assets():
                 "processor",
                 "ram",
                 "hard_disk",
+                "generation",
                 "screen_size",
                 "size",
                 "dept",
