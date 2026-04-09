@@ -83,4 +83,81 @@
       </div>
     </form>
   </div>
+
+  <!-- LDAP Auto-Sync Schedule -->
+  <div class="card animate-in" style="max-width: 720px; margin-top: 18px;">
+    <div style="font-size:16px; font-weight:700; letter-spacing:-0.01em; margin-bottom:4px;">Auto-Sync Schedule</div>
+    <p class="muted" style="margin-bottom:16px;">Automatically sync LDAP users and groups on a schedule. The system will import new users and update existing ones.</p>
+    <form method="post" action="{{ url_for('update_ldap_sync_schedule') }}" class="form-grid">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div style="grid-column: 1 / -1;">
+        <div class="checkbox-row" style="padding: 12px 14px; border-radius: 12px; border: 1px solid var(--edge); background: rgba(12,20,36,0.6);">
+          <input id="ldap_sync_enabled" name="ldap_sync_enabled" type="checkbox" {% if ldap_sync_sched and ldap_sync_sched.enabled %}checked{% endif %}
+            onchange="toggleSyncFields(this.checked)">
+          <label for="ldap_sync_enabled" style="font-weight:600;">Enable scheduled LDAP sync</label>
+        </div>
+      </div>
+      <div id="sync-fields" style="display:contents;">
+        <div>
+          <label for="ldap_sync_frequency">Frequency</label>
+          <select id="ldap_sync_frequency" name="ldap_sync_frequency" onchange="updateSyncDayVis()">
+            {% set freq = ldap_sync_sched.frequency if ldap_sync_sched else 'daily' %}
+            <option value="daily" {% if freq == 'daily' %}selected{% endif %}>Daily</option>
+            <option value="weekly" {% if freq == 'weekly' %}selected{% endif %}>Weekly</option>
+            <option value="monthly" {% if freq == 'monthly' %}selected{% endif %}>Monthly</option>
+          </select>
+        </div>
+        <div>
+          <label for="ldap_sync_time">Time (HH:MM, 24h)</label>
+          <input id="ldap_sync_time" name="ldap_sync_time" type="text" placeholder="03:00"
+            value="{{ ldap_sync_sched.run_time if ldap_sync_sched and ldap_sync_sched.run_time else '03:00' }}">
+        </div>
+        <div id="sync-dow-wrap">
+          <label for="ldap_sync_day_of_week">Day of week</label>
+          <select id="ldap_sync_day_of_week" name="ldap_sync_day_of_week">
+            {% set dow = ldap_sync_sched.day_of_week if ldap_sync_sched and ldap_sync_sched.day_of_week is not none else 0 %}
+            <option value="0" {% if dow == 0 %}selected{% endif %}>Monday</option>
+            <option value="1" {% if dow == 1 %}selected{% endif %}>Tuesday</option>
+            <option value="2" {% if dow == 2 %}selected{% endif %}>Wednesday</option>
+            <option value="3" {% if dow == 3 %}selected{% endif %}>Thursday</option>
+            <option value="4" {% if dow == 4 %}selected{% endif %}>Friday</option>
+            <option value="5" {% if dow == 5 %}selected{% endif %}>Saturday</option>
+            <option value="6" {% if dow == 6 %}selected{% endif %}>Sunday</option>
+          </select>
+        </div>
+        <div id="sync-dom-wrap">
+          <label for="ldap_sync_day_of_month">Day of month (1–28)</label>
+          <input id="ldap_sync_day_of_month" name="ldap_sync_day_of_month" type="number" min="1" max="28"
+            value="{{ ldap_sync_sched.day_of_month if ldap_sync_sched and ldap_sync_sched.day_of_month else 1 }}">
+        </div>
+      </div>
+      {% if ldap_sync_sched and ldap_sync_sched.last_sent_at %}
+        <div style="grid-column: 1 / -1; font-size:12px; color:var(--muted);">
+          Last sync: {{ ldap_sync_sched.last_sent_at.strftime("%Y-%m-%d %H:%M") }} UTC
+        </div>
+      {% endif %}
+      <div style="grid-column: 1 / -1;">
+        <button class="button" type="submit">Save Schedule</button>
+      </div>
+    </form>
+  </div>
+
+  <script>
+    function toggleSyncFields(enabled) {
+      const opacity = enabled ? '1' : '0.45';
+      const pointer = enabled ? '' : 'none';
+      ['ldap_sync_frequency','ldap_sync_time','ldap_sync_day_of_week','ldap_sync_day_of_month'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) { el.disabled = !enabled; el.closest('div').style.opacity = opacity; el.closest('div').style.pointerEvents = pointer; }
+      });
+    }
+    function updateSyncDayVis() {
+      const freq = document.getElementById('ldap_sync_frequency').value;
+      document.getElementById('sync-dow-wrap').style.display = freq === 'weekly' ? '' : 'none';
+      document.getElementById('sync-dom-wrap').style.display = freq === 'monthly' ? '' : 'none';
+    }
+    // Init on load
+    toggleSyncFields(document.getElementById('ldap_sync_enabled').checked);
+    updateSyncDayVis();
+  </script>
 {% endblock %}

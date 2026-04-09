@@ -258,6 +258,10 @@
       [assigned, instock, broken][i] > 0
     );
 
+    const donutStatusMap = ['assigned', 'in_stock', 'broken'].filter((_, i) =>
+      [assigned, instock, broken][i] > 0
+    );
+
     new Chart(document.getElementById('statusChart'), {
       type: 'doughnut',
       data: {
@@ -274,6 +278,11 @@
         cutout: '68%',
         responsive: true,
         maintainAspectRatio: false,
+        onClick: (evt, elements) => {
+          if (!elements.length) return;
+          const status = donutStatusMap[elements[0].index];
+          if (status) window.location.href = `/reports?dept=all&asset=all&status=${status}`;
+        },
         plugins: {
           legend: {
             position: 'bottom',
@@ -326,6 +335,11 @@
         indexAxis: 'y',
         responsive: true,
         maintainAspectRatio: false,
+        onClick: (evt, elements) => {
+          if (!elements.length) return;
+          const dept = depts[elements[0].index]?.dept;
+          if (dept) window.location.href = `/reports?dept=${encodeURIComponent(dept)}&asset=all&status=assigned`;
+        },
         plugins: {
           legend: {
             position: 'bottom',
