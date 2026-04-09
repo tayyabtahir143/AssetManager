@@ -7170,7 +7170,8 @@ def ldap_settings():
             flash(message, "success" if ok else "error")
             display_config = dict(form_config)
             display_config["bind_password"] = ""
-            return render_template("ldap_settings.html", config=display_config, ldap_sync_sched=get_backup_schedule("ldap"))
+            return render_template("ldap_settings.html", config=display_config,
+                                   ldap_sync_sched=get_backup_schedule("ldap"), ldap_configured=ldap_enabled())
         if config_row:
             for key, value in form_config.items():
                 setattr(config_row, key, value)
@@ -7181,7 +7182,8 @@ def ldap_settings():
         flash("LDAP settings saved.", "success")
         return redirect(url_for("ldap_settings"))
     ldap_sync_sched = get_backup_schedule("ldap")
-    return render_template("ldap_settings.html", config=_ldap_form_values(config_row), ldap_sync_sched=ldap_sync_sched)
+    return render_template("ldap_settings.html", config=_ldap_form_values(config_row),
+                           ldap_sync_sched=ldap_sync_sched, ldap_configured=ldap_enabled())
 
 
 @app.route("/branding", methods=["GET", "POST"])
@@ -7690,6 +7692,9 @@ def update_full_backup_schedule():
 @login_required
 @require_app_admin
 def update_ldap_sync_schedule():
+    if not ldap_enabled():
+        flash("LDAP is not configured. Save your LDAP server settings first.", "error")
+        return redirect(url_for("ldap_settings"))
     schedule = get_backup_schedule("ldap")
     run_time = _parse_schedule_time(request.form.get("ldap_sync_time", ""))
     enabled = "ldap_sync_enabled" in request.form
