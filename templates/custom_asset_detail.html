@@ -1,5 +1,13 @@
 {% extends "base.html" %}
 {% block content %}
+  <style>
+    @media print {
+      .sidebar, .topbar, .page-footer, .back-row, .button, form, .no-print { display: none !important; }
+      .content-wrap { margin-left: 0 !important; }
+      .card { box-shadow: none !important; border: 1px solid #ccc !important; break-inside: avoid; }
+      body { background: #fff !important; color: #000 !important; }
+    }
+  </style>
   <div class="page-header animate-in">
     <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;">
       <div>
@@ -7,8 +15,12 @@
         <div class="page-subtitle">Asset detail, assignment history, and comments.</div>
       </div>
       <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-        <a class="button secondary" href="{{ url_for('edit_custom_asset', asset_key=asset_type.key, item_id=item.id) }}">Edit</a>
-        <a class="button" href="{{ url_for('list_custom_assets', asset_key=asset_type.key) }}">Back</a>
+        <button class="button secondary no-print" onclick="window.print()" type="button">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg>
+          Print
+        </button>
+        <a class="button secondary no-print" href="{{ url_for('edit_custom_asset', asset_key=asset_type.key, item_id=item.id) }}">Edit</a>
+        <a class="button no-print" href="{{ url_for('list_custom_assets', asset_key=asset_type.key) }}">Back</a>
       </div>
     </div>
   </div>
@@ -38,7 +50,9 @@
       </table>
     </div>
     {% if previous_users %}
-      <p class="muted" style="margin-top: 10px;">Previous users (latest 2): {{ previous_users | join(", ") }}</p>
+      <p class="muted" style="margin-top: 10px;">
+        <strong>Full ownership chain:</strong> {{ previous_users | join(" → ") }}
+      </p>
     {% endif %}
   </div>
 
