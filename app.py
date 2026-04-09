@@ -790,6 +790,32 @@ def format_changes(old_values, new_values):
     return "; ".join(changes)
 
 
+@app.template_filter("parse_audit_details")
+def parse_audit_details_filter(details):
+    """Parse raw audit details string into structured meta + changes."""
+    if not details:
+        return {"meta": {}, "changes": []}
+    pre, _, changes_blob = details.partition(" changes=")
+    meta = {}
+    for m in re.finditer(r"(\w+)=([^\s]+)", pre):
+        meta[m.group(1)] = m.group(2)
+    changes = []
+    if changes_blob:
+        for part in changes_blob.split(";"):
+            part = part.strip()
+            if not part:
+                continue
+            if ":" in part and "->" in part:
+                field, _, rest = part.partition(":")
+                old_val, _, new_val = rest.partition("->")
+                changes.append({
+                    "field": field.strip(),
+                    "old": old_val.strip(),
+                    "new": new_val.strip(),
+                })
+    return {"meta": meta, "changes": changes}
+
+
 def get_smtp_config():
     return SMTPConfig.query.first()
 
