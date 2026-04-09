@@ -146,4 +146,28 @@
       color: #9fb1c9;
     }
   </style>
+  <script>
+  /* ── Duplicate asset tag live check ─────────────────────────── */
+  (() => {
+    const tagEl = document.getElementById('asset_tag');
+    if (!tagEl) return;
+    const warnEl = document.createElement('div');
+    warnEl.className = 'tag-warn';
+    warnEl.innerHTML = '⚠ Another asset with this tag already exists.';
+    tagEl.parentNode.appendChild(warnEl);
+    let checkTimer;
+    tagEl.addEventListener('input', () => {
+      clearTimeout(checkTimer);
+      const tag = tagEl.value.trim();
+      if (!tag) { warnEl.className = 'tag-warn'; return; }
+      checkTimer = setTimeout(async () => {
+        try {
+          const res = await fetch(`/assets/{{ asset_type }}/check_tag?tag=${encodeURIComponent(tag)}&exclude_id={{ item.id }}`);
+          const data = await res.json();
+          warnEl.className = 'tag-warn' + (data.exists ? ' show' : '');
+        } catch (_) {}
+      }, 400);
+    });
+  })();
+  </script>
 {% endblock %}

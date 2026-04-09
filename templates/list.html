@@ -78,7 +78,7 @@
     {% endif %}
     <div id="bulk-delete-error" class="flash error" style="display: none; margin: 10px 16px;"></div>
     <div class="table-wrap">
-    <table>
+    <table class="sticky-header">
       <thead>
         <tr>
           {% if asset_perms.can_bulk_delete %}
@@ -86,9 +86,9 @@
               <input type="checkbox" id="select-all-assets" class="bulk-toggle-asset" style="display: none;">
             </th>
           {% endif %}
-          <th>#</th>
+          <th data-sort-col="0" style="cursor:pointer; user-select:none;"># <span class="sort-arrow"></span></th>
           {% for field_name, label, field_type in definition.fields %}
-            <th>{{ label }}</th>
+            <th data-sort-col="{{ loop.index }}" data-field="{{ field_name }}" style="cursor:pointer; user-select:none;">{{ label }} <span class="sort-arrow"></span></th>
           {% endfor %}
           {% if asset_perms.can_delete or asset_perms.can_add %}
             <th>Actions</th>
@@ -409,5 +409,42 @@
 
     infiniteStatus.textContent = hasMore ? 'Scroll to load more.' : 'All items loaded.';
     window.addEventListener('scroll', onScroll);
+  </script>
+  <script>
+  /* ── Column sorting ─────────────────────────────────────────── */
+  (function () {
+    const table = document.querySelector('table');
+    if (!table) return;
+    let sortCol = -1, sortDir = 1;
+    const headers = table.querySelectorAll('th[data-sort-col]');
+    headers.forEach(th => {
+      th.addEventListener('click', () => {
+        const col = parseInt(th.dataset.sortCol);
+        if (sortCol === col) { sortDir *= -1; } else { sortCol = col; sortDir = 1; }
+        headers.forEach(h => { const arr = h.querySelector('.sort-arrow'); if (arr) arr.textContent = ''; });
+        const arrow = th.querySelector('.sort-arrow');
+        if (arrow) arrow.textContent = sortDir === 1 ? ' ↑' : ' ↓';
+        const tbody = table.querySelector('tbody');
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        rows.sort((a, b) => {
+          const cells = a => Array.from(a.querySelectorAll('td'));
+          const ca = cells(a)[col], cb = cells(b)[col];
+          if (!ca || !cb) return 0;
+          const va = ca.textContent.trim().toLowerCase();
+          const vb = cb.textContent.trim().toLowerCase();
+          const na = parseFloat(va), nb = parseFloat(vb);
+          if (!isNaN(na) && !isNaN(nb)) return (na - nb) * sortDir;
+          return va.localeCompare(vb) * sortDir;
+        });
+        rows.forEach(r => tbody.appendChild(r));
+        /* Re-number index column */
+        tbody.querySelectorAll('tr').forEach((r, i) => {
+          const cells = r.querySelectorAll('td');
+          const offset = {{ 1 if asset_perms.can_bulk_delete else 0 }};
+          if (cells[offset]) cells[offset].textContent = i + 1;
+        });
+      });
+    });
+  })();
   </script>
 {% endblock %}

@@ -1,5 +1,14 @@
 {% extends "base.html" %}
 {% block content %}
+  <style>
+    @media print {
+      .sidebar, .topbar, .page-footer, .back-row, .button, form, .no-print { display: none !important; }
+      .content-wrap { margin-left: 0 !important; }
+      .card { box-shadow: none !important; border: 1px solid #ccc !important; break-inside: avoid; }
+      .page-title { font-size: 18px; }
+      body { background: #fff !important; color: #000 !important; }
+    }
+  </style>
   <div class="page-header animate-in">
     <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;">
       <div>
@@ -7,11 +16,40 @@
         <div class="page-subtitle">Asset detail, assignment history, and comments.</div>
       </div>
       <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-        <a class="button secondary" href="{{ url_for('edit_asset', asset_type=asset_type, item_id=item.id) }}">Edit</a>
-        <a class="button" href="{{ url_for('list_assets', asset_type=asset_type) }}">Back</a>
+        <button class="button secondary no-print" onclick="window.print()" type="button">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg>
+          Print
+        </button>
+        <a class="button secondary no-print" href="{{ url_for('edit_asset', asset_type=asset_type, item_id=item.id) }}">Edit</a>
+        <a class="button no-print" href="{{ url_for('list_assets', asset_type=asset_type) }}">Back</a>
       </div>
     </div>
   </div>
+
+  {% set status_val = item.status if item.status is defined else "" %}
+  {% if status_val %}
+  <div class="animate-in" style="margin-top:12px;">
+    {% if status_val == "Assigned" %}
+      <span class="badge badge-blue" style="font-size:13px; padding:5px 14px;">
+        <span class="badge-dot" style="background:var(--blue);"></span> Assigned to {{ assigned_to }}
+      </span>
+    {% elif status_val == "In Stock" %}
+      <span class="badge badge-green" style="font-size:13px; padding:5px 14px;">
+        <span class="badge-dot" style="background:var(--green);"></span> In Stock — Available
+      </span>
+    {% elif status_val == "Broken" %}
+      <span class="badge badge-danger" style="font-size:13px; padding:5px 14px;">
+        <span class="badge-dot" style="background:var(--danger);"></span> Broken
+      </span>
+    {% elif status_val == "Write Off" %}
+      <span class="badge badge-warn" style="font-size:13px; padding:5px 14px;">
+        <span class="badge-dot" style="background:var(--warning);"></span> Written Off
+      </span>
+    {% else %}
+      <span class="badge badge-default" style="font-size:13px; padding:5px 14px;">{{ status_val }}</span>
+    {% endif %}
+  </div>
+  {% endif %}
 
   <div class="card animate-in" style="margin-top: 16px;">
     <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Asset Overview</div>
@@ -38,7 +76,9 @@
       </table>
     </div>
     {% if previous_users %}
-      <p class="muted" style="margin-top: 10px;">Previous users (latest 2): {{ previous_users | join(", ") }}</p>
+      <p class="muted" style="margin-top: 10px;">
+        <strong>Full ownership chain:</strong> {{ previous_users | join(" → ") }}
+      </p>
     {% endif %}
   </div>
 

@@ -7,9 +7,15 @@
         <div class="page-subtitle">Search a user to see everything assigned to them.</div>
       </div>
       <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-        <form method="get" class="inline">
-          <input type="text" name="user" placeholder="Search by username..." value="{{ query }}" list="ldap-users">
-          <button class="button secondary" type="submit">Search</button>
+        <form method="get" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <input type="text" name="user" placeholder="Search by username or email..." value="{{ query }}" list="ldap-users" style="min-width:220px;">
+          <button class="button" type="submit">
+            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg>
+            Search
+          </button>
+          {% if query %}
+            <a class="button secondary" href="{{ url_for('user_assets') }}">Clear</a>
+          {% endif %}
         </form>
       </div>
     </div>
@@ -17,18 +23,28 @@
 
   {% if query %}
     <div class="card animate-in" style="margin-top: 12px;">
-      <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Results for {{ display_query or query }}</div>
-      <p class="muted">Items assigned: {{ total_items }}{% if total_quantity %} · Quantity assigned: {{ total_quantity }}{% endif %}</p>
+      <div style="display:flex; align-items:center; gap:14px; flex-wrap:wrap;">
+        <div style="width:44px; height:44px; border-radius:50%; background:linear-gradient(135deg,var(--accent),var(--blue)); display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:800; color:#08121c; flex-shrink:0;">
+          {{ (display_query or query)[0].upper() }}
+        </div>
+        <div>
+          <div style="font-size:16px; font-weight:700;">{{ display_query or query }}</div>
+          <div class="muted text-sm">
+            {{ total_items }} item{{ 's' if total_items != 1 else '' }} assigned
+            {% if total_quantity %} · {{ total_quantity }} units total{% endif %}
+          </div>
+        </div>
+      </div>
     </div>
   {% endif %}
 
   {% if sections %}
     {% for section in sections %}
       <div class="card animate-in" style="margin-top: 16px;">
-        <div style="font-size:15px; font-weight:700; margin-bottom:12px;">{{ section.label }}</div>
-        <p class="muted">
-          Assigned: {{ section.count }}{% if section.consumable %} units{% endif %}
-        </p>
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
+          <div style="font-size:15px; font-weight:700;">{{ section.label }}</div>
+          <span class="badge badge-blue">{{ section.count }}{% if section.consumable %} units{% endif %}</span>
+        </div>
         {% if section.columns and section.rows %}
           <div class="table-wrap">
             <table>
@@ -56,8 +72,16 @@
       </div>
     {% endfor %}
   {% elif query %}
-    <div class="card animate-in" style="margin-top: 16px;">
-      <p>No assets found for this user.</p>
+    <div class="card animate-in" style="margin-top: 16px; text-align:center; padding:48px 24px;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:12px; opacity:0.4; display:block; margin:0 auto 12px;"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <div style="font-size:16px; font-weight:600; margin-bottom:6px;">No assets found</div>
+      <div class="muted text-sm">No assets are currently assigned to <strong>{{ display_query or query }}</strong>.</div>
+    </div>
+  {% elif not query %}
+    <div class="card animate-in" style="margin-top: 16px; text-align:center; padding:48px 24px;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="display:block; margin:0 auto 12px; opacity:0.4;"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg>
+      <div style="font-size:16px; font-weight:600; margin-bottom:6px;">Search for a user</div>
+      <div class="muted text-sm">Enter a username or email address to see all assets assigned to that person.</div>
     </div>
   {% endif %}
 {% endblock %}

@@ -5076,6 +5076,9 @@ def index():
             )
         total_assets += AssetItem.query.filter_by(asset_type_id=asset_type.id).count()
     dept_summary = build_dept_summary()
+    recent_activity = AuditLog.query.order_by(AuditLog.created_at.desc()).limit(8).all()
+    for _a in recent_activity:
+        _a.display_time = _format_local_time(_a.created_at)
     return render_template(
         "index.html",
         user=user,
@@ -5084,6 +5087,7 @@ def index():
         total_assigned=total_assigned,
         total_available=total_available,
         dept_summary=dept_summary,
+        recent_activity=recent_activity,
     )
 
 
@@ -5269,8 +5273,6 @@ def view_asset(asset_type, item_id):
                 continue
             seen.add(key)
             previous_users.append(display_assignee(entry.to_user))
-        if len(previous_users) >= 2:
-            break
     fields = [
         (
             field_name,
@@ -5510,6 +5512,27 @@ def import_assets_excel(asset_type):
     else:
         flash(f"Imported {created} rows.", "success")
     return redirect(url_for("list_assets", asset_type=asset_type))
+
+
+@app.route("/assets/<asset_type>/check_tag")
+@login_required
+@require_static_permission("can_read")
+def check_asset_tag(asset_type):
+    tag = (request.args.get("tag") or "").strip()
+    exclude_id = request.args.get("exclude_id", "").strip()
+    definition = ASSET_DEFS.get(asset_type)
+    if not definition or not tag:
+        return jsonify({"exists": False})
+    model = definition["model"]
+    if not hasattr(model, "asset_tag"):
+        return jsonify({"exists": False})
+    q = model.query.filter(func.lower(model.asset_tag) == tag.lower())
+    if exclude_id:
+        try:
+            q = q.filter(model.id != int(exclude_id))
+        except (ValueError, TypeError):
+            pass
+    return jsonify({"exists": q.first() is not None})
 
 
 @app.route("/assets/<asset_type>/add", methods=["GET", "POST"])
@@ -5938,8 +5961,6 @@ def view_custom_asset(asset_key, item_id):
                 continue
             seen.add(key)
             previous_users.append(display_assignee(entry.to_user))
-        if len(previous_users) >= 2:
-            break
     details = []
     for field in fields:
         if field.name in assigned_fields:
@@ -7222,6 +7243,40 @@ def backup_full_download():
     return send_file(io.BytesIO(data), as_attachment=True, download_name=filename, mimetype="application/zip")
 
 
+@app.route("/backups/sql")
+@login_required
+@require_app_admin
+def backup_sql_download():
+    import subprocess as _subprocess
+    db_url = app.config.get("SQLALCHEMY_DATABASE_URI", "")
+    if not db_url.startswith("postgresql"):
+        flash("SQL dump is only supported for PostgreSQL databases.", "error")
+        return redirect(url_for("backup_settings"))
+    try:
+        result = _subprocess.run(
+            ["pg_dump", "--format=plain", "--no-owner", "--no-acl", db_url],
+            capture_output=True,
+            timeout=120,
+        )
+        if result.returncode != 0:
+            err = result.stderr.decode(errors="replace")[:300]
+            flash(f"pg_dump failed: {err}", "error")
+            return redirect(url_for("backup_settings"))
+        filename = f"db_dump_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.sql"
+        return send_file(
+            io.BytesIO(result.stdout),
+            as_attachment=True,
+            download_name=filename,
+            mimetype="text/plain",
+        )
+    except FileNotFoundError:
+        flash("pg_dump not found. Ensure PostgreSQL client tools are installed in the container.", "error")
+        return redirect(url_for("backup_settings"))
+    except Exception as exc:
+        flash(f"SQL dump error: {exc}", "error")
+        return redirect(url_for("backup_settings"))
+
+
 @app.route("/backups/config/restore", methods=["POST"])
 @login_required
 @require_app_admin
@@ -8022,7 +8077,31 @@ def list_roles():
 @require_app_admin
 def audit_log():
     query = normalize_search(request.args.get("q", ""))
-    logs = AuditLog.query.order_by(AuditLog.created_at.desc()).all()
+    date_from = request.args.get("date_from", "").strip()
+    date_to = request.args.get("date_to", "").strip()
+    action_filter = request.args.get("action", "").strip().lower()
+    user_filter = normalize_search(request.args.get("user", ""))
+
+    logs_q = AuditLog.query.order_by(AuditLog.created_at.desc())
+
+    if date_from:
+        try:
+            dt_from = datetime.datetime.strptime(date_from, "%Y-%m-%d")
+            logs_q = logs_q.filter(AuditLog.created_at >= dt_from)
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            dt_to = datetime.datetime.strptime(date_to, "%Y-%m-%d") + datetime.timedelta(days=1)
+            logs_q = logs_q.filter(AuditLog.created_at < dt_to)
+        except ValueError:
+            pass
+    if user_filter:
+        logs_q = logs_q.filter(func.lower(AuditLog.username).contains(user_filter))
+    if action_filter:
+        logs_q = logs_q.filter(func.lower(AuditLog.action).contains(action_filter))
+
+    logs = logs_q.limit(1000).all()
     if query:
         logs = [
             entry
@@ -8039,7 +8118,68 @@ def audit_log():
         ]
     for entry in logs:
         entry.display_time = _format_local_time(entry.created_at)
-    return render_template("audit.html", logs=logs, query=query)
+    return render_template(
+        "audit.html",
+        logs=logs,
+        query=query,
+        date_from=date_from,
+        date_to=date_to,
+        action_filter=action_filter,
+        user_filter=user_filter,
+    )
+
+
+@app.route("/audit/export")
+@login_required
+@require_app_admin
+def export_audit_log():
+    import csv as _csv
+    date_from = request.args.get("date_from", "").strip()
+    date_to = request.args.get("date_to", "").strip()
+    action_filter = request.args.get("action", "").strip().lower()
+    user_filter = normalize_search(request.args.get("user", ""))
+
+    logs_q = AuditLog.query.order_by(AuditLog.created_at.desc())
+    if date_from:
+        try:
+            dt_from = datetime.datetime.strptime(date_from, "%Y-%m-%d")
+            logs_q = logs_q.filter(AuditLog.created_at >= dt_from)
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            dt_to = datetime.datetime.strptime(date_to, "%Y-%m-%d") + datetime.timedelta(days=1)
+            logs_q = logs_q.filter(AuditLog.created_at < dt_to)
+        except ValueError:
+            pass
+    if user_filter:
+        logs_q = logs_q.filter(func.lower(AuditLog.username).contains(user_filter))
+    if action_filter:
+        logs_q = logs_q.filter(func.lower(AuditLog.action).contains(action_filter))
+
+    logs = logs_q.all()
+    output = io.StringIO()
+    writer = _csv.writer(output)
+    writer.writerow(["Time (UTC)", "User", "Action", "Entity Type", "Entity ID", "Success", "IP Address", "Details"])
+    for entry in logs:
+        writer.writerow([
+            entry.created_at.strftime("%Y-%m-%d %H:%M:%S") if entry.created_at else "",
+            entry.username or "",
+            entry.action or "",
+            entry.entity_type or "",
+            entry.entity_id or "",
+            "Yes" if entry.success else "No",
+            entry.ip_address or "",
+            entry.details or "",
+        ])
+    output.seek(0)
+    filename = f"audit_log_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    return send_file(
+        io.BytesIO(output.getvalue().encode("utf-8")),
+        as_attachment=True,
+        download_name=filename,
+        mimetype="text/csv",
+    )
 
 
 @app.route("/smtp", methods=["GET", "POST"])

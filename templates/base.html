@@ -581,7 +581,47 @@
         main { padding: 18px; }
         .stat-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
         .card-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); }
+        .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
       }
+      @media (max-width: 600px) {
+        .page-title { font-size: 18px; }
+        main { padding: 12px; }
+        .card { padding: 14px; }
+        .stat-grid { grid-template-columns: 1fr 1fr; }
+        .form-grid { max-width: 100%; }
+      }
+
+      /* ── Toast notifications ─────────────────────────────────── */
+      .toast-container {
+        position: fixed; bottom: 24px; right: 24px;
+        z-index: 9999; display: flex; flex-direction: column; gap: 10px;
+        pointer-events: none;
+      }
+      .toast {
+        display: flex; align-items: flex-start; gap: 10px;
+        padding: 12px 16px; border-radius: var(--radius-sm);
+        font-size: 13.5px; font-weight: 500;
+        min-width: 260px; max-width: 380px;
+        box-shadow: var(--shadow);
+        pointer-events: all;
+        animation: toastIn 0.25s ease forwards;
+      }
+      .toast.out { animation: toastOut 0.25s ease forwards; }
+      @keyframes toastIn { from { opacity: 0; transform: translateY(12px) scale(0.96); } to { opacity: 1; transform: none; } }
+      @keyframes toastOut { from { opacity: 1; transform: none; } to { opacity: 0; transform: translateY(8px); } }
+      .toast.success { background: var(--green-dim); color: var(--green); border: 1px solid rgba(74,222,128,0.3); }
+      .toast.error   { background: var(--danger-dim); color: var(--danger); border: 1px solid rgba(248,113,113,0.3); }
+      .toast.info    { background: var(--blue-dim); color: var(--blue); border: 1px solid rgba(96,165,250,0.3); }
+      [data-theme="light"] .toast.success { color: #059669; }
+      [data-theme="light"] .toast.error   { color: #dc2626; }
+      [data-theme="light"] .toast.info    { color: #0891b2; }
+
+      /* ── Required field indicator ────────────────────────────── */
+      label .req { color: var(--danger); margin-left: 2px; font-size: 13px; }
+
+      /* ── Duplicate tag warning ───────────────────────────────── */
+      .tag-warn { font-size: 12px; color: var(--warning); margin-top: 4px; display: none; }
+      .tag-warn.show { display: block; }
 
       /* ── Page load animation ────────────────────────────────────── */
       @keyframes fadeUp { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
@@ -934,6 +974,60 @@
         initAC();
       }
     })();
+    </script>
+    <!-- Toast container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script>
+    /* ── Toast system ─────────────────────────────────────────────── */
+    window.showToast = function(message, type) {
+      const container = document.getElementById('toast-container');
+      if (!container) return;
+      const toast = document.createElement('div');
+      toast.className = 'toast ' + (type || 'info');
+      const icon = type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ';
+      toast.innerHTML = `<span>${icon}</span><span style="flex:1;">${message}</span><button onclick="dismissToast(this.parentNode)" style="background:none;border:none;color:inherit;cursor:pointer;font-size:16px;padding:0;line-height:1;margin-left:auto;">×</button>`;
+      container.appendChild(toast);
+      setTimeout(() => dismissToast(toast), 5000);
+    };
+    window.dismissToast = function(toast) {
+      if (!toast || !toast.parentNode) return;
+      toast.classList.add('out');
+      setTimeout(() => toast.remove(), 250);
+    };
+
+    /* Auto-dismiss existing flash messages after 6 seconds */
+    document.addEventListener('DOMContentLoaded', () => {
+      document.querySelectorAll('.flash').forEach(el => {
+        setTimeout(() => {
+          el.style.transition = 'opacity 0.4s ease';
+          el.style.opacity = '0';
+          setTimeout(() => el.remove(), 400);
+        }, 6000);
+      });
+    });
+
+    /* ── Keyboard shortcuts ───────────────────────────────────────── */
+    document.addEventListener('keydown', (e) => {
+      /* Skip if focus is in an input, textarea, or select */
+      const tag = document.activeElement?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select' || document.activeElement?.isContentEditable) return;
+      /* Skip modifier combos */
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+      if (e.key === 'e' || e.key === 'E') {
+        const editBtn = document.querySelector('a[href*="/edit/"], a[href*="/edit?"]');
+        if (editBtn) { e.preventDefault(); editBtn.click(); }
+      } else if (e.key === 'n' || e.key === 'N') {
+        const addBtn = document.querySelector('a[href*="/add"]');
+        if (addBtn) { e.preventDefault(); addBtn.click(); }
+      } else if (e.key === 'Backspace') {
+        const backBtn = document.querySelector('.back-row a');
+        if (backBtn) { e.preventDefault(); backBtn.click(); }
+      } else if (e.key === '?') {
+        showToast('Shortcuts: E = Edit  N = New  Backspace = Back', 'info');
+      }
+    });
     </script>
     {% block scripts %}{% endblock %}
   </body>
