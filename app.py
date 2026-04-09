@@ -7247,33 +7247,81 @@ def backup_full_download():
 @login_required
 @require_app_admin
 def backup_sql_download():
-    import subprocess as _subprocess
     db_url = app.config.get("SQLALCHEMY_DATABASE_URI", "")
     if not db_url.startswith("postgresql"):
-        flash("SQL dump is only supported for PostgreSQL databases.", "error")
+        flash("SQL backup is only supported for PostgreSQL databases.", "error")
         return redirect(url_for("backup_settings"))
     try:
-        result = _subprocess.run(
-            ["pg_dump", "--format=plain", "--no-owner", "--no-acl", db_url],
-            capture_output=True,
-            timeout=120,
+        import psycopg2
+        import psycopg2.extras
+        conn = psycopg2.connect(db_url)
+        cur = conn.cursor()
+
+        out = io.StringIO()
+        out.write(f"-- AssetManager SQL Dump\n")
+        out.write(f"-- Generated: {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC\n")
+        out.write(f"-- Database: {db_url.split('@')[-1] if '@' in db_url else 'unknown'}\n\n")
+        out.write("SET client_encoding = 'UTF8';\n")
+        out.write("SET standard_conforming_strings = on;\n\n")
+
+        cur.execute(
+            "SELECT tablename FROM pg_tables WHERE schemaname='public' ORDER BY tablename"
         )
-        if result.returncode != 0:
-            err = result.stderr.decode(errors="replace")[:300]
-            flash(f"pg_dump failed: {err}", "error")
-            return redirect(url_for("backup_settings"))
+        tables = [row[0] for row in cur.fetchall()]
+
+        for table in tables:
+            cur.execute(
+                "SELECT column_name, data_type FROM information_schema.columns "
+                "WHERE table_schema='public' AND table_name=%s ORDER BY ordinal_position",
+                (table,)
+            )
+            col_info = cur.fetchall()
+            if not col_info:
+                continue
+            cols = [c[0] for c in col_info]
+
+            out.write(f"-- Table: {table}\n")
+            cur.execute(f"SELECT COUNT(*) FROM {table}")
+            count = cur.fetchone()[0]
+            out.write(f"-- Rows: {count}\n")
+
+            if count > 0:
+                cur.execute(f"SELECT * FROM {table}")
+                rows = cur.fetchall()
+                col_list = ", ".join(f'"{c}"' for c in cols)
+                for row in rows:
+                    def _pg_val(v):
+                        if v is None:
+                            return "NULL"
+                        if isinstance(v, bool):
+                            return "TRUE" if v else "FALSE"
+                        if isinstance(v, (int, float)):
+                            return str(v)
+                        if isinstance(v, datetime.datetime):
+                            return f"'{v.strftime('%Y-%m-%d %H:%M:%S')}'"
+                        if isinstance(v, datetime.date):
+                            return f"'{v.isoformat()}'"
+                        if isinstance(v, dict):
+                            import json as _json
+                            return "'" + _json.dumps(v).replace("'", "''") + "'"
+                        return "'" + str(v).replace("'", "''") + "'"
+                    val_list = ", ".join(_pg_val(v) for v in row)
+                    out.write(f"INSERT INTO \"{table}\" ({col_list}) VALUES ({val_list});\n")
+            out.write("\n")
+
+        cur.close()
+        conn.close()
+
         filename = f"db_dump_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.sql"
         return send_file(
-            io.BytesIO(result.stdout),
+            io.BytesIO(out.getvalue().encode("utf-8")),
             as_attachment=True,
             download_name=filename,
             mimetype="text/plain",
         )
-    except FileNotFoundError:
-        flash("pg_dump not found. Ensure PostgreSQL client tools are installed in the container.", "error")
-        return redirect(url_for("backup_settings"))
     except Exception as exc:
-        flash(f"SQL dump error: {exc}", "error")
+        app.logger.exception("SQL dump error")
+        flash(f"SQL dump failed: {exc}", "error")
         return redirect(url_for("backup_settings"))
 
 
