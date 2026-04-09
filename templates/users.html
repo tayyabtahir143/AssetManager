@@ -1,40 +1,38 @@
 {% extends "base.html" %}
 {% block content %}
-  <style>
-    .users-actions .button {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      min-height: 40px;
-      min-width: 140px;
-    }
-  </style>
   <div class="page-header animate-in">
-    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+    <div class="ph-row">
       <div>
         <div class="page-title">Users</div>
         <div class="page-subtitle">
           Manage application users and roles.
-          Total users: {{ total_users }}{% if query %} | Found: {{ filtered_users }}{% endif %}
+          Total users: {{ total_users }}{% if query %} &nbsp;·&nbsp; Found: {{ filtered_users }}{% endif %}
         </div>
       </div>
-      <div class="users-actions" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-        <form method="get" style="display:flex; gap:8px; align-items:center;">
-          <input type="text" name="q" placeholder="Search..." value="{{ query or '' }}" style="min-width:200px;">
+      <div class="ph-actions">
+        <form method="get" class="ph-search">
+          <input type="text" name="q" placeholder="Search users..." value="{{ query or '' }}">
           <button class="button secondary" type="submit">Search</button>
         </form>
         {% if app_admin and permissions.can_bulk_delete %}
           <button class="button secondary" type="button" id="toggle-users-bulk">Bulk delete</button>
-          <button class="button secondary bulk-toggle-users" id="bulk-users-submit" type="submit" form="bulk-users-form" onclick="return confirm('Delete selected users?');" style="display: none;">Delete selected</button>
+          <button class="button secondary bulk-toggle-users" id="bulk-users-submit" type="submit" form="bulk-users-form" onclick="return confirm('Delete selected users?');" style="display:none;">Delete selected</button>
         {% endif %}
         <form method="post" action="{{ url_for('ldap_sync_users') }}">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <button class="button secondary" type="submit">Sync LDAP Users</button>
+          <button class="button secondary" type="submit">Sync LDAP</button>
         </form>
         <a class="button" href="{{ url_for('add_user') }}">Add User</a>
       </div>
     </div>
   </div>
+  <style>
+    .ph-row { display:flex; align-items:center; justify-content:space-between; gap:16px; flex-wrap:wrap; }
+    .ph-actions { display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+    .ph-search { display:flex; align-items:center; gap:6px; }
+    .ph-search input { width:200px; }
+    @media (max-width:640px) { .ph-row { flex-direction:column; align-items:flex-start; } .ph-search input { width:140px; } }
+  </style>
 
   <form method="post" action="{{ url_for('bulk_delete_users') }}" id="bulk-users-form">
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

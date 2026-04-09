@@ -588,7 +588,15 @@
         main { padding: 12px; }
         .card { padding: 14px; }
         .stat-grid { grid-template-columns: 1fr 1fr; }
-        .form-grid { max-width: 100%; }
+        .form-grid { max-width: 100%; grid-template-columns: 1fr; }
+        .page-header { margin-bottom: 16px; }
+        .page-header > div { flex-direction: column; align-items: flex-start !important; }
+        .page-header .button { font-size: 13px; padding: 8px 12px; }
+        table { font-size: 13px; }
+        td, th { padding: 8px 10px !important; white-space: normal !important; }
+        .filter-grid { grid-template-columns: 1fr !important; }
+        .ph-actions { flex-wrap: wrap; }
+        .ph-search input { width: 130px; }
       }
 
       /* ── Toast notifications ─────────────────────────────────── */
@@ -903,10 +911,19 @@
           let activeIdx = -1;
 
           const positionDD = () => {
-            const r = input.getBoundingClientRect();
+            const r   = input.getBoundingClientRect();
+            const vH  = window.innerHeight;
+            const ddH = Math.min(230, dd.scrollHeight || 230);
+            const spaceBelow = vH - r.bottom - 5;
             dd.style.left  = r.left + 'px';
-            dd.style.top   = (r.bottom + 5) + 'px';
-            dd.style.width = r.width + 'px';
+            dd.style.width = Math.max(r.width, 220) + 'px';
+            if (spaceBelow >= ddH || spaceBelow >= r.top) {
+              dd.style.top    = (r.bottom + 5) + 'px';
+              dd.style.bottom = 'auto';
+            } else {
+              dd.style.top    = 'auto';
+              dd.style.bottom = (vH - r.top + 5) + 'px';
+            }
           };
 
           const initial = name => (name || '?')[0].toUpperCase();
@@ -938,13 +955,13 @@
           const open = () => {
             if (input.disabled) return;
             render(input.value);
-            positionDD();
             dd.style.display = 'block';
+            positionDD();
           };
           const close = () => { dd.style.display = 'none'; activeIdx = -1; };
 
           input.addEventListener('focus', open);
-          input.addEventListener('input', () => { render(input.value); positionDD(); dd.style.display = 'block'; });
+          input.addEventListener('input', () => { render(input.value); dd.style.display = 'block'; positionDD(); });
           input.addEventListener('blur', () => setTimeout(close, 160));
           window.addEventListener('scroll', () => { if (dd.style.display !== 'none') positionDD(); }, true);
           window.addEventListener('resize', () => { if (dd.style.display !== 'none') positionDD(); });
