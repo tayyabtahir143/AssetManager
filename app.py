@@ -2098,7 +2098,9 @@ def get_ldap_user_display_list(force_refresh=False):
         return []
     display = []
     for record in records:
-        value = record.get("email") or record.get("username")
+        # Prefer username over email so assignments are stored by username,
+        # not email — ensures user-asset lookups work correctly.
+        value = record.get("username") or record.get("email")
         if value:
             display.append(value)
     return sorted(set(display), key=str)
@@ -6927,6 +6929,21 @@ def user_assets():
     sections = []
     total_items = 0
     total_quantity = 0
+
+    # Build a set of all stored values that represent the same user.
+    # Assets may be stored by username OR by email (e.g. from LDAP autocomplete),
+    # so we expand the search to cover both forms.
+    def get_search_values(norm):
+        values = {norm}
+        for user in User.query.all():
+            uname = (user.username or "").strip().lower()
+            email = (user.email or "").strip().lower()
+            if uname == norm and email:
+                values.add(email)
+            elif email == norm and uname:
+                values.add(uname)
+        return values
+
     if normalized:
         for asset_key, definition in ASSET_DEFS.items():
             model = definition["model"]
@@ -6957,8 +6974,9 @@ def user_assets():
                 display_fields.append((field_name, field_label, field_type))
             order_map = {name: idx for idx, name in enumerate(preferred_order)}
             display_fields.sort(key=lambda item: order_map.get(item[0], 100 + len(order_map)))
+            search_values = get_search_values(normalized)
             if is_consumable:
-                matches = model.query.filter(func.lower(model.assigned_to) == normalized).all()
+                matches = model.query.filter(func.lower(model.assigned_to).in_(search_values)).all()
                 for item in matches:
                     qty = max(item.assigned_quantity or 0, 0)
                     if qty <= 0:
@@ -6975,7 +6993,7 @@ def user_assets():
                         )
                     rows.append(row)
             else:
-                matches = model.query.filter(func.lower(model.assigned_to) == normalized).all()
+                matches = model.query.filter(func.lower(model.assigned_to).in_(search_values)).all()
                 assigned_count = len(matches)
                 total_items += assigned_count
                 for item in matches:
@@ -7019,7 +7037,7 @@ def user_assets():
                     assigned_to = (item.data or {}).get(field_name)
                     if assigned_to is not None:
                         break
-                if normalize_assignee(assigned_to) != normalized:
+                if normalize_assignee(assigned_to) not in get_search_values(normalized):
                     continue
                 row = {}
                 for field in display_fields:
