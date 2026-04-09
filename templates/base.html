@@ -471,12 +471,12 @@
       /* ── Custom user autocomplete ───────────────────────────────── */
       .ac-wrap { position: relative; }
       .ac-dropdown {
-        position: absolute; top: calc(100% + 5px); left: 0; right: 0;
+        position: fixed;
         background: var(--surface-2);
         border: 1px solid var(--border-2);
         border-radius: var(--radius-sm);
         box-shadow: var(--shadow);
-        z-index: 600;
+        z-index: 9000;
         max-height: 230px;
         overflow-y: auto;
         scrollbar-width: thin;
@@ -895,18 +895,19 @@
         document.querySelectorAll('input[list="ldap-users"]').forEach(input => {
           input.removeAttribute('list');
 
-          /* Wrap */
-          const wrap = document.createElement('div');
-          wrap.className = 'ac-wrap';
-          input.parentNode.insertBefore(wrap, input);
-          wrap.appendChild(input);
-
-          /* Dropdown panel */
+          /* Dropdown appended to body to escape stacking contexts */
           const dd = document.createElement('div');
           dd.className = 'ac-dropdown';
-          wrap.appendChild(dd);
+          document.body.appendChild(dd);
 
           let activeIdx = -1;
+
+          const positionDD = () => {
+            const r = input.getBoundingClientRect();
+            dd.style.left  = r.left + 'px';
+            dd.style.top   = (r.bottom + 5) + 'px';
+            dd.style.width = r.width + 'px';
+          };
 
           const initial = name => (name || '?')[0].toUpperCase();
 
@@ -937,13 +938,16 @@
           const open = () => {
             if (input.disabled) return;
             render(input.value);
+            positionDD();
             dd.style.display = 'block';
           };
           const close = () => { dd.style.display = 'none'; activeIdx = -1; };
 
           input.addEventListener('focus', open);
-          input.addEventListener('input', () => { render(input.value); dd.style.display = 'block'; });
+          input.addEventListener('input', () => { render(input.value); positionDD(); dd.style.display = 'block'; });
           input.addEventListener('blur', () => setTimeout(close, 160));
+          window.addEventListener('scroll', () => { if (dd.style.display !== 'none') positionDD(); }, true);
+          window.addEventListener('resize', () => { if (dd.style.display !== 'none') positionDD(); });
 
           input.addEventListener('keydown', e => {
             const items = dd.querySelectorAll('.ac-item');

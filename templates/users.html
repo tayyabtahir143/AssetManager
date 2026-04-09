@@ -19,8 +19,8 @@
         </div>
       </div>
       <div class="users-actions" style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-        <form method="get" class="inline">
-          <input type="text" name="q" placeholder="Search..." value="{{ query or '' }}">
+        <form method="get" style="display:flex; gap:8px; align-items:center;">
+          <input type="text" name="q" placeholder="Search..." value="{{ query or '' }}" style="min-width:200px;">
           <button class="button secondary" type="submit">Search</button>
         </form>
         {% if app_admin and permissions.can_bulk_delete %}
