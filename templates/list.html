@@ -77,21 +77,21 @@
       </div>
     {% endif %}
     <div id="bulk-delete-error" class="flash error" style="display: none; margin: 10px 16px;"></div>
-    <div class="table-wrap">
-    <table>
+    <div class="table-wrap" style="overflow-x: visible;">
+    <table class="list-table">
       <thead>
         <tr>
           {% if asset_perms.can_bulk_delete %}
-            <th>
+            <th class="col-chk">
               <input type="checkbox" id="select-all-assets" class="bulk-toggle-asset" style="display: none;">
             </th>
           {% endif %}
-          <th data-sort-col="0" style="cursor:pointer; user-select:none;"># <span class="sort-arrow"></span></th>
+          <th class="col-idx" data-sort-col="0" style="cursor:pointer; user-select:none;"># <span class="sort-arrow"></span></th>
           {% for field_name, label, field_type in definition.fields %}
             <th data-sort-col="{{ loop.index }}" data-field="{{ field_name }}" style="cursor:pointer; user-select:none;">{{ label }} <span class="sort-arrow"></span></th>
           {% endfor %}
           {% if asset_perms.can_delete or asset_perms.can_add %}
-            <th style="white-space: nowrap;">Actions</th>
+            <th class="col-act">Actions</th>
           {% endif %}
         </tr>
       </thead>
@@ -99,26 +99,26 @@
         {% for item in items %}
           <tr>
             {% if asset_perms.can_bulk_delete %}
-              <td><input type="checkbox" class="asset-checkbox bulk-toggle-asset" name="selected_ids" value="{{ item.id }}" style="display: none;"></td>
+              <td class="col-chk"><input type="checkbox" class="asset-checkbox bulk-toggle-asset" name="selected_ids" value="{{ item.id }}" style="display: none;"></td>
             {% endif %}
-            <td>{{ loop.index }}</td>
+            <td class="col-idx">{{ loop.index }}</td>
             {% for field_name, label, field_type in definition.fields %}
-              <td>
-                {% if field_name == "connection" and asset_type in ["mice", "keyboards"] %}
-                  {% if item.wired %}
-                    Wired
-                  {% elif item.wireless %}
-                    Wireless
-                  {% else %}
-                    -
-                  {% endif %}
-                {% elif field_type == "checkbox" %}
-                  {{ "Yes" if item|attr(field_name) else "No" }}
+              {% if field_name == "connection" and asset_type in ["mice", "keyboards"] %}
+                {% if item.wired %}
+                  <td title="Wired">Wired</td>
+                {% elif item.wireless %}
+                  <td title="Wireless">Wireless</td>
                 {% else %}
-                  {% set value = item|attr(field_name) %}
-                  {% if field_name == "assigned_to" %}
-                    {{ display_assignee(value) }}
-                  {% elif field_name == "status" %}
+                  <td>-</td>
+                {% endif %}
+              {% elif field_type == "checkbox" %}
+                <td>{{ "Yes" if item|attr(field_name) else "No" }}</td>
+              {% else %}
+                {% set value = item|attr(field_name) %}
+                {% if field_name == "assigned_to" %}
+                  <td title="{{ display_assignee(value) }}">{{ display_assignee(value) }}</td>
+                {% elif field_name == "status" %}
+                  <td>
                     {% if value == "Assigned" %}
                       <span class="badge badge-blue">{{ value }}</span>
                     {% elif value == "In Stock" %}
@@ -130,14 +130,14 @@
                     {% else %}
                       <span class="badge">{{ value or "-" }}</span>
                     {% endif %}
-                  {% else %}
-                    {{ value or "-" }}
-                  {% endif %}
+                  </td>
+                {% else %}
+                  <td title="{{ value or '' }}">{{ value or "-" }}</td>
                 {% endif %}
-              </td>
+              {% endif %}
             {% endfor %}
             {% if asset_perms.can_delete or asset_perms.can_add %}
-              <td style="white-space: nowrap;">
+              <td class="col-act">
                 {% if asset_perms.can_add %}
                   <a class="button secondary" href="{{ url_for('view_asset', asset_type=asset_type, item_id=item.id) }}">View</a>
                   <a class="button secondary" href="{{ url_for('edit_asset', asset_type=asset_type, item_id=item.id) }}">Edit</a>
@@ -317,7 +317,7 @@
 
     const buildActionCell = (itemId) => {
       const cell = document.createElement('td');
-      cell.style.whiteSpace = 'nowrap';
+      cell.className = 'col-act';
       if (canAdd) {
         const view = document.createElement('a');
         view.className = 'button secondary';
@@ -371,11 +371,14 @@
         row.appendChild(checkCell);
       }
       const indexCell = document.createElement('td');
+      indexCell.className = 'col-idx';
       indexCell.textContent = assetTableBody.children.length + 1;
       row.appendChild(indexCell);
       assetFields.forEach(([fieldName, _label, _fieldType]) => {
         const cell = document.createElement('td');
-        cell.textContent = rowData.fields[fieldName] || '-';
+        const val = rowData.fields[fieldName] || '-';
+        cell.textContent = val;
+        cell.title = val;
         row.appendChild(cell);
       });
       if (canDelete || canAdd) {
@@ -448,4 +451,34 @@
     });
   })();
   </script>
+  <style>
+    /* ── Compact fixed-layout table so all columns fit without scrolling ── */
+    .list-table {
+      table-layout: fixed;
+      width: 100%;
+      font-size: 12.5px;
+    }
+    .list-table th {
+      padding: 9px 7px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .list-table td {
+      padding: 9px 7px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 0; /* required for ellipsis in table-layout:fixed */
+    }
+    /* Narrow fixed columns */
+    .list-table .col-chk { width: 32px; overflow: visible; }
+    .list-table .col-idx { width: 36px; text-align: center; }
+    /* Actions: fixed width, no ellipsis */
+    .list-table .col-act {
+      width: 170px;
+      white-space: nowrap;
+      overflow: visible;
+    }
+  </style>
 {% endblock %}
