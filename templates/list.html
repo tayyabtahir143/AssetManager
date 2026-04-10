@@ -1,40 +1,54 @@
 {% extends "base.html" %}
 {% block content %}
-  <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+<div class="page-header animate-in">
+  <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;">
     <div>
-      <h2>{{ asset_title }}</h2>
-      <p class="muted">Total items: {{ total_items }}</p>
+      <div class="page-title">{{ asset_title }}</div>
+      <div class="page-subtitle">{{ total_items }} item{{ "s" if total_items != 1 else "" }} total</div>
     </div>
-    <form method="get" class="inline" style="display: flex; gap: 10px; flex-wrap: wrap;">
-      <input type="text" name="q" placeholder="Search..." value="{{ query or '' }}">
-      <select name="status">
-        <option value="all" {% if status_filter == "all" %}selected{% endif %}>All</option>
-        <option value="assigned" {% if status_filter == "assigned" %}selected{% endif %}>Assigned only</option>
-        <option value="in_stock" {% if status_filter == "in_stock" %}selected{% endif %}>In Stock only</option>
-        <option value="broken" {% if status_filter == "broken" %}selected{% endif %}>Broken only</option>
-        <option value="write_off" {% if status_filter == "write_off" %}selected{% endif %}>Write Off only</option>
-      </select>
-      <button class="button secondary" type="submit">Search</button>
-    </form>
-    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+    <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+      <form method="get" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+        <input type="text" name="q" placeholder="Search…" value="{{ query or '' }}" style="min-width:180px;">
+        <select name="status">
+          <option value="all" {% if status_filter == "all" %}selected{% endif %}>All statuses</option>
+          <option value="assigned" {% if status_filter == "assigned" %}selected{% endif %}>Assigned</option>
+          <option value="in_stock" {% if status_filter == "in_stock" %}selected{% endif %}>In Stock</option>
+          <option value="broken" {% if status_filter == "broken" %}selected{% endif %}>Broken</option>
+          <option value="write_off" {% if status_filter == "write_off" %}selected{% endif %}>Write Off</option>
+        </select>
+        <button class="button secondary" type="submit">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg>
+          Search
+        </button>
+      </form>
       {% if asset_perms.can_bulk_delete %}
-        <button class="button secondary" type="button" id="toggle-asset-bulk">Bulk delete</button>
-        <button class="button secondary bulk-toggle-asset" id="bulk-delete-submit" type="button" style="display: none;">Delete selected</button>
+        <button class="button secondary" type="button" id="toggle-asset-bulk">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+          Bulk Delete
+        </button>
+        <button class="button danger bulk-toggle-asset" id="bulk-delete-submit" type="button" style="display:none;">
+          Delete Selected
+        </button>
       {% endif %}
       {% if asset_perms.can_add %}
-        <a class="button" href="{{ url_for('add_asset', asset_type=asset_type) }}">Add {{ definition.label }}</a>
+        <a class="button" href="{{ url_for('add_asset', asset_type=asset_type) }}">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></svg>
+          Add {{ definition.label }}
+        </a>
       {% endif %}
     </div>
   </div>
+</div>
 
   {% if app_admin %}
-    <div class="card" style="margin-top: 14px;">
-      <h3 style="margin-top: 0;">Import / Export</h3>
-      <p class="muted">Upload an .xlsx file using this header format: {{ import_headers | join(", ") }}</p>
+    <div class="card animate-in" style="margin-top: 18px;">
+      <div style="font-size:15px; font-weight:700; margin-bottom:4px;">Import / Export</div>
+      <p class="muted text-sm" style="margin-bottom:12px;">Upload an .xlsx file using this header format: {{ import_headers | join(", ") }}</p>
       <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
         <a class="button secondary" href="{{ url_for('export_assets_excel', asset_type=asset_type) }}">Export Excel</a>
         {% if asset_perms.can_add %}
           <form method="post" action="{{ url_for('import_assets_excel', asset_type=asset_type) }}" enctype="multipart/form-data" style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="file" name="file" accept=".xlsx" required>
             <button class="button" type="submit">Import Excel</button>
           </form>
@@ -43,7 +57,9 @@
     </div>
   {% endif %}
 
+  <div class="card animate-in" style="margin-top: 18px; padding: 0; overflow: hidden;">
   <form method="post" action="{{ url_for('bulk_delete_assets', asset_type=asset_type) }}" id="bulk-delete-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="bulk_delete_intent" id="bulk-delete-intent" value="">
     {% set ns = namespace(has_asset_tag=false) %}
     {% for field_name, _label, _field_type in definition.fields %}
@@ -52,16 +68,17 @@
       {% endif %}
     {% endfor %}
     {% if asset_perms.can_bulk_delete and ns.has_asset_tag %}
-      <div class="bulk-toggle-asset" style="display: none; margin: 12px 0; padding: 12px; border-radius: 12px; border: 1px dashed var(--panel-border-strong); background: rgba(10, 16, 26, 0.6);">
-        <label for="bulk-tags" class="muted" style="font-weight: 600;">Delete by Asset Tags</label>
+      <div class="bulk-toggle-asset" style="display: none; margin: 12px 16px; padding: 14px 16px; border-radius: 10px; border: 1px dashed var(--border-2); background: var(--bg-3);">
+        <label for="bulk-tags" class="muted" style="font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em;">Delete by Asset Tags</label>
         <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 8px;">
           <textarea id="bulk-tags" name="bulk_tags" rows="2" placeholder="Enter asset tags separated by commas or new lines" style="flex: 1; min-width: 240px;"></textarea>
           <button class="button secondary" id="bulk-tags-submit" type="button">Delete tags</button>
         </div>
       </div>
     {% endif %}
-    <div id="bulk-delete-error" class="flash error" style="display: none; margin-top: 10px;"></div>
-    <table class="sticky-header">
+    <div id="bulk-delete-error" class="flash error" style="display: none; margin: 10px 16px;"></div>
+    <div class="table-wrap">
+    <table>
       <thead>
         <tr>
           {% if asset_perms.can_bulk_delete %}
@@ -69,9 +86,9 @@
               <input type="checkbox" id="select-all-assets" class="bulk-toggle-asset" style="display: none;">
             </th>
           {% endif %}
-          <th>#</th>
+          <th data-sort-col="0" style="cursor:pointer; user-select:none;"># <span class="sort-arrow"></span></th>
           {% for field_name, label, field_type in definition.fields %}
-            <th>{{ label }}</th>
+            <th data-sort-col="{{ loop.index }}" data-field="{{ field_name }}" style="cursor:pointer; user-select:none;">{{ label }} <span class="sort-arrow"></span></th>
           {% endfor %}
           {% if asset_perms.can_delete or asset_perms.can_add %}
             <th>Actions</th>
@@ -101,6 +118,18 @@
                   {% set value = item|attr(field_name) %}
                   {% if field_name == "assigned_to" %}
                     {{ display_assignee(value) }}
+                  {% elif field_name == "status" %}
+                    {% if value == "Assigned" %}
+                      <span class="badge badge-blue">{{ value }}</span>
+                    {% elif value == "In Stock" %}
+                      <span class="badge badge-green">{{ value }}</span>
+                    {% elif value == "Broken" %}
+                      <span class="badge badge-danger">{{ value }}</span>
+                    {% elif value == "Write Off" %}
+                      <span class="badge badge-warn">{{ value }}</span>
+                    {% else %}
+                      <span class="badge">{{ value or "-" }}</span>
+                    {% endif %}
                   {% else %}
                     {{ value or "-" }}
                   {% endif %}
@@ -127,7 +156,9 @@
         {% endfor %}
       </tbody>
     </table>
+    </div><!-- /.table-wrap -->
   </form>
+  </div><!-- /.card -->
   <div id="bulk-delete-overlay" style="display: none; position: fixed; inset: 0; background: rgba(3, 6, 12, 0.7); z-index: 999; align-items: center; justify-content: center;">
     <div class="card" style="min-width: 280px; text-align: center;">
       <h3 style="margin-top: 0;">Deleting…</h3>
@@ -378,5 +409,42 @@
 
     infiniteStatus.textContent = hasMore ? 'Scroll to load more.' : 'All items loaded.';
     window.addEventListener('scroll', onScroll);
+  </script>
+  <script>
+  /* ── Column sorting ─────────────────────────────────────────── */
+  (function () {
+    const table = document.querySelector('table');
+    if (!table) return;
+    let sortCol = -1, sortDir = 1;
+    const headers = table.querySelectorAll('th[data-sort-col]');
+    headers.forEach(th => {
+      th.addEventListener('click', () => {
+        const col = parseInt(th.dataset.sortCol);
+        if (sortCol === col) { sortDir *= -1; } else { sortCol = col; sortDir = 1; }
+        headers.forEach(h => { const arr = h.querySelector('.sort-arrow'); if (arr) arr.textContent = ''; });
+        const arrow = th.querySelector('.sort-arrow');
+        if (arrow) arrow.textContent = sortDir === 1 ? ' ↑' : ' ↓';
+        const tbody = table.querySelector('tbody');
+        const rows = Array.from(tbody.querySelectorAll('tr'));
+        rows.sort((a, b) => {
+          const cells = a => Array.from(a.querySelectorAll('td'));
+          const ca = cells(a)[col], cb = cells(b)[col];
+          if (!ca || !cb) return 0;
+          const va = ca.textContent.trim().toLowerCase();
+          const vb = cb.textContent.trim().toLowerCase();
+          const na = parseFloat(va), nb = parseFloat(vb);
+          if (!isNaN(na) && !isNaN(nb)) return (na - nb) * sortDir;
+          return va.localeCompare(vb) * sortDir;
+        });
+        rows.forEach(r => tbody.appendChild(r));
+        /* Re-number index column */
+        tbody.querySelectorAll('tr').forEach((r, i) => {
+          const cells = r.querySelectorAll('td');
+          const offset = {{ 1 if asset_perms.can_bulk_delete else 0 }};
+          if (cells[offset]) cells[offset].textContent = i + 1;
+        });
+      });
+    });
+  })();
   </script>
 {% endblock %}

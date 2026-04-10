@@ -33,11 +33,58 @@
     .status-bad { background: rgba(255, 122, 122, 0.2); color: var(--danger); border-color: rgba(255, 122, 122, 0.4); }
     .audit-row-fail { background: rgba(255, 122, 122, 0.05); }
     .audit-meta { font-size: 12px; color: var(--muted); }
-    .audit-details {
-      white-space: pre-wrap;
+    .audit-details { display: none; }
+    .audit-diff {
       margin: 8px 0 0 0;
-      font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border);
       font-size: 12px;
+    }
+    .audit-diff-meta {
+      padding: 5px 10px;
+      background: rgba(255,255,255,0.04);
+      border-bottom: 1px solid var(--border);
+      display: flex; gap: 8px; flex-wrap: wrap;
+    }
+    .audit-diff-meta span {
+      font-size: 11px; padding: 2px 7px; border-radius: 999px;
+      background: rgba(255,255,255,0.07); color: var(--ink-2);
+    }
+    .audit-diff-row {
+      display: grid;
+      grid-template-columns: 90px 1fr 1fr;
+      border-bottom: 1px solid var(--border);
+    }
+    .audit-diff-row:last-child { border-bottom: none; }
+    .audit-diff-field {
+      padding: 5px 10px;
+      font-weight: 600; font-size: 11px; color: var(--ink-3);
+      text-transform: uppercase; letter-spacing: 0.05em;
+      border-right: 1px solid var(--border);
+      display: flex; align-items: center;
+    }
+    .audit-diff-old {
+      padding: 5px 10px;
+      background: rgba(248,113,113,0.07);
+      color: #fca5a5;
+      border-right: 1px solid var(--border);
+      word-break: break-word;
+    }
+    .audit-diff-new {
+      padding: 5px 10px;
+      background: rgba(56,232,192,0.07);
+      color: var(--accent);
+      word-break: break-word;
+    }
+    .audit-diff-old::before { content: "−  "; opacity: 0.6; }
+    .audit-diff-new::before { content: "+  "; opacity: 0.6; }
+    [data-theme="light"] .audit-diff-old { background: rgba(220,38,38,0.08); color: #b91c1c; }
+    [data-theme="light"] .audit-diff-new { background: rgba(5,150,105,0.08); color: #047857; }
+    .audit-plain {
+      margin: 6px 0 0 0;
+      font-size: 12px; color: var(--ink-2);
+      white-space: pre-wrap;
     }
     [data-theme="light"] .action-create { color: #0a7b5d; }
     [data-theme="light"] .action-update { color: #2a6db4; }
@@ -45,82 +92,167 @@
     [data-theme="light"] .action-bulk { color: #b46a1f; }
     [data-theme="light"] .action-auth { color: #6c3fb5; }
     [data-theme="light"] .action-default { color: #1b2430; }
+    .filter-bar {
+      display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius); padding: 14px 16px;
+      margin-bottom: 16px;
+    }
+    .filter-bar label { font-size: 11px; font-weight: 600; color: var(--ink-3); text-transform: uppercase; letter-spacing: 0.06em; display: block; margin-bottom: 4px; }
+    .filter-bar input, .filter-bar select { padding: 7px 10px; font-size: 13px; min-width: 130px; width: auto; }
+    .filter-bar .filter-group { display: flex; flex-direction: column; }
   </style>
-  <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
-    <div>
-      <h2>Audit Log</h2>
-      <p class="muted">Track who did what and when.</p>
+  <div class="page-header animate-in">
+    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+      <div>
+        <div class="page-title">Audit Log</div>
+        <div class="page-subtitle">Track who did what and when. Filter, search, and export for compliance.</div>
+      </div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+        <a class="button secondary" href="{{ url_for('export_audit_log', q=query or '', date_from=date_from or '', date_to=date_to or '', action=action_filter or '', user=user_filter or '') }}">
+          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+          Export CSV
+        </a>
+      </div>
     </div>
-    <form method="get" class="inline">
-      <input type="text" name="q" placeholder="Search..." value="{{ query or '' }}">
-      <button class="button secondary" type="submit">Search</button>
-    </form>
-  </div>
-  <div class="audit-summary">
-    <span class="audit-pill audit-action action-default">Events: {{ logs|length }}</span>
-    {% if query %}
-      <span class="audit-pill action-default">Filter: "{{ query }}"</span>
-    {% endif %}
   </div>
 
-  <table>
-    <thead>
-      <tr>
-        <th>Time</th>
-        <th>User</th>
-        <th>Action</th>
-        <th>Entity</th>
-        <th>Success</th>
-        <th>IP</th>
-        <th>Asset Tag</th>
-        <th>Details</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for entry in logs %}
-        {% set action = entry.action or "" %}
-        {% if "create" in action %}
-          {% set action_class = "action-create" %}
-        {% elif "update" in action %}
-          {% set action_class = "action-update" %}
-        {% elif "delete" in action %}
-          {% set action_class = "action-delete" %}
-        {% elif "bulk" in action %}
-          {% set action_class = "action-bulk" %}
-        {% elif "login" in action or "auth" in action %}
-          {% set action_class = "action-auth" %}
-        {% elif "sync" in action %}
-          {% set action_class = "action-sync" %}
-        {% else %}
-          {% set action_class = "action-default" %}
-        {% endif %}
-        <tr class="{% if not entry.success %}audit-row-fail{% endif %}">
-          <td>{{ entry.display_time or entry.created_at }}</td>
-          <td>{{ entry.username or "—" }}</td>
-          <td><span class="audit-pill audit-action {{ action_class }}">{{ entry.action }}</span></td>
-          <td><span class="audit-pill action-default">{{ entry.entity_type }}</span></td>
-          <td><span class="audit-pill {% if entry.success %}status-ok{% else %}status-bad{% endif %}">{{ "Success" if entry.success else "Failed" }}</span></td>
-          <td class="audit-meta">{{ entry.ip_address or "—" }}</td>
-          <td>
-            {% if entry.details and "asset_tag=" in entry.details %}
-              {{ entry.details.split("asset_tag=")[1].split(" ")[0] }}
+  <form method="get" class="filter-bar animate-in">
+    <div class="filter-group">
+      <label>Search</label>
+      <input type="text" name="q" placeholder="Keyword..." value="{{ query or '' }}" style="min-width:160px;">
+    </div>
+    <div class="filter-group">
+      <label>User</label>
+      <input type="text" name="user" placeholder="Username..." value="{{ user_filter or '' }}">
+    </div>
+    <div class="filter-group">
+      <label>Action</label>
+      <select name="action" style="min-width:130px;">
+        <option value="">All actions</option>
+        {% for act in ["create","update","delete","bulk","login","logout","sync","restore"] %}
+          <option value="{{ act }}" {% if action_filter == act %}selected{% endif %}>{{ act | title }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="filter-group">
+      <label>From Date</label>
+      <input type="date" name="date_from" value="{{ date_from or '' }}">
+    </div>
+    <div class="filter-group">
+      <label>To Date</label>
+      <input type="date" name="date_to" value="{{ date_to or '' }}">
+    </div>
+    <div style="display:flex; gap:6px; align-self:flex-end;">
+      <button class="button" type="submit">Filter</button>
+      <a class="button secondary" href="{{ url_for('audit_log') }}">Clear</a>
+    </div>
+  </form>
+
+  <div class="audit-summary">
+    <span class="audit-pill audit-action action-default">{{ logs|length }} event{{ 's' if logs|length != 1 }}</span>
+    {% if query %}<span class="audit-pill action-update">Keyword: "{{ query }}"</span>{% endif %}
+    {% if user_filter %}<span class="audit-pill action-auth">User: {{ user_filter }}</span>{% endif %}
+    {% if action_filter %}<span class="audit-pill action-bulk">Action: {{ action_filter }}</span>{% endif %}
+    {% if date_from %}<span class="audit-pill action-default">From: {{ date_from }}</span>{% endif %}
+    {% if date_to %}<span class="audit-pill action-default">To: {{ date_to }}</span>{% endif %}
+  </div>
+
+  <div class="card animate-in" style="margin-top: 16px; padding: 0; overflow: hidden;">
+    <div class="table-wrap" style="margin-top:0;">
+      <table>
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>User</th>
+            <th>Action</th>
+            <th>Entity</th>
+            <th>Success</th>
+            <th>IP</th>
+            <th>Asset Tag</th>
+            <th>Details</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for entry in logs %}
+            {% set action = entry.action or "" %}
+            {% if "create" in action %}
+              {% set action_class = "action-create" %}
+            {% elif "update" in action %}
+              {% set action_class = "action-update" %}
+            {% elif "delete" in action %}
+              {% set action_class = "action-delete" %}
+            {% elif "bulk" in action %}
+              {% set action_class = "action-bulk" %}
+            {% elif "login" in action or "auth" in action %}
+              {% set action_class = "action-auth" %}
+            {% elif "sync" in action %}
+              {% set action_class = "action-sync" %}
             {% else %}
-              —
+              {% set action_class = "action-default" %}
             {% endif %}
-          </td>
-          <td>
-            {% if entry.details %}
-              <pre class="audit-details">{{ entry.details|replace("=free", "=-") }}</pre>
-            {% else %}
-              —
-            {% endif %}
-          </td>
-        </tr>
-      {% else %}
-        <tr>
-          <td colspan="8">No audit entries found.</td>
-        </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+            <tr class="{% if not entry.success %}audit-row-fail{% endif %}">
+              <td style="white-space:nowrap; font-size:12px; color:var(--ink-2);">{{ entry.display_time or entry.created_at }}</td>
+              <td style="font-weight:500;">{{ entry.username or "—" }}</td>
+              <td><span class="audit-pill audit-action {{ action_class }}">{{ entry.action }}</span></td>
+              <td><span class="audit-pill action-default">{{ entry.entity_type }}</span></td>
+              <td><span class="audit-pill {% if entry.success %}status-ok{% else %}status-bad{% endif %}">{{ "✓" if entry.success else "✕" }}</span></td>
+              <td class="audit-meta" style="font-family:monospace;">{{ entry.ip_address or "—" }}</td>
+              <td style="font-family:monospace; font-size:12px;">
+                {% if entry.details and "asset_tag=" in entry.details %}
+                  {{ entry.details.split("asset_tag=")[1].split(" ")[0] }}
+                {% else %}
+                  —
+                {% endif %}
+              </td>
+              <td style="max-width:320px;">
+                {% if entry.details %}
+                  {% set parsed = entry.details | parse_audit_details %}
+                  {% if parsed.changes %}
+                    <div class="audit-diff">
+                      {% if parsed.meta %}
+                        <div class="audit-diff-meta">
+                          {% for k, v in parsed.meta.items() %}
+                            {% if k not in ('type', 'asset_tag') %}
+                              <span>{{ k }}: {{ v }}</span>
+                            {% endif %}
+                          {% endfor %}
+                        </div>
+                      {% endif %}
+                      {% for ch in parsed.changes %}
+                        <div class="audit-diff-row">
+                          <div class="audit-diff-field">{{ ch.field | replace("_"," ") }}</div>
+                          <div class="audit-diff-old">{{ ch.old if ch.old and ch.old != 'free' else '—' }}</div>
+                          <div class="audit-diff-new">{{ ch.new if ch.new and ch.new != 'free' else '—' }}</div>
+                        </div>
+                      {% endfor %}
+                    </div>
+                  {% elif parsed.meta %}
+                    <div class="audit-diff">
+                      <div class="audit-diff-meta">
+                        {% for k, v in parsed.meta.items() %}
+                          <span>{{ k }}: {{ v }}</span>
+                        {% endfor %}
+                      </div>
+                    </div>
+                  {% else %}
+                    <div class="audit-plain">{{ entry.details }}</div>
+                  {% endif %}
+                {% else %}
+                  —
+                {% endif %}
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="8" style="text-align:center; padding:48px; color:var(--ink-3);">
+                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:10px; opacity:0.4; display:block; margin:0 auto 10px;"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg>
+                No audit entries match your filters.
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
 {% endblock %}

@@ -1,7 +1,16 @@
 {% extends "base.html" %}
 {% block content %}
-  <div class="card" style="max-width: 720px;">
-    <h2>Configuration Backup</h2>
+  <div class="page-header animate-in">
+    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+      <div>
+        <div class="page-title">Backup &amp; Restore</div>
+        <div class="page-subtitle">Download, restore, and schedule configuration and asset backups.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card animate-in" style="max-width: 720px; margin-top: 18px;">
+    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Configuration Backup</div>
     <p class="muted">
       Download a ZIP containing all configuration data (roles, permissions, asset types,
       LDAP/SMTP settings, departments, branding). Asset records are not included.
@@ -9,25 +18,27 @@
     <a class="button" href="{{ url_for('backup_config_download') }}">Download Config Backup</a>
   </div>
 
-  <div class="card" style="max-width: 720px; margin-top: 18px;">
-    <h2>Restore Configuration</h2>
+  <div class="card animate-in" style="max-width: 720px; margin-top: 18px;">
+    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Restore Configuration</div>
     <p class="muted">
       Restoring will replace current configuration (roles, permissions, asset types,
       departments, LDAP/SMTP, branding) and role/group assignments. Asset data is untouched.
     </p>
     <form method="post" action="{{ url_for('restore_config_backup') }}" enctype="multipart/form-data" style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="file" name="file" accept=".zip" required>
       <button class="button" type="submit" onclick="return confirm('Restore configuration from this backup? This will replace current configuration.');">Restore Backup</button>
     </form>
   </div>
 
-  <div class="card" style="max-width: 720px; margin-top: 18px;">
-    <h2>Scheduled Backup Email</h2>
+  <div class="card animate-in" style="max-width: 720px; margin-top: 18px;">
+    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Scheduled Backup Email</div>
     <p class="muted">
       Send a configuration backup to your email on a daily schedule. This backup
       does not include asset records; it only contains configuration data.
     </p>
     <form method="post" action="{{ url_for('update_backup_schedule') }}" class="form-grid">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div>
         <label for="backup_email">Backup Email</label>
         <input id="backup_email" name="backup_email" type="email" value="{{ schedule.email or '' }}" placeholder="you@company.com">
@@ -75,8 +86,21 @@
     </form>
   </div>
 
-  <div class="card" style="max-width: 720px; margin-top: 18px;">
-    <h2>Asset Backup</h2>
+  <div class="card animate-in" style="max-width: 720px; margin-top: 18px;">
+    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">SQL Database Dump</div>
+    <p class="muted">
+      Download a raw SQL dump of the entire PostgreSQL database using <code>pg_dump</code>.
+      This is a complete point-in-time snapshot — ideal for migrations and disaster recovery.
+      Only available when running with a PostgreSQL backend.
+    </p>
+    <a class="button secondary" href="{{ url_for('backup_sql_download') }}" onclick="return confirm('This will run pg_dump on the live database. Continue?');">
+      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+      Download SQL Dump (.sql)
+    </a>
+  </div>
+
+  <div class="card animate-in" style="max-width: 720px; margin-top: 18px;">
+    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Asset Backup</div>
     <p class="muted">
       Download a ZIP containing asset records only (built‑in assets, custom asset items,
       assignment history, and comments). Configuration is not included.
@@ -84,23 +108,25 @@
     <a class="button" href="{{ url_for('backup_full_download') }}">Download Asset Backup</a>
   </div>
 
-  <div class="card" style="max-width: 720px; margin-top: 18px;">
-    <h2>Restore Asset Backup</h2>
+  <div class="card animate-in" style="max-width: 720px; margin-top: 18px;">
+    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Restore Asset Backup</div>
     <p class="muted">
       Restoring an asset backup replaces all asset records. Configuration stays untouched.
     </p>
     <form method="post" action="{{ url_for('restore_full_backup') }}" enctype="multipart/form-data" style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <input type="file" name="file" accept=".zip" required>
       <button class="button" type="submit" onclick="return confirm('Restore asset backup? This will replace all asset data.');">Restore Asset Backup</button>
     </form>
   </div>
 
-  <div class="card" style="max-width: 720px; margin-top: 18px;">
-    <h2>Scheduled Asset Backup Email</h2>
+  <div class="card animate-in" style="max-width: 720px; margin-top: 18px;">
+    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Scheduled Asset Backup Email</div>
     <p class="muted">
       Send an asset backup (assets only) to your email on a schedule.
     </p>
     <form method="post" action="{{ url_for('update_full_backup_schedule') }}" class="form-grid">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div>
         <label for="full_backup_email">Backup Email</label>
         <input id="full_backup_email" name="full_backup_email" type="email" value="{{ full_schedule.email or '' }}" placeholder="you@company.com">

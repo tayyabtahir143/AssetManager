@@ -1,14 +1,15 @@
 {% extends "base.html" %}
 {% block content %}
-  <div class="card" style="max-width: 720px;">
-    <h2>Edit Built-in Asset Type</h2>
+  <div class="card animate-in" style="max-width: 720px;">
+    <div style="font-size:20px; font-weight:700; letter-spacing:-0.02em; margin-bottom:4px;">Edit Built-in Asset Type</div>
     <form method="post" class="form-grid">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div>
         <label for="label">Label</label>
         <input id="label" name="label" type="text" value="{{ label }}" required>
       </div>
       <div>
-        <h3 style="margin: 0 0 6px 0;">Fields</h3>
+        <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Fields</div>
         <p class="muted">Field names are fixed. You can change the display label.</p>
       </div>
       {% for field in fields %}

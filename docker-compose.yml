@@ -5,29 +5,53 @@ services:
     volumes:
       - ./data:/data
     restart: "no"
+
   web:
     image: tayyabtahir/assetmanager:latest
     ports:
       - "5000:5000"
     restart: always
     environment:
-      - DATABASE_URL=postgresql+psycopg://inventory:inventory@db:5432/inventory
-      - SECRET_KEY=change-this-to-a-strong-secret
-      - TZ=Australia/Brisbane
+      # REQUIRED — generate with: python3 -c "import secrets; print(secrets.token_hex(32))"
+      - SECRET_KEY=${SECRET_KEY:?SECRET_KEY is required. Run: cp .env.example .env and fill it in.}
+      # Database connection
+      - DATABASE_URL=postgresql+psycopg://inventory:${DB_PASSWORD:?DB_PASSWORD is required}@db:5432/inventory
+      # Timezone
+      - TZ=${TZ:-UTC}
+      # Upload size limit in MB (default 16)
+      - MAX_UPLOAD_MB=${MAX_UPLOAD_MB:-16}
+      # Database connection pool settings
+      - DB_POOL_SIZE=${DB_POOL_SIZE:-10}
+      - DB_MAX_OVERFLOW=${DB_MAX_OVERFLOW:-20}
     depends_on:
+      db:
+        condition: service_healthy
       init-perms:
         condition: service_completed_successfully
     volumes:
       - ./data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:5000/login')\" 2>/dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 15s
+
   db:
     image: postgres:16
     restart: always
     environment:
       - POSTGRES_DB=inventory
       - POSTGRES_USER=inventory
-      - POSTGRES_PASSWORD=inventory
+      - POSTGRES_PASSWORD=${DB_PASSWORD:?DB_PASSWORD is required}
     depends_on:
       init-perms:
         condition: service_completed_successfully
     volumes:
       - ./data/postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U inventory -d inventory"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s

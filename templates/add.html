@@ -1,8 +1,9 @@
 {% extends "base.html" %}
 {% block content %}
-  <div class="card" style="max-width: 600px;">
-    <h2>Add {{ definition.label }}</h2>
+  <div class="card animate-in" style="max-width: 600px;">
+    <div style="font-size:20px; font-weight:700; letter-spacing:-0.02em; margin-bottom:4px;">Add {{ definition.label }}</div>
     <form method="post" class="form-grid" {% if form_action %}action="{{ form_action }}"{% endif %}>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       {% if definition.bulk_add %}
         <div>
           <label for="bulk_quantity">Quantity</label>
@@ -11,7 +12,7 @@
       {% endif %}
       {% for field_name, label, field_type in definition.fields %}
         <div>
-          <label for="{{ field_name }}">{{ label }}</label>
+          <label for="{{ field_name }}">{{ label }}{% if field_name not in ["assigned_to", "dept"] and field_type not in ["checkbox"] %}<span class="req">*</span>{% endif %}</label>
           {% if field_type == "checkbox" %}
             <div class="checkbox-row">
               <input id="{{ field_name }}" name="{{ field_name }}" type="checkbox" {% if form_data and form_data.get(field_name) %}checked{% endif %}>
@@ -142,4 +143,28 @@
       color: #9fb1c9;
     }
   </style>
+  <script>
+  /* ── Duplicate asset tag live check ─────────────────────────── */
+  (() => {
+    const tagEl = document.getElementById('asset_tag');
+    if (!tagEl) return;
+    const warnEl = document.createElement('div');
+    warnEl.className = 'tag-warn';
+    warnEl.innerHTML = '⚠ An asset with this tag already exists.';
+    tagEl.parentNode.appendChild(warnEl);
+    let checkTimer;
+    tagEl.addEventListener('input', () => {
+      clearTimeout(checkTimer);
+      const tag = tagEl.value.trim();
+      if (!tag) { warnEl.className = 'tag-warn'; return; }
+      checkTimer = setTimeout(async () => {
+        try {
+          const res = await fetch(`/assets/{{ asset_type }}/check_tag?tag=${encodeURIComponent(tag)}`);
+          const data = await res.json();
+          warnEl.className = 'tag-warn' + (data.exists ? ' show' : '');
+        } catch (_) {}
+      }, 400);
+    });
+  })();
+  </script>
 {% endblock %}

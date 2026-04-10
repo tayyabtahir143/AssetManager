@@ -1,67 +1,73 @@
 {% extends "base.html" %}
 {% block content %}
-  <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
-    <div>
-      <h2>Groups</h2>
-      <p class="muted">Assign roles to groups and manage membership.</p>
-    </div>
-    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-      <form method="get" class="inline">
-        <input type="text" name="q" placeholder="Search..." value="{{ query or '' }}">
-        <button class="button secondary" type="submit">Search</button>
-      </form>
-      {% if app_admin and permissions.can_bulk_delete %}
-        <button class="button secondary" type="button" id="toggle-groups-bulk">Bulk delete</button>
-        <button class="button secondary bulk-toggle-groups" id="bulk-groups-submit" type="submit" form="bulk-groups-form" onclick="return confirm('Delete selected groups?');" style="display: none;">Delete selected</button>
-      {% endif %}
-      <form method="post" action="{{ url_for('ldap_sync_groups') }}">
-        <button class="button secondary" type="submit">Sync LDAP Groups</button>
-      </form>
-      <a class="button" href="{{ url_for('add_group') }}">Add Group</a>
+  <div class="page-header animate-in">
+    <div class="ph-row">
+      <div>
+        <div class="page-title">Groups</div>
+        <div class="page-subtitle">Assign roles to groups and manage membership.</div>
+      </div>
+      <div class="ph-actions">
+        <form method="get" class="ph-search">
+          <input type="text" name="q" placeholder="Search groups..." value="{{ query or '' }}">
+          <button class="button secondary" type="submit">Search</button>
+        </form>
+        {% if app_admin and permissions.can_bulk_delete %}
+          <button class="button secondary" type="button" id="toggle-groups-bulk">Bulk delete</button>
+          <button class="button secondary bulk-toggle-groups" id="bulk-groups-submit" type="submit" form="bulk-groups-form" onclick="return confirm('Delete selected groups?');" style="display:none;">Delete selected</button>
+        {% endif %}
+        <form method="post" action="{{ url_for('ldap_sync_groups') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <button class="button secondary" type="submit">Sync LDAP</button>
+        </form>
+        <a class="button" href="{{ url_for('add_group') }}">Add Group</a>
+      </div>
     </div>
   </div>
 
   <form method="post" action="{{ url_for('bulk_delete_groups') }}" id="bulk-groups-form">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="bulk_delete_intent" id="bulk-groups-intent" value="">
-    <table>
-      <thead>
-        <tr>
-          {% if app_admin and permissions.can_bulk_delete %}
-            <th><input type="checkbox" id="select-all-groups" class="bulk-toggle-groups" style="display: none;"></th>
-          {% endif %}
-          <th>#</th>
-          <th>Group</th>
-          <th>Roles</th>
-          <th>Members</th>
-          <th>Actions</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for group in groups %}
+    <div class="table-wrap">
+      <table>
+        <thead>
           <tr>
             {% if app_admin and permissions.can_bulk_delete %}
-              <td><input type="checkbox" class="group-checkbox bulk-toggle-groups" name="selected_ids" value="{{ group.id }}" style="display: none;"></td>
+              <th><input type="checkbox" id="select-all-groups" class="bulk-toggle-groups" style="display: none;"></th>
             {% endif %}
-              <td>{{ loop.index }}</td>
-            <td>{{ group.name }}</td>
-            <td>{{ (group_roles.get(group.id) or [])|join(", ") or "—" }}</td>
-            <td>{{ member_counts.get(group.id, 0) }}</td>
-            <td>
-              <a class="button secondary" href="{{ url_for('edit_group', group_id=group.id) }}">Edit</a>
-              <button class="button secondary" type="submit" formaction="{{ url_for('delete_group', group_id=group.id) }}" formmethod="post" onclick="return confirm('Delete this group?');">Delete</button>
-            </td>
+            <th>#</th>
+            <th>Group</th>
+            <th>Roles</th>
+            <th>Members</th>
+            <th>Actions</th>
           </tr>
-        {% else %}
-          <tr>
-            <td colspan="6">No groups found.</td>
-          </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          {% for group in groups %}
+            <tr>
+              {% if app_admin and permissions.can_bulk_delete %}
+                <td><input type="checkbox" class="group-checkbox bulk-toggle-groups" name="selected_ids" value="{{ group.id }}" style="display: none;"></td>
+              {% endif %}
+                <td>{{ loop.index }}</td>
+              <td>{{ group.name }}</td>
+              <td>{{ (group_roles.get(group.id) or [])|join(", ") or "—" }}</td>
+              <td>{{ member_counts.get(group.id, 0) }}</td>
+              <td>
+                <a class="button secondary" href="{{ url_for('edit_group', group_id=group.id) }}">Edit</a>
+                <button class="button danger" type="submit" formaction="{{ url_for('delete_group', group_id=group.id) }}" formmethod="post" onclick="return confirm('Delete this group?');">Delete</button>
+              </td>
+            </tr>
+          {% else %}
+            <tr>
+              <td colspan="6">No groups found.</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </form>
   <div id="bulk-groups-overlay" style="display: none; position: fixed; inset: 0; background: rgba(3, 6, 12, 0.7); z-index: 999; align-items: center; justify-content: center;">
     <div class="card" style="min-width: 280px; text-align: center;">
-      <h3 style="margin-top: 0;">Deleting…</h3>
+      <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Deleting…</div>
       <p class="muted">Please wait while we process your request.</p>
       <div class="spinner"></div>
     </div>

@@ -26,6 +26,10 @@ from zoneinfo import ZoneInfo
 
 from flask import Flask, render_template, request, redirect, url_for, session, flash, send_file, jsonify
 from flask_sqlalchemy import SQLAlchemy
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from flask_wtf.csrf import CSRFProtect, CSRFError
+from cryptography.fernet import Fernet, InvalidToken
 import jwt
 from ldap3 import Connection, Server, SUBTREE, Tls
 from ldap3.core.exceptions import LDAPExceptionError, LDAPInvalidFilterError
@@ -40,10 +44,46 @@ app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get(
     "DATABASE_URL", "sqlite:///inventory.db"
 )
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+_db_url = os.environ.get("DATABASE_URL", "sqlite:///inventory.db")
+_engine_options: dict = {"pool_pre_ping": True}
+if not _db_url.startswith("sqlite"):
+    # Pool settings only supported by server-based databases (PostgreSQL, MySQL, etc.)
+    _engine_options["pool_size"] = int(os.environ.get("DB_POOL_SIZE", "10"))
+    _engine_options["max_overflow"] = int(os.environ.get("DB_MAX_OVERFLOW", "20"))
+    _engine_options["pool_recycle"] = 300
+app.config["SQLALCHEMY_ENGINE_OPTIONS"] = _engine_options
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret-key")
+app.config["WTF_CSRF_TIME_LIMIT"] = 3600
 app.config["LOG_DIR"] = os.environ.get("LOG_DIR", "/data/logs")
 app.config["LOG_FILE"] = os.environ.get("LOG_FILE", "app.log")
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=14)
+app.config["MAX_CONTENT_LENGTH"] = int(os.environ.get("MAX_UPLOAD_MB", "16")) * 1024 * 1024
+
+# Derive a stable Fernet key from SECRET_KEY for encrypting credentials at rest
+def _make_fernet_key(secret: str) -> bytes:
+    import base64
+    digest = hashlib.sha256(secret.encode()).digest()
+    return base64.urlsafe_b64encode(digest)
+
+_FERNET = Fernet(_make_fernet_key(app.config["SECRET_KEY"]))
+
+
+def encrypt_credential(plaintext: str) -> str:
+    """Encrypt a plaintext credential string for storage."""
+    if not plaintext:
+        return plaintext
+    return _FERNET.encrypt(plaintext.encode()).decode()
+
+
+def decrypt_credential(ciphertext: str) -> str:
+    """Decrypt a stored credential. Returns plaintext, or the original value if not encrypted."""
+    if not ciphertext:
+        return ciphertext
+    try:
+        return _FERNET.decrypt(ciphertext.encode()).decode()
+    except (InvalidToken, Exception):
+        # Value is plaintext (pre-encryption migration); return as-is
+        return ciphertext
 LOG_PAGE_EXCLUDE_PREFIXES = (
     "/static",
     "/branding/logo",
@@ -89,6 +129,25 @@ SECTION_ENDPOINTS = {
 
 db = SQLAlchemy(app)
 
+# Rate limiting — login: 10/minute per IP, API: 60/minute per IP
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=[],
+    storage_uri=os.environ.get("RATELIMIT_STORAGE_URI", "memory://"),
+)
+
+# CSRF protection for all web forms; API routes are exempt (use Bearer tokens)
+csrf = CSRFProtect(app)
+
+
+@app.errorhandler(CSRFError)
+def handle_csrf_error(e):
+    app.logger.warning("CSRF validation failed: %s ip=%s", e.description, request.remote_addr)
+    flash("Your session has expired or the form was tampered with. Please try again.", "error")
+    return redirect(request.referrer or url_for("login")), 400
+
+
 _LDAP_USER_CACHE = {"users": [], "timestamp": 0.0}
 _LDAP_GROUP_CACHE = {"groups": [], "timestamp": 0.0}
 _LDAP_SYNC_LOCKS = {"users": threading.Lock(), "groups": threading.Lock()}
@@ -122,13 +181,30 @@ STATUS_LABELS = {
 }
 
 
+class _JsonFormatter(logging.Formatter):
+    """Structured JSON log formatter for easy log parsing and aggregation."""
+
+    def format(self, record: logging.LogRecord) -> str:
+        log_entry = {
+            "ts": datetime.datetime.utcfromtimestamp(record.created).strftime(
+                "%Y-%m-%dT%H:%M:%S.%f"
+            )
+            + "Z",
+            "level": record.levelname,
+            "logger": record.name,
+            "msg": record.getMessage(),
+        }
+        if record.exc_info:
+            log_entry["exc"] = self.formatException(record.exc_info)
+        return json.dumps(log_entry)
+
+
 def setup_logging():
     log_dir = app.config["LOG_DIR"]
     os.makedirs(log_dir, exist_ok=True)
     log_path = os.path.join(log_dir, app.config["LOG_FILE"])
     handler = RotatingFileHandler(log_path, maxBytes=5_000_000, backupCount=5)
-    formatter = logging.Formatter("%(asctime)s %(levelname)s %(name)s %(message)s")
-    handler.setFormatter(formatter)
+    handler.setFormatter(_JsonFormatter())
     handler.setLevel(logging.INFO)
     app.logger.setLevel(logging.INFO)
     if not any(isinstance(h, RotatingFileHandler) for h in app.logger.handlers):
@@ -483,6 +559,7 @@ class Laptop(db.Model):
     ram = db.Column(db.String(50), nullable=False)
     processor = db.Column(db.String(50), nullable=False)
     hard_disk = db.Column(db.String(50), nullable=False)
+    generation = db.Column(db.String(50), nullable=True)
     asset_tag = db.Column(db.String(80), nullable=True)
     model = db.Column(db.String(80), nullable=False)
     vendor = db.Column(db.String(80), nullable=False)
@@ -568,6 +645,7 @@ ASSET_DEFS = {
             ("processor", "Processor", "text"),
             ("ram", "RAM", "text"),
             ("hard_disk", "Hard Disk", "text"),
+            ("generation", "Generation", "text"),
             ("screen_size", "Screen size", "text"),
             ("dept", "Dept", "text"),
             ("assigned_to", "User", "text"),
@@ -710,6 +788,32 @@ def format_changes(old_values, new_values):
         if old != new:
             changes.append(f"{key}: {old} -> {new}")
     return "; ".join(changes)
+
+
+@app.template_filter("parse_audit_details")
+def parse_audit_details_filter(details):
+    """Parse raw audit details string into structured meta + changes."""
+    if not details:
+        return {"meta": {}, "changes": []}
+    pre, _, changes_blob = details.partition(" changes=")
+    meta = {}
+    for m in re.finditer(r"(\w+)=([^\s]+)", pre):
+        meta[m.group(1)] = m.group(2)
+    changes = []
+    if changes_blob:
+        for part in changes_blob.split(";"):
+            part = part.strip()
+            if not part:
+                continue
+            if ":" in part and "->" in part:
+                field, _, rest = part.partition(":")
+                old_val, _, new_val = rest.partition("->")
+                changes.append({
+                    "field": field.strip(),
+                    "old": old_val.strip(),
+                    "new": new_val.strip(),
+                })
+    return {"meta": meta, "changes": changes}
 
 
 def get_smtp_config():
@@ -939,10 +1043,10 @@ def send_smtp_notification(action, entity_type, entity_id, success, details):
             if config.encryption == "starttls":
                 server.starttls()
             if not config.skip_auth and config.username and config.password:
-                server.login(config.username, config.password)
+                server.login(config.username, decrypt_credential(config.password))
             server.send_message(message)
-    except Exception:
-        pass
+    except Exception as exc:
+        app.logger.warning("SMTP notification failed: %s", exc)
 
 
 def send_email(subject, body, recipients, html_body=None):
@@ -965,10 +1069,11 @@ def send_email(subject, body, recipients, html_body=None):
             if config.encryption == "starttls":
                 server.starttls()
             if not config.skip_auth and config.username and config.password:
-                server.login(config.username, config.password)
+                server.login(config.username, decrypt_credential(config.password))
             server.send_message(message)
         return True
-    except Exception:
+    except Exception as exc:
+        app.logger.warning("SMTP send_email failed: %s", exc)
         return False
 
 
@@ -1609,7 +1714,12 @@ def _hash_token(token):
 def _jwt_encode(payload, expires_in):
     now = datetime.datetime.utcnow()
     data = dict(payload)
-    data.update({"iat": now, "exp": now + datetime.timedelta(seconds=expires_in)})
+    # jti (JWT ID) ensures uniqueness even for rapid back-to-back calls
+    data.update({
+        "iat": now,
+        "exp": now + datetime.timedelta(seconds=expires_in),
+        "jti": secrets.token_hex(8),
+    })
     return jwt.encode(data, app.config["SECRET_KEY"], algorithm=JWT_ALGORITHM)
 
 
@@ -1692,7 +1802,7 @@ def get_ldap_config_from_db():
         "server": (config.server or "").strip(),
         "base_dn": (config.base_dn or "").strip(),
         "bind_dn": (config.bind_dn or "").strip(),
-        "bind_password": config.bind_password or "",
+        "bind_password": decrypt_credential(config.bind_password or ""),
         "user_filter": config.user_filter or "(sAMAccountName={username})",
         "list_filter": config.list_filter
         or "(&(objectClass=user)(!(objectClass=computer))(sAMAccountName=*))",
@@ -1988,7 +2098,9 @@ def get_ldap_user_display_list(force_refresh=False):
         return []
     display = []
     for record in records:
-        value = record.get("email") or record.get("username")
+        # Prefer username over email so assignments are stored by username,
+        # not email — ensures user-asset lookups work correctly.
+        value = record.get("username") or record.get("email")
         if value:
             display.append(value)
     return sorted(set(display), key=str)
@@ -2113,7 +2225,10 @@ def _ldap_config_from_form(form, existing=None):
 
     bind_password = form.get("bind_password", "")
     if bind_password == "" and existing:
+        # Keep existing encrypted value; don't re-encrypt a ciphertext
         bind_password = existing.bind_password or ""
+    elif bind_password:
+        bind_password = encrypt_credential(bind_password)
 
     config = {
         "server": get_text("server"),
@@ -2359,7 +2474,7 @@ def send_password_reset_email(user, reset_url):
         if config.encryption and config.encryption.lower() == "starttls":
             server.starttls()
         if not config.skip_auth and config.username:
-            server.login(config.username, config.password or "")
+            server.login(config.username, decrypt_credential(config.password or ""))
         server.send_message(message)
         server.quit()
         return True, None
@@ -2857,7 +2972,7 @@ def send_config_backup_email(schedule):
         if config.encryption and config.encryption.lower() == "starttls":
             server.starttls()
         if not config.skip_auth and config.username:
-            server.login(config.username, config.password or "")
+            server.login(config.username, decrypt_credential(config.password or ""))
         server.send_message(message)
         server.quit()
         return True, None
@@ -2928,12 +3043,50 @@ def send_full_backup_email(schedule):
         if config.encryption and config.encryption.lower() == "starttls":
             server.starttls()
         if not config.skip_auth and config.username:
-            server.login(config.username, config.password or "")
+            server.login(config.username, decrypt_credential(config.password or ""))
         server.send_message(message)
         server.quit()
         return True, None
     except Exception as exc:
         app.logger.warning("Full backup email failed: %s", exc)
+        return False, str(exc)
+
+
+def _run_scheduled_ldap_sync():
+    """Run LDAP user+group sync in background. Returns (ok, message)."""
+    if not ldap_enabled():
+        return False, "LDAP not configured"
+    created = updated = 0
+    try:
+        records = get_ldap_users(force_refresh=True, raise_on_error=True)
+        if records:
+            for record in records:
+                username_norm = normalize_username(record.get("username", ""))
+                if not username_norm:
+                    continue
+                email = (record.get("email") or "").strip() or None
+                existing = get_user_by_username_ci(username_norm)
+                if existing:
+                    if email and existing.email != email:
+                        existing.email = email
+                        updated += 1
+                    if not existing.is_ldap:
+                        existing.is_ldap = True
+                    continue
+                try:
+                    new_user = ensure_ldap_user(username_norm)
+                    if email and new_user.email != email:
+                        new_user.email = email
+                    created += 1
+                except Exception:
+                    pass
+            if updated:
+                db.session.commit()
+        get_ldap_groups(force_refresh=True)
+        log_audit("sync", "ldap_users", details=f"Scheduled sync: added {created}, updated {updated}")
+        return True, f"Added {created} users, updated {updated}"
+    except Exception as exc:
+        log_audit("sync_failed", "ldap_users", success=False, details=str(exc))
         return False, str(exc)
 
 
@@ -2981,6 +3134,35 @@ def _backup_scheduler_loop():
                         db.session.commit()
                     else:
                         app.logger.warning("Scheduled %s backup failed: %s", kind, error)
+
+                # LDAP auto-sync
+                ldap_schedule = get_backup_schedule("ldap")
+                if ldap_schedule.enabled:
+                    run_time = _parse_schedule_time(ldap_schedule.run_time) or "03:00"
+                    run_hour, run_minute = [int(p) for p in run_time.split(":")]
+                    if now.hour == run_hour and now.minute == run_minute:
+                        if ldap_schedule.frequency == "weekly":
+                            if ldap_schedule.day_of_week is None or now.weekday() != ldap_schedule.day_of_week:
+                                goto_next = True
+                            else:
+                                goto_next = False
+                        elif ldap_schedule.frequency == "monthly":
+                            if ldap_schedule.day_of_month is None or now.day != ldap_schedule.day_of_month:
+                                goto_next = True
+                            else:
+                                goto_next = False
+                        else:
+                            goto_next = False
+                        if not goto_next:
+                            last_sent = ldap_schedule.last_sent_at
+                            last_date = last_sent.astimezone(tz).date() if last_sent else None
+                            if last_date != now.date():
+                                ok, msg = _run_scheduled_ldap_sync()
+                                if ok:
+                                    ldap_schedule.last_sent_at = datetime.datetime.utcnow()
+                                    db.session.commit()
+                                else:
+                                    app.logger.warning("Scheduled LDAP sync failed: %s", msg)
         except Exception as exc:
             app.logger.warning("Backup scheduler error: %s", exc)
         time.sleep(30)
@@ -3078,7 +3260,7 @@ def build_report_rows(dept_filter="all", asset_filter="all", status_filter="all"
             return True
         return status_filter_norm == status
 
-    def append_row(label, asset_tag, vendor, model, processor, ram, hard_disk, user, dept, status, quantity=None):
+    def append_row(label, asset_tag, vendor, model, processor, ram, hard_disk, user, dept, status, quantity=None, generation=None):
         rows.append(
             {
                 "asset": label,
@@ -3088,6 +3270,7 @@ def build_report_rows(dept_filter="all", asset_filter="all", status_filter="all"
                 "processor": processor or "-",
                 "ram": ram or "-",
                 "hard_disk": hard_disk or "-",
+                "generation": generation or "-",
                 "user": user or "-",
                 "dept": dept or "-",
                 "status": format_status_label(status),
@@ -3120,10 +3303,10 @@ def build_report_rows(dept_filter="all", asset_filter="all", status_filter="all"
         for item in model.query.all():
             assigned_to = getattr(item, "assigned_to", None)
             status = get_item_status(item)
-            if status in {"broken", "write off"}:
+            if status == "assigned":
                 dept_value = getattr(item, "dept", None)
             else:
-                dept_value = getattr(item, "dept", None) if status == "assigned" else "In Stock"
+                dept_value = None
             if not include_status(status):
                 continue
             if not _dept_filter_match(dept_filter, status, dept_value):
@@ -3139,6 +3322,7 @@ def build_report_rows(dept_filter="all", asset_filter="all", status_filter="all"
                 display_assignee(assigned_to) if status == "assigned" else ("In Stock" if status == "in stock" else "-"),
                 dept_value,
                 status,
+                generation=getattr(item, "generation", None),
             )
 
     for asset_type in get_custom_asset_types():
@@ -3163,7 +3347,7 @@ def build_report_rows(dept_filter="all", asset_filter="all", status_filter="all"
                 dept_value = (item.data or {}).get(field_name)
                 if dept_value:
                     break
-            dept_value = dept_value if status == "assigned" else ("In Stock" if status == "in stock" else "-")
+            dept_value = dept_value if status == "assigned" else None
             if not _dept_filter_match(dept_filter, status, dept_value):
                 continue
             model_value = None
@@ -3526,6 +3710,23 @@ def ensure_ram_type_column():
             )
         except Exception:
             db.session.rollback()
+    db.session.commit()
+
+
+def ensure_laptop_generation_column():
+    if db.engine.dialect.name == "sqlite":
+        result = db.session.execute(text("PRAGMA table_info(laptop)")).fetchall()
+        if not result:
+            return
+        columns = {row[1] for row in result}
+        if "generation" not in columns:
+            db.session.execute(text("ALTER TABLE laptop ADD COLUMN generation VARCHAR(50)"))
+        db.session.commit()
+        return
+    try:
+        db.session.execute(text("ALTER TABLE laptop ADD COLUMN IF NOT EXISTS generation VARCHAR(50)"))
+    except Exception:
+        db.session.rollback()
     db.session.commit()
 
 
@@ -3991,6 +4192,42 @@ def normalize_ram_quantities():
     db.session.commit()
 
 
+def migrate_plaintext_credentials():
+    """
+    One-time migration: encrypt any plaintext LDAP/SMTP credentials found in the DB.
+    Safe to run on every startup — already-encrypted values are detected via Fernet header
+    and skipped, so no double-encryption occurs.
+    """
+    changed = False
+    try:
+        ldap_row = LdapConfig.query.first()
+        if ldap_row and ldap_row.bind_password:
+            # decrypt_credential returns original if it's already encrypted OR plaintext
+            # We detect plaintext by trying to decrypt: if it fails the InvalidToken path it's plaintext
+            try:
+                _FERNET.decrypt(ldap_row.bind_password.encode())
+                # Already encrypted — skip
+            except (InvalidToken, Exception):
+                # Plaintext — encrypt it now
+                ldap_row.bind_password = encrypt_credential(ldap_row.bind_password)
+                changed = True
+
+        smtp_row = SMTPConfig.query.first()
+        if smtp_row and smtp_row.password:
+            try:
+                _FERNET.decrypt(smtp_row.password.encode())
+            except (InvalidToken, Exception):
+                smtp_row.password = encrypt_credential(smtp_row.password)
+                changed = True
+
+        if changed:
+            db.session.commit()
+            app.logger.info("migrate_plaintext_credentials: encrypted existing plaintext credentials")
+    except Exception as exc:
+        app.logger.warning("migrate_plaintext_credentials failed (non-fatal): %s", exc)
+        db.session.rollback()
+
+
 def apply_builtin_overrides():
     settings = {setting.key: setting for setting in BuiltinAssetTypeSetting.query.all()}
     field_settings = BuiltinAssetFieldSetting.query.all()
@@ -4037,6 +4274,7 @@ def init_db():
         ensure_dept_columns()
         ensure_status_columns()
         ensure_ram_type_column()
+        ensure_laptop_generation_column()
         ensure_role_admin_column()
         ensure_user_email_column()
         ensure_user_ldap_column()
@@ -4059,6 +4297,7 @@ def init_db():
         ensure_role_permissions()
         ensure_indexes()
         normalize_ram_quantities()
+        migrate_plaintext_credentials()
         _DB_INIT_DONE = True
         start_backup_scheduler()
     if request.method == "GET":
@@ -4447,6 +4686,7 @@ def apply_status_filter_query(model, query_builder, status_filter):
 
 
 @app.route("/login", methods=["GET", "POST"])
+@limiter.limit("20 per minute", methods=["POST"])
 def login():
     if request.method == "POST":
         username = normalize_username(request.form.get("username", ""))
@@ -4573,6 +4813,8 @@ def logout():
 
 
 @app.route("/api/auth/login", methods=["POST"])
+@csrf.exempt
+@limiter.limit("20 per minute")
 def api_login():
     payload = request.get_json(silent=True) or {}
     username = normalize_username(payload.get("username", ""))
@@ -4583,6 +4825,7 @@ def api_login():
     if not user and "@" in username:
         user = User.query.filter(func.lower(User.email) == username.lower()).first()
     local_ok = user and check_password_hash(user.password_hash, password)
+    authenticated = bool(local_ok)
     if not local_ok:
         try:
             ldap_ok = ldap_authenticate(username, password)
@@ -4590,6 +4833,7 @@ def api_login():
             app.logger.warning("LDAP authentication unavailable: %s", exc)
             ldap_ok = False
         if ldap_ok:
+            authenticated = True
             if not user:
                 user = ensure_ldap_user(username)
         else:
@@ -4600,9 +4844,11 @@ def api_login():
                 except Exception as exc:
                     app.logger.warning("LDAP authentication unavailable: %s", exc)
                     ldap_ok = False
-                if ldap_ok and not user:
-                    user = ensure_ldap_user(short_name)
-    if not user:
+                if ldap_ok:
+                    authenticated = True
+                    if not user:
+                        user = ensure_ldap_user(short_name)
+    if not user or not authenticated:
         log_audit("login_failed", "api_auth", success=False, details=username)
         return jsonify({"error": "Invalid username or password"}), 401
     if not get_user_role_names(user):
@@ -4621,6 +4867,7 @@ def api_login():
 
 
 @app.route("/api/auth/refresh", methods=["POST"])
+@csrf.exempt
 def api_refresh():
     payload = request.get_json(silent=True) or {}
     refresh_token = payload.get("refresh_token", "")
@@ -4762,6 +5009,7 @@ def api_assets_get(asset_type, item_id):
 
 
 @app.route("/api/assets/<asset_type>", methods=["POST"])
+@csrf.exempt
 @api_auth_required(permission="can_add", asset_type=None)
 def api_assets_create(asset_type):
     if asset_type not in ASSET_DEFS:
@@ -4787,6 +5035,7 @@ def api_assets_create(asset_type):
 
 
 @app.route("/api/assets/<asset_type>/<int:item_id>", methods=["PUT"])
+@csrf.exempt
 @api_auth_required(permission="can_add", asset_type=None)
 def api_assets_update(asset_type, item_id):
     if asset_type not in ASSET_DEFS:
@@ -4816,6 +5065,7 @@ def api_assets_update(asset_type, item_id):
 
 
 @app.route("/api/assets/<asset_type>/<int:item_id>", methods=["DELETE"])
+@csrf.exempt
 @api_auth_required(permission="can_delete", asset_type=None)
 def api_assets_delete(asset_type, item_id):
     if asset_type not in ASSET_DEFS:
@@ -4897,6 +5147,9 @@ def index():
             )
         total_assets += AssetItem.query.filter_by(asset_type_id=asset_type.id).count()
     dept_summary = build_dept_summary()
+    recent_activity = AuditLog.query.order_by(AuditLog.created_at.desc()).limit(8).all()
+    for _a in recent_activity:
+        _a.display_time = _format_local_time(_a.created_at)
     return render_template(
         "index.html",
         user=user,
@@ -4905,6 +5158,7 @@ def index():
         total_assigned=total_assigned,
         total_available=total_available,
         dept_summary=dept_summary,
+        recent_activity=recent_activity,
     )
 
 
@@ -4967,10 +5221,10 @@ def export_report():
         "Processor",
         "RAM",
         "Hard Disk",
+        "Generation",
         "User",
         "Department",
         "Status",
-        "Quantity",
     ]
     lines = [
         "<table>",
@@ -4988,10 +5242,10 @@ def export_report():
             row.get("processor", ""),
             row.get("ram", ""),
             row.get("hard_disk", ""),
+            row.get("generation", ""),
             row.get("user", ""),
             row.get("dept", ""),
             row.get("status", ""),
-            str(row.get("quantity") or ""),
         ]
         cells = "".join(f"<td>{html.escape(str(value))}</td>" for value in values)
         lines.append(f"<tr>{cells}</tr>")
@@ -5090,8 +5344,6 @@ def view_asset(asset_type, item_id):
                 continue
             seen.add(key)
             previous_users.append(display_assignee(entry.to_user))
-        if len(previous_users) >= 2:
-            break
     fields = [
         (
             field_name,
@@ -5331,6 +5583,27 @@ def import_assets_excel(asset_type):
     else:
         flash(f"Imported {created} rows.", "success")
     return redirect(url_for("list_assets", asset_type=asset_type))
+
+
+@app.route("/assets/<asset_type>/check_tag")
+@login_required
+@require_static_permission("can_read")
+def check_asset_tag(asset_type):
+    tag = (request.args.get("tag") or "").strip()
+    exclude_id = request.args.get("exclude_id", "").strip()
+    definition = ASSET_DEFS.get(asset_type)
+    if not definition or not tag:
+        return jsonify({"exists": False})
+    model = definition["model"]
+    if not hasattr(model, "asset_tag"):
+        return jsonify({"exists": False})
+    q = model.query.filter(func.lower(model.asset_tag) == tag.lower())
+    if exclude_id:
+        try:
+            q = q.filter(model.id != int(exclude_id))
+        except (ValueError, TypeError):
+            pass
+    return jsonify({"exists": q.first() is not None})
 
 
 @app.route("/assets/<asset_type>/add", methods=["GET", "POST"])
@@ -5759,8 +6032,6 @@ def view_custom_asset(asset_key, item_id):
                 continue
             seen.add(key)
             previous_users.append(display_assignee(entry.to_user))
-        if len(previous_users) >= 2:
-            break
     details = []
     for field in fields:
         if field.name in assigned_fields:
@@ -6574,6 +6845,8 @@ def free_inventory():
                 "grouped": (not is_consumable and not has_asset_tag),
                 "available_count": total_available,
                 "assigned_count": total_assigned,
+                "can_edit": perms.get("can_add", False),
+                "is_custom": False,
             }
         )
     for asset_type in get_custom_asset_types():
@@ -6652,6 +6925,9 @@ def free_inventory():
                 "assigned_count": total_assigned,
                 "show_asset_tag": has_asset_tag,
                 "grouped": bool(assigned_fields and not has_asset_tag),
+                "can_edit": perms.get("can_add", False),
+                "is_custom": True,
+                "custom_key": asset_type.key,
             }
         )
     return render_template("free.html", user=user, sections=sections)
@@ -6663,7 +6939,10 @@ def inject_user():
     ldap_users = []
     dept_options = []
     if user:
-        ldap_users = get_ldap_user_display_list()
+        # Merge local DB users + LDAP users into one sorted list for the assignee datalist
+        local_usernames = [u.username for u in User.query.with_entities(User.username).all()]
+        ldap_display = get_ldap_user_display_list()
+        ldap_users = sorted(set(local_usernames) | set(ldap_display), key=str.lower)
         dept_options = get_dept_options_cached()
     return {
         "current_user": user,
@@ -6742,6 +7021,21 @@ def user_assets():
     sections = []
     total_items = 0
     total_quantity = 0
+
+    # Build a set of all stored values that represent the same user.
+    # Assets may be stored by username OR by email (e.g. from LDAP autocomplete),
+    # so we expand the search to cover both forms.
+    def get_search_values(norm):
+        values = {norm}
+        for user in User.query.all():
+            uname = (user.username or "").strip().lower()
+            email = (user.email or "").strip().lower()
+            if uname == norm and email:
+                values.add(email)
+            elif email == norm and uname:
+                values.add(uname)
+        return values
+
     if normalized:
         for asset_key, definition in ASSET_DEFS.items():
             model = definition["model"]
@@ -6757,6 +7051,7 @@ def user_assets():
                 "processor",
                 "ram",
                 "hard_disk",
+                "generation",
                 "screen_size",
                 "size",
                 "dept",
@@ -6771,8 +7066,9 @@ def user_assets():
                 display_fields.append((field_name, field_label, field_type))
             order_map = {name: idx for idx, name in enumerate(preferred_order)}
             display_fields.sort(key=lambda item: order_map.get(item[0], 100 + len(order_map)))
+            search_values = get_search_values(normalized)
             if is_consumable:
-                matches = model.query.filter(func.lower(model.assigned_to) == normalized).all()
+                matches = model.query.filter(func.lower(model.assigned_to).in_(search_values)).all()
                 for item in matches:
                     qty = max(item.assigned_quantity or 0, 0)
                     if qty <= 0:
@@ -6789,7 +7085,7 @@ def user_assets():
                         )
                     rows.append(row)
             else:
-                matches = model.query.filter(func.lower(model.assigned_to) == normalized).all()
+                matches = model.query.filter(func.lower(model.assigned_to).in_(search_values)).all()
                 assigned_count = len(matches)
                 total_items += assigned_count
                 for item in matches:
@@ -6833,7 +7129,7 @@ def user_assets():
                     assigned_to = (item.data or {}).get(field_name)
                     if assigned_to is not None:
                         break
-                if normalize_assignee(assigned_to) != normalized:
+                if normalize_assignee(assigned_to) not in get_search_values(normalized):
                     continue
                 row = {}
                 for field in display_fields:
@@ -6878,7 +7174,8 @@ def ldap_settings():
             flash(message, "success" if ok else "error")
             display_config = dict(form_config)
             display_config["bind_password"] = ""
-            return render_template("ldap_settings.html", config=display_config)
+            return render_template("ldap_settings.html", config=display_config,
+                                   ldap_sync_sched=get_backup_schedule("ldap"), ldap_configured=ldap_enabled())
         if config_row:
             for key, value in form_config.items():
                 setattr(config_row, key, value)
@@ -6888,7 +7185,9 @@ def ldap_settings():
         db.session.commit()
         flash("LDAP settings saved.", "success")
         return redirect(url_for("ldap_settings"))
-    return render_template("ldap_settings.html", config=_ldap_form_values(config_row))
+    ldap_sync_sched = get_backup_schedule("ldap")
+    return render_template("ldap_settings.html", config=_ldap_form_values(config_row),
+                           ldap_sync_sched=ldap_sync_sched, ldap_configured=ldap_enabled())
 
 
 @app.route("/branding", methods=["GET", "POST"])
@@ -7016,6 +7315,70 @@ def backup_config_download():
 def backup_full_download():
     filename, data = build_full_backup_bytes()
     return send_file(io.BytesIO(data), as_attachment=True, download_name=filename, mimetype="application/zip")
+
+
+@app.route("/backups/sql")
+@login_required
+@require_app_admin
+def backup_sql_download():
+    db_url = app.config.get("SQLALCHEMY_DATABASE_URI", "")
+    if not db_url.startswith("postgresql"):
+        flash("SQL backup is only supported for PostgreSQL databases.", "error")
+        return redirect(url_for("backup_settings"))
+    try:
+        from sqlalchemy import text as _text, inspect as _inspect
+
+        def _pg_val(v):
+            if v is None:
+                return "NULL"
+            if isinstance(v, bool):
+                return "TRUE" if v else "FALSE"
+            if isinstance(v, (int, float)):
+                return str(v)
+            if isinstance(v, datetime.datetime):
+                return f"'{v.strftime('%Y-%m-%d %H:%M:%S')}'"
+            if isinstance(v, datetime.date):
+                return f"'{v.isoformat()}'"
+            if isinstance(v, dict):
+                return "'" + json.dumps(v).replace("'", "''") + "'"
+            return "'" + str(v).replace("'", "''") + "'"
+
+        out = io.StringIO()
+        out.write("-- AssetManager SQL Dump\n")
+        out.write(f"-- Generated: {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC\n\n")
+        out.write("SET client_encoding = 'UTF8';\n")
+        out.write("SET standard_conforming_strings = on;\n\n")
+
+        inspector = _inspect(db.engine)
+        tables = inspector.get_table_names()
+
+        with db.engine.connect() as conn:
+            for table in sorted(tables):
+                cols = [c["name"] for c in inspector.get_columns(table)]
+                if not cols:
+                    continue
+                count_row = conn.execute(_text(f'SELECT COUNT(*) FROM "{table}"')).fetchone()
+                count = count_row[0] if count_row else 0
+                out.write(f"-- Table: {table} ({count} rows)\n")
+                if count > 0:
+                    col_list = ", ".join(f'"{c}"' for c in cols)
+                    result = conn.execute(_text(f'SELECT * FROM "{table}"'))
+                    for row in result:
+                        val_list = ", ".join(_pg_val(v) for v in row)
+                        out.write(f'INSERT INTO "{table}" ({col_list}) VALUES ({val_list});\n')
+                out.write("\n")
+
+        filename = f"db_dump_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.sql"
+        return send_file(
+            io.BytesIO(out.getvalue().encode("utf-8")),
+            as_attachment=True,
+            download_name=filename,
+            mimetype="text/plain",
+        )
+    except Exception as exc:
+        app.logger.exception("SQL dump error")
+        flash(f"SQL dump failed: {exc}", "error")
+        return redirect(url_for("backup_settings"))
 
 
 @app.route("/backups/config/restore", methods=["POST"])
@@ -7327,6 +7690,40 @@ def update_full_backup_schedule():
     db.session.commit()
     flash("Full backup schedule updated.", "success")
     return redirect(url_for("backup_settings"))
+
+
+@app.route("/ldap/schedule", methods=["POST"])
+@login_required
+@require_app_admin
+def update_ldap_sync_schedule():
+    if not ldap_enabled():
+        flash("LDAP is not configured. Save your LDAP server settings first.", "error")
+        return redirect(url_for("ldap_settings"))
+    schedule = get_backup_schedule("ldap")
+    run_time = _parse_schedule_time(request.form.get("ldap_sync_time", ""))
+    enabled = "ldap_sync_enabled" in request.form
+    frequency = (request.form.get("ldap_sync_frequency") or "daily").strip().lower()
+    day_of_week = request.form.get("ldap_sync_day_of_week", "").strip()
+    day_of_month = request.form.get("ldap_sync_day_of_month", "").strip()
+    if enabled and not run_time:
+        flash("Sync time must be in HH:MM format.", "error")
+        return redirect(url_for("ldap_settings"))
+    if enabled and frequency == "weekly":
+        if day_of_week == "" or not day_of_week.isdigit():
+            flash("Weekly sync requires a day of week.", "error")
+            return redirect(url_for("ldap_settings"))
+    if enabled and frequency == "monthly":
+        if day_of_month == "" or not day_of_month.isdigit():
+            flash("Monthly sync requires a day of month.", "error")
+            return redirect(url_for("ldap_settings"))
+    schedule.frequency = frequency
+    schedule.day_of_week = int(day_of_week) if day_of_week.isdigit() else None
+    schedule.day_of_month = int(day_of_month) if day_of_month.isdigit() else None
+    schedule.run_time = run_time or schedule.run_time
+    schedule.enabled = enabled
+    db.session.commit()
+    flash("LDAP sync schedule updated.", "success")
+    return redirect(url_for("ldap_settings"))
 
 
 @app.route("/ldap/sync", methods=["POST"])
@@ -7818,7 +8215,31 @@ def list_roles():
 @require_app_admin
 def audit_log():
     query = normalize_search(request.args.get("q", ""))
-    logs = AuditLog.query.order_by(AuditLog.created_at.desc()).all()
+    date_from = request.args.get("date_from", "").strip()
+    date_to = request.args.get("date_to", "").strip()
+    action_filter = request.args.get("action", "").strip().lower()
+    user_filter = normalize_search(request.args.get("user", ""))
+
+    logs_q = AuditLog.query.order_by(AuditLog.created_at.desc())
+
+    if date_from:
+        try:
+            dt_from = datetime.datetime.strptime(date_from, "%Y-%m-%d")
+            logs_q = logs_q.filter(AuditLog.created_at >= dt_from)
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            dt_to = datetime.datetime.strptime(date_to, "%Y-%m-%d") + datetime.timedelta(days=1)
+            logs_q = logs_q.filter(AuditLog.created_at < dt_to)
+        except ValueError:
+            pass
+    if user_filter:
+        logs_q = logs_q.filter(func.lower(AuditLog.username).contains(user_filter))
+    if action_filter:
+        logs_q = logs_q.filter(func.lower(AuditLog.action).contains(action_filter))
+
+    logs = logs_q.limit(1000).all()
     if query:
         logs = [
             entry
@@ -7835,7 +8256,68 @@ def audit_log():
         ]
     for entry in logs:
         entry.display_time = _format_local_time(entry.created_at)
-    return render_template("audit.html", logs=logs, query=query)
+    return render_template(
+        "audit.html",
+        logs=logs,
+        query=query,
+        date_from=date_from,
+        date_to=date_to,
+        action_filter=action_filter,
+        user_filter=user_filter,
+    )
+
+
+@app.route("/audit/export")
+@login_required
+@require_app_admin
+def export_audit_log():
+    import csv as _csv
+    date_from = request.args.get("date_from", "").strip()
+    date_to = request.args.get("date_to", "").strip()
+    action_filter = request.args.get("action", "").strip().lower()
+    user_filter = normalize_search(request.args.get("user", ""))
+
+    logs_q = AuditLog.query.order_by(AuditLog.created_at.desc())
+    if date_from:
+        try:
+            dt_from = datetime.datetime.strptime(date_from, "%Y-%m-%d")
+            logs_q = logs_q.filter(AuditLog.created_at >= dt_from)
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            dt_to = datetime.datetime.strptime(date_to, "%Y-%m-%d") + datetime.timedelta(days=1)
+            logs_q = logs_q.filter(AuditLog.created_at < dt_to)
+        except ValueError:
+            pass
+    if user_filter:
+        logs_q = logs_q.filter(func.lower(AuditLog.username).contains(user_filter))
+    if action_filter:
+        logs_q = logs_q.filter(func.lower(AuditLog.action).contains(action_filter))
+
+    logs = logs_q.all()
+    output = io.StringIO()
+    writer = _csv.writer(output)
+    writer.writerow(["Time (UTC)", "User", "Action", "Entity Type", "Entity ID", "Success", "IP Address", "Details"])
+    for entry in logs:
+        writer.writerow([
+            entry.created_at.strftime("%Y-%m-%d %H:%M:%S") if entry.created_at else "",
+            entry.username or "",
+            entry.action or "",
+            entry.entity_type or "",
+            entry.entity_id or "",
+            "Yes" if entry.success else "No",
+            entry.ip_address or "",
+            entry.details or "",
+        ])
+    output.seek(0)
+    filename = f"audit_log_{datetime.datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+    return send_file(
+        io.BytesIO(output.getvalue().encode("utf-8")),
+        as_attachment=True,
+        download_name=filename,
+        mimetype="text/csv",
+    )
 
 
 @app.route("/smtp", methods=["GET", "POST"])
@@ -7864,7 +8346,7 @@ def smtp_settings():
             config.encryption = encryption
             config.username = username
             if password:
-                config.password = password
+                config.password = encrypt_credential(password)
             config.skip_auth = skip_auth
             config.sender_email = sender_email
             config.enabled = enabled
@@ -7880,7 +8362,7 @@ def smtp_settings():
                 port=port,
                 encryption=encryption,
                 username=username,
-                password=password,
+                password=encrypt_credential(password) if password else password,
                 skip_auth=skip_auth,
                 sender_email=sender_email,
                 enabled=enabled,
@@ -8152,6 +8634,73 @@ def bulk_delete_roles():
         db.session.commit()
         log_audit("bulk_delete", "role", details=f"Deleted ids: {ids}")
     return redirect(url_for("list_roles"))
+
+
+# ---------------------------------------------------------------------------
+# API v1 aliases — forward /api/v1/* to the existing /api/* handlers so that
+# clients using the new versioned path work alongside older /api/* consumers.
+# Both paths remain functional — no breaking change for existing clients.
+# ---------------------------------------------------------------------------
+
+@app.route("/api/v1/auth/login", methods=["POST"])
+@csrf.exempt
+@limiter.limit("20 per minute")
+def api_v1_login():
+    return api_login()
+
+
+@app.route("/api/v1/auth/refresh", methods=["POST"])
+@csrf.exempt
+def api_v1_refresh():
+    return api_refresh()
+
+
+@app.route("/api/v1/asset-types", methods=["GET"])
+@csrf.exempt
+def api_v1_asset_types():
+    return api_asset_types()
+
+
+@app.route("/api/v1/users", methods=["GET"])
+@csrf.exempt
+def api_v1_users():
+    return api_users()
+
+
+@app.route("/api/v1/departments", methods=["GET"])
+@csrf.exempt
+def api_v1_departments():
+    return api_departments()
+
+
+@app.route("/api/v1/assets/<asset_type>", methods=["GET"])
+@csrf.exempt
+def api_v1_assets_list(asset_type):
+    return api_assets_list(asset_type)
+
+
+@app.route("/api/v1/assets/<asset_type>/<int:item_id>", methods=["GET"])
+@csrf.exempt
+def api_v1_assets_get(asset_type, item_id):
+    return api_assets_get(asset_type, item_id)
+
+
+@app.route("/api/v1/assets/<asset_type>", methods=["POST"])
+@csrf.exempt
+def api_v1_assets_create(asset_type):
+    return api_assets_create(asset_type)
+
+
+@app.route("/api/v1/assets/<asset_type>/<int:item_id>", methods=["PUT"])
+@csrf.exempt
+def api_v1_assets_update(asset_type, item_id):
+    return api_assets_update(asset_type, item_id)
+
+
+@app.route("/api/v1/assets/<asset_type>/<int:item_id>", methods=["DELETE"])
+@csrf.exempt
+def api_v1_assets_delete(asset_type, item_id):
+    return api_assets_delete(asset_type, item_id)
 
 
 if __name__ == "__main__":
