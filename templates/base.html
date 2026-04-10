@@ -103,6 +103,66 @@
         --shadow-lg:   0 12px 48px rgba(0,8,24,0.75);
       }
 
+      /* ── Forest theme (dark emerald) ──────────────────────────── */
+      [data-theme="forest"] {
+        color-scheme: dark;
+        --bg:          #030a06;
+        --bg-2:        #071310;
+        --bg-3:        #0c1c18;
+        --surface:     rgba(7,19,16,0.96);
+        --surface-2:   rgba(12,28,24,0.98);
+        --border:      rgba(52,211,153,0.08);
+        --border-2:    rgba(52,211,153,0.15);
+        --ink:         #ddfaed;
+        --ink-2:       #82c9a8;
+        --ink-3:       #4a7c63;
+        --accent:      #34d399;
+        --accent-2:    #10b981;
+        --accent-dim:  rgba(52,211,153,0.13);
+        --accent-glow: 0 0 24px rgba(52,211,153,0.28);
+        --blue:        #60a5fa;
+        --blue-dim:    rgba(96,165,250,0.15);
+        --danger:      #fb7185;
+        --danger-dim:  rgba(251,113,133,0.14);
+        --warning:     #fbbf24;
+        --warning-dim: rgba(251,191,36,0.14);
+        --green:       #4ade80;
+        --green-dim:   rgba(74,222,128,0.14);
+        --shadow-sm:   0 1px 4px rgba(0,6,3,0.55);
+        --shadow:      0 4px 24px rgba(0,6,3,0.65);
+        --shadow-lg:   0 12px 48px rgba(0,6,3,0.75);
+      }
+
+      /* ── Sunset theme (warm amber) ─────────────────────────────── */
+      [data-theme="sunset"] {
+        color-scheme: dark;
+        --bg:          #0e0700;
+        --bg-2:        #1a0e00;
+        --bg-3:        #261600;
+        --surface:     rgba(26,14,0,0.96);
+        --surface-2:   rgba(38,22,0,0.98);
+        --border:      rgba(251,146,60,0.08);
+        --border-2:    rgba(251,146,60,0.15);
+        --ink:         #fff8ed;
+        --ink-2:       #d4a06a;
+        --ink-3:       #886040;
+        --accent:      #f97316;
+        --accent-2:    #ea580c;
+        --accent-dim:  rgba(249,115,22,0.13);
+        --accent-glow: 0 0 24px rgba(249,115,22,0.30);
+        --blue:        #60a5fa;
+        --blue-dim:    rgba(96,165,250,0.15);
+        --danger:      #fb7185;
+        --danger-dim:  rgba(251,113,133,0.14);
+        --warning:     #fbbf24;
+        --warning-dim: rgba(251,191,36,0.14);
+        --green:       #34d399;
+        --green-dim:   rgba(52,211,153,0.14);
+        --shadow-sm:   0 1px 4px rgba(10,4,0,0.55);
+        --shadow:      0 4px 24px rgba(10,4,0,0.65);
+        --shadow-lg:   0 12px 48px rgba(10,4,0,0.75);
+      }
+
       /* ── Reset & base ──────────────────────────────────────────── */
       *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
       html { overflow-x: hidden; }
@@ -171,8 +231,10 @@
         border: 1px solid rgba(56,232,192,0.2);
         margin-bottom: 6px;
       }
-      [data-theme="light"] .user-chip { border-color: rgba(8,145,178,0.2); }
-      [data-theme="ocean"] .user-chip { border-color: rgba(56,189,248,0.2); }
+      [data-theme="light"]  .user-chip { border-color: rgba(8,145,178,0.2); }
+      [data-theme="ocean"]  .user-chip { border-color: rgba(56,189,248,0.2); }
+      [data-theme="forest"] .user-chip { border-color: rgba(52,211,153,0.2); }
+      [data-theme="sunset"] .user-chip { border-color: rgba(249,115,22,0.2); }
       .user-avatar {
         width: 32px; height: 32px; border-radius: 50%;
         background: linear-gradient(135deg, var(--accent), var(--blue));
@@ -208,7 +270,9 @@
         border-color: rgba(56,232,192,0.15);
       }
       .nav-link:hover svg { opacity: 1; }
-      [data-theme="light"] .nav-link:hover { border-color: rgba(8,145,178,0.15); }
+      [data-theme="light"]  .nav-link:hover { border-color: rgba(8,145,178,0.15); }
+      [data-theme="forest"] .nav-link:hover { border-color: rgba(52,211,153,0.15); }
+      [data-theme="sunset"] .nav-link:hover { border-color: rgba(249,115,22,0.15); }
       .nav-link.active {
         background: var(--accent-dim);
         color: var(--accent);
@@ -216,7 +280,9 @@
         font-weight: 600;
       }
       .nav-link.active svg { opacity: 1; }
-      [data-theme="light"] .nav-link.active { border-color: rgba(8,145,178,0.25); }
+      [data-theme="light"]  .nav-link.active { border-color: rgba(8,145,178,0.25); }
+      [data-theme="forest"] .nav-link.active { border-color: rgba(52,211,153,0.25); }
+      [data-theme="sunset"] .nav-link.active { border-color: rgba(249,115,22,0.25); }
 
       /* Sidebar footer */
       .sidebar-footer {
@@ -815,6 +881,10 @@
               <svg id="theme-icon-light" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
               <!-- ocean wave -->
               <svg id="theme-icon-ocean" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2"/><path d="M2 12c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2"/><path d="M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2"/></svg>
+              <!-- forest tree -->
+              <svg id="theme-icon-forest" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M17 14h.01"/><path d="M7 7h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h2.5"/><path d="m8 10 4-6 4 6"/><path d="M12 10v3"/></svg>
+              <!-- sunset horizon -->
+              <svg id="theme-icon-sunset" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M12 10V2"/><path d="m4.93 10.93 1.41 1.41"/><path d="M2 18h2"/><path d="M20 18h2"/><path d="m19.07 10.93-1.41 1.41"/><path d="M22 22H2"/><path d="M16 18a4 4 0 0 0-8 0"/></svg>
               <span id="theme-label">Light</span>
             </button>
             {% if show_sidebar %}
@@ -873,20 +943,23 @@
     <script>
       /* Theme */
       const root = document.documentElement;
-      const themeLbl  = document.getElementById('theme-label');
-      const iconDark  = document.getElementById('theme-icon-dark');
-      const iconLight = document.getElementById('theme-icon-light');
-      const iconOcean = document.getElementById('theme-icon-ocean');
-      // Themes cycle: dark → light → ocean → dark
-      const THEMES = ['dark', 'light', 'ocean'];
-      const THEME_LABELS = { dark: 'Light', light: 'Ocean', ocean: 'Dark' }; // label = what clicking will switch TO
+      const themeLbl    = document.getElementById('theme-label');
+      const iconDark    = document.getElementById('theme-icon-dark');
+      const iconLight   = document.getElementById('theme-icon-light');
+      const iconOcean   = document.getElementById('theme-icon-ocean');
+      const iconForest  = document.getElementById('theme-icon-forest');
+      const iconSunset  = document.getElementById('theme-icon-sunset');
+      // Themes cycle: dark → light → ocean → forest → sunset → dark
+      const THEMES = ['dark', 'light', 'ocean', 'forest', 'sunset'];
+      const THEME_LABELS = { dark: 'Light', light: 'Ocean', ocean: 'Forest', forest: 'Sunset', sunset: 'Dark' };
+      const THEME_ICONS  = { dark: iconDark, light: iconLight, ocean: iconOcean, forest: iconForest, sunset: iconSunset };
       const applyTheme = (theme) => {
-        if (theme === 'dark')  { root.removeAttribute('data-theme'); }
-        else                   { root.setAttribute('data-theme', theme); }
-        if (themeLbl)  themeLbl.textContent = THEME_LABELS[theme] || 'Light';
-        if (iconDark)  iconDark.style.display  = theme === 'dark'  ? '' : 'none';
-        if (iconLight) iconLight.style.display = theme === 'light' ? '' : 'none';
-        if (iconOcean) iconOcean.style.display = theme === 'ocean' ? '' : 'none';
+        if (theme === 'dark') { root.removeAttribute('data-theme'); }
+        else                  { root.setAttribute('data-theme', theme); }
+        if (themeLbl) themeLbl.textContent = THEME_LABELS[theme] || 'Light';
+        Object.entries(THEME_ICONS).forEach(([t, el]) => {
+          if (el) el.style.display = t === theme ? '' : 'none';
+        });
       };
       const saved = localStorage.getItem('theme') || 'dark';
       applyTheme(THEMES.includes(saved) ? saved : 'dark');
