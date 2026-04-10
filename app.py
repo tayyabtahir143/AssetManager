@@ -4289,7 +4289,6 @@ def init_db():
         ensure_branding_table()
         ensure_department_table()
         ensure_builtin_asset_settings()
-        apply_builtin_overrides()
         ensure_custom_dept_field()
         ensure_custom_status_field()
         backfill_status_values()
@@ -4300,6 +4299,10 @@ def init_db():
         migrate_plaintext_credentials()
         _DB_INIT_DONE = True
         start_backup_scheduler()
+    # Always refresh field options from DB — each gunicorn worker keeps its own
+    # copy of ASSET_DEFS in memory, so changes saved by one worker must be
+    # re-applied here so all workers stay in sync without a restart.
+    apply_builtin_overrides()
     if request.method == "GET":
         endpoint = request.endpoint
         if endpoint in SECTION_ENDPOINTS:
