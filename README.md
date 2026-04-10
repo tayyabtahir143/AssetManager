@@ -4,47 +4,95 @@
 ![Docker](https://img.shields.io/badge/Runtime-Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)
 ![Python](https://img.shields.io/badge/App-Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
 
-A production-ready IT asset inventory management system built with Python/Flask. Track laptops, computers, peripherals, and any custom asset types across your organisation with full assignment history, LDAP/AD integration, reporting, and automated backups.
+A production-ready IT asset inventory management system built with Python/Flask. Track laptops, computers, peripherals, and any custom asset types across your organisation with full assignment history, LDAP/AD integration, automated email notifications, reporting, and scheduled backups.
 
 ---
 
 ## Table of Contents
 
-1. [Features](#features)
-2. [Quick Start](#quick-start)
-3. [Environment Variables](#environment-variables)
-4. [Deployment Guide](#deployment-guide)
+1. [What's New](#whats-new)
+2. [Features](#features)
+3. [Quick Start](#quick-start)
+4. [Environment Variables](#environment-variables)
+5. [Deployment Guide](#deployment-guide)
    - [Fresh Installation (PostgreSQL)](#fresh-installation-postgresql)
    - [Lightweight Installation (SQLite)](#lightweight-installation-sqlite)
    - [Build from Source](#build-from-source)
    - [Kubernetes](#kubernetes)
-5. [Upgrading an Existing Installation](#upgrading-an-existing-installation)
-6. [Client Migration Guide (Backup → Deploy → Restore)](#client-migration-guide)
-7. [Backup and Restore](#backup-and-restore)
-8. [LDAP / Active Directory Integration](#ldap--active-directory-integration)
-9. [SMTP / Email Notifications](#smtp--email-notifications)
-10. [API Reference](#api-reference)
-11. [Running Tests](#running-tests)
-12. [Security Hardening Checklist](#security-hardening-checklist)
-13. [Troubleshooting](#troubleshooting)
+6. [Upgrading an Existing Installation](#upgrading-an-existing-installation)
+7. [Migration Guide (Old Server → New Server)](#migration-guide-old-server--new-server)
+8. [Backup and Restore](#backup-and-restore)
+9. [LDAP / Active Directory Integration](#ldap--active-directory-integration)
+10. [SMTP / Email Notifications](#smtp--email-notifications)
+11. [API Reference](#api-reference)
+12. [Running Tests](#running-tests)
+13. [Security Hardening Checklist](#security-hardening-checklist)
+14. [Troubleshooting](#troubleshooting)
+
+---
+
+## What's New
+
+This major release brings significant UI improvements, new features, and important fixes. If you are upgrading from a previous version, follow the [Upgrading](#upgrading-an-existing-installation) section.
+
+### New Features
+
+- **Generation field for Laptops** — track the hardware generation (e.g. Intel 12th Gen) on every laptop. Fully supported in Excel import and export.
+- **LDAP Auto-Sync Schedule** — configure automated LDAP user/group sync on a daily, weekly, or monthly schedule directly from the UI (Settings → LDAP). Requires LDAP to be configured before the schedule can be enabled.
+- **Interactive dashboard charts** — doughnut and bar charts now navigate to filtered reports on click (e.g. clicking "Assigned" takes you directly to the assigned assets report).
+- **SMTP per-event recipients** — add multiple email recipients and choose exactly which events each address receives (create, update, delete, bulk delete, monthly report, low stock).
+- **Forgot password / password reset** — built-in email-based password reset flow (requires SMTP configured).
+- **Asset comments** — leave notes on any individual asset from its detail view.
+- **Asset copy** — duplicate an existing asset with one click.
+- **Audit log export** — export the full audit log to Excel.
+- **Bulk delete for users and groups** — select multiple users or groups and delete them in one action.
+- **Edit available assets inline** — edit button per item in the Available Assets section.
+- **Branding** — set a custom company name and logo (shown on the login screen and throughout the app).
+- **Departments** — manage departments from Settings → Departments.
+
+### UI / UX Improvements
+
+- **SMTP settings redesign** — clean two-column layout with toggle switches for enable/disable, skip-auth, assignment emails, monthly reports, and low-stock alerts.
+- **Audit log diff view** — changes are shown as a structured before/after diff (field name, old value → new value) instead of raw text.
+- **Inline page-header buttons** — search box and action buttons are always on one line on the Users, Groups, and all asset list pages.
+- **Autocomplete dropdown** — user search autocomplete is rendered at the document root level so it always appears above all other elements regardless of page structure.
+- **Mobile responsive** — the entire app adapts to small screens; tables scroll horizontally and the layout stacks cleanly on phones and tablets.
+- **Login page** — added GitHub repository link and app version at the bottom of the login form.
+- **Print report** — fixed a bug where the printed report was completely blank; all data now renders correctly on paper.
+
+### Fixes
+
+- Docker health check now works correctly with the distroless Chainguard container image (uses `CMD` instead of `CMD-SHELL` — distroless has no `/bin/sh`).
+- LDAP sync schedule cannot be saved or enabled until LDAP server and Base DN are configured; the UI shows a clear error if you try.
+- Report print was fully blank — the animation class was incorrectly hiding all data cards in print media; fixed.
+- User autocomplete second result and beyond were hidden behind other page elements — fixed with body-level dropdown positioning.
 
 ---
 
 ## Features
 
 - **Asset tracking** — 7 built-in types (Laptops, Computers, Screens, Keyboards, Mice, Headsets, RAM) plus unlimited custom asset types
+- **Laptop Generation field** — track hardware generation; included in Excel import/export and reports
 - **Assignment history** — full audit trail of who had what and when
-- **LDAP / Active Directory** — user sync, group-based roles, auto-provisioning on login
+- **LDAP / Active Directory** — user sync, group-based roles, auto-provisioning on login, scheduled auto-sync
 - **Role-based access control** — granular per-asset-type permissions
-- **Email notifications** — SMTP with TLS/SSL, per-event recipients, monthly reports, low-stock alerts
+- **Email notifications** — SMTP with TLS/SSL, per-event per-recipient subscriptions, monthly reports, low-stock alerts
 - **Excel import/export** — bulk import with header validation; export any view
 - **Scheduled backups** — config-only or full database, delivered via email
-- **Audit log** — every create/update/delete action recorded with user and IP
+- **LDAP auto-sync schedule** — automatic user/group sync on a configurable daily/weekly/monthly schedule
+- **Audit log** — every create/update/delete action recorded with user, IP, and structured diff view
+- **Audit log export** — export audit log to Excel
+- **Asset comments** — per-asset notes visible in the detail view
+- **Asset copy** — duplicate an existing asset
 - **REST API** — JWT-authenticated, versioned (`/api/v1/`)
 - **CSRF protection** — all web forms protected with CSRF tokens
 - **Rate limiting** — brute-force protection on login (20 req/min per IP)
 - **Credential encryption** — LDAP bind password and SMTP password encrypted at rest using Fernet symmetric encryption
+- **Branding** — custom company name and logo
+- **Departments** — manageable from Settings
+- **Forgot password** — email-based password reset (requires SMTP)
 - **Structured JSON logging** — machine-parseable logs for easy aggregation
+- **Mobile responsive** — works on phones and tablets
 - **Kubernetes-ready** — manifests included
 
 ---
@@ -53,7 +101,7 @@ A production-ready IT asset inventory management system built with Python/Flask.
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/tayyabtahir/AssetManager.git
+git clone https://github.com/tayyabtahir143/AssetManager.git
 cd AssetManager
 
 # 2. Generate strong random secrets (creates .env automatically)
@@ -80,13 +128,13 @@ open http://localhost:5000
 | `SECRET_KEY` | **Yes** | — | 64-char hex string. Used for session signing AND credential encryption. Run `./generate_secrets.sh` to generate. |
 | `DB_PASSWORD` | **Yes** (PostgreSQL) | — | PostgreSQL database password |
 | `DATABASE_URL` | No | `sqlite:////data/inventory.db` | Full database connection string |
-| `TZ` | No | `UTC` | Server timezone (e.g. `Australia/Brisbane`) |
+| `TZ` | No | `UTC` | Server timezone (e.g. `Australia/Brisbane`, `America/New_York`) |
 | `MAX_UPLOAD_MB` | No | `16` | Maximum file upload size in megabytes |
 | `DB_POOL_SIZE` | No | `10` | SQLAlchemy connection pool size |
 | `DB_MAX_OVERFLOW` | No | `20` | SQLAlchemy max overflow connections |
 | `LOG_DIR` | No | `/data/logs` | Directory for application log files |
 | `LOG_FILE` | No | `app.log` | Log filename (JSON structured format) |
-| `APP_VERSION` | No | `1.0.0` | Application version tag |
+| `APP_VERSION` | No | `1.0.0` | Application version tag (shown on login page) |
 
 > **Security:** Never commit `.env` to version control. Add it to `.gitignore`.
 
@@ -105,7 +153,7 @@ PostgreSQL is recommended for production — it supports concurrent connections,
 
 ```bash
 # 1. Clone
-git clone https://github.com/tayyabtahir/AssetManager.git
+git clone https://github.com/tayyabtahir143/AssetManager.git
 cd AssetManager
 
 # 2. Generate secrets (creates .env automatically)
@@ -158,139 +206,168 @@ Edit `kubernetes/deployment.yaml` to set `SECRET_KEY` and database credentials a
 
 ## Upgrading an Existing Installation
 
-### Standard Upgrade (minor/patch releases)
+### Minor / Patch Upgrade
+
+No manual steps required. Schema changes are applied automatically on startup.
 
 ```bash
-# Pull new image
+# Pull the latest image
 docker compose pull
 
-# Restart with new image
+# Restart with the new image
 docker compose up -d
 
 # Verify
 docker compose logs web --tail=20
+docker compose ps
 ```
-
-Schema changes are applied automatically on startup. No manual migration steps.
 
 ### Major Version Upgrade
 
+A full database backup before any major upgrade is strongly recommended.
+
 ```bash
-# 1. Always back up first
-docker compose exec db pg_dump -U inventory inventory > backup_$(date +%Y%m%d_%H%M%S).sql
+# 1. Back up the database first (PostgreSQL)
+docker compose exec db pg_dump -U inventory inventory -F c > backup_$(date +%Y%m%d_%H%M%S).dump
 
 # 2. Pull and restart
 docker compose pull
 docker compose up -d
 
-# 3. Watch for migration log messages
+# 3. Watch startup logs for migration messages
 docker compose logs web -f
 ```
 
----
+#### Schema migrations applied automatically on upgrade
 
-## Client Migration Guide
+| Migration | What it does |
+|---|---|
+| `ensure_laptop_generation_column` | Adds the `generation` column to the `laptop` table if missing |
+| `migrate_plaintext_credentials` | Re-encrypts any plaintext LDAP/SMTP passwords stored by older versions |
+| `init_db` | Creates any missing tables for new models |
 
-Use this procedure when moving a client's existing installation to a new server, or applying a major upgrade where you want a clean slate.
-
-### The Strategy
-
-```
-Old Server                         New Server
-──────────                         ──────────
-1. Take full backup  ──────────►  2. Deploy new version
-                                  3. Restore backup
-                                  4. Auto-migration runs on first request
-                                  5. Verify → hand over
-```
-
-**Why this works safely:**
-- All web form data, assets, users, roles, and settings are in the database
-- The backup ZIP captures the entire database
-- The new version's first-boot migration automatically re-encrypts any plaintext credentials with the new `SECRET_KEY`
-- No data is lost; all clients just need to log in again
+No manual SQL is needed — all of the above run on first startup after upgrade.
 
 ---
 
-### Step 1 — Take a Full Backup (on old server)
+## Migration Guide (Old Server → New Server)
 
-**In-app:** Log in as admin → **Settings → Backup → Full Backup** → download the ZIP.
+Use this procedure when moving an existing installation to a new server, or performing a clean upgrade.
 
-**Command line (PostgreSQL):**
+### Overview
+
+```
+Old Server                          New Server
+──────────                          ──────────
+1. Take full backup  ──────────►   2. Deploy new version
+                                   3. Restore backup
+                                   4. Auto-migration on first start
+                                   5. Verify → cut over
+```
+
+---
+
+### Step 1 — Back Up on the Old Server
+
+#### Option A — In-app (easiest)
+
+Log in as admin → **Settings → Backup → Full Backup** → download the ZIP.
+
+#### Option B — PostgreSQL command line
+
 ```bash
+# Create a binary dump
 docker compose exec db pg_dump -U inventory inventory -F c -f /tmp/backup.dump
+
+# Copy it out of the container
 docker compose cp db:/tmp/backup.dump ./backup_$(date +%Y%m%d_%H%M%S).dump
 ```
 
-Keep this backup safe. You can restore it if anything goes wrong.
+Keep this file safe. You can restore it if anything goes wrong.
 
 ---
 
-### Step 2 — Deploy New Version on New Server
+### Step 2 — Deploy the New Version on the New Server
 
 ```bash
-# On the new server:
-git clone https://github.com/tayyabtahir/AssetManager.git
+# Clone the repository on the new server
+git clone https://github.com/tayyabtahir143/AssetManager.git
 cd AssetManager
 
-./generate_secrets.sh    # Generates a new SECRET_KEY and DB_PASSWORD
+# Generate a new SECRET_KEY and DB_PASSWORD
+./generate_secrets.sh
 
 # Optional: copy the old SECRET_KEY if you want to skip credential re-encryption
 # (see note below)
 nano .env
 
+# Create data directory and start
 mkdir -p data
 docker compose up -d
 ```
 
-Wait until the app is healthy:
+Wait until the container is healthy:
+
 ```bash
 docker compose ps   # web should show "healthy"
 ```
 
 > **Note on SECRET_KEY:**
-> - If you use a **new** `SECRET_KEY` (default): The auto-migration re-encrypts LDAP/SMTP passwords using the new key. You don't need to do anything.
-> - If you copy the **old** `SECRET_KEY`: Credentials stay encrypted with the same key — no re-encryption needed. Useful if you want to test before cutting over.
+> - **New `SECRET_KEY` (default):** The app automatically re-encrypts LDAP/SMTP passwords with the new key on first start. No manual steps needed.
+> - **Same `SECRET_KEY` as old server:** Credentials remain encrypted with the existing key — no re-encryption occurs. Useful when testing before cutting over.
 
 ---
 
 ### Step 3 — Restore the Backup
 
-**Option A — In-app restore (easiest):**
+#### Option A — In-app restore
 
-1. Log in to the new server as `admin` (default password)
+1. Log in to the new server as `admin` (default password `admin`)
 2. Go to **Settings → Backup → Restore Backup**
 3. Upload the ZIP from Step 1
 4. Confirm the restore
 
-The app validates the ZIP, clears existing data inside a transaction, imports all tables, and rolls back automatically if anything fails.
+The app validates the ZIP, clears data inside a transaction, imports all tables, and rolls back automatically on failure.
 
-**Option B — PostgreSQL command line:**
+#### Option B — PostgreSQL command line
+
 ```bash
-# Copy backup file to new server
+# Copy the dump to the new server
 scp backup_20240101.dump user@new-server:~/
 
-# Restore
+# On the new server — restore into the running database
 cat backup_20240101.dump | docker compose exec -T db pg_restore -U inventory -d inventory --clean
-docker compose restart web   # Re-run init_db migration
+
+# Restart the app so init_db and migrations run
+docker compose restart web
 ```
 
 ---
 
-### Step 4 — Automatic Migration on First Request
+### Step 4 — Automatic Migrations on First Start
 
-When the app serves its first request after restore, it runs `migrate_plaintext_credentials()` which:
+When the app starts after restore, it runs these migrations automatically:
 
-1. Checks if LDAP bind password in DB is plaintext (from old version without encryption)
-2. If plaintext — encrypts it with the current `SECRET_KEY`-derived Fernet key
-3. Same for SMTP password
-4. Commits the change and logs: `"migrate_plaintext_credentials: encrypted existing plaintext credentials"`
+#### `migrate_plaintext_credentials`
 
-**All users will be logged out** because sessions signed with the old `SECRET_KEY` are invalid. This is expected and safe — they just log in again.
+1. Reads the LDAP bind password and SMTP password from the database
+2. If either is stored as plaintext (from an older version without encryption), it re-encrypts them using the current `SECRET_KEY`-derived Fernet key
+3. Commits and logs: `"migrate_plaintext_credentials: encrypted existing plaintext credentials"`
 
-Watch the migration:
+#### `ensure_laptop_generation_column`
+
+1. Checks whether the `generation` column exists on the `laptop` table
+2. If missing (upgrading from a version before this column was added), it runs `ALTER TABLE laptop ADD COLUMN generation VARCHAR(50)`
+3. Logs: `"Added generation column to laptop table"`
+
+#### Session invalidation
+
+All active sessions are invalidated when `SECRET_KEY` changes. This is expected — users simply log in again.
+
+Watch migrations complete:
+
 ```bash
-docker compose logs web | grep -E "migrate|credential|encrypt|init_db"
+docker compose logs web | grep -E "migrate|generation|credential|encrypt|init_db"
 ```
 
 ---
@@ -298,19 +375,21 @@ docker compose logs web | grep -E "migrate|credential|encrypt|init_db"
 ### Step 5 — Verify
 
 ```bash
-# Check app health
+# Confirm the app is responding
 curl -s http://new-server:5000/login | grep "Sign in"
 
-# Check logs for errors
+# Check for errors in logs
 docker compose logs web --tail=50
 ```
 
 Then verify in the browser:
+
 - Log in as admin with the original admin password
-- Check a few assets are present and correct
-- Go to **Settings → LDAP → Test Connection** — verify LDAP works
-- Go to **Settings → SMTP** — re-enter SMTP password if it wasn't in the backup (it should be)
+- Check that assets, users, and roles are present and correct
+- Go to **Settings → LDAP → Test Connection** to confirm LDAP still works
+- Go to **Settings → SMTP** — re-enter the SMTP password if it wasn't captured in the backup
 - Send a test backup email
+- If Laptop assets exist, confirm the Generation column is visible on the laptop list and edit pages
 
 ---
 
@@ -326,21 +405,23 @@ Update DNS or your load balancer to point to the new server. Decommission the ol
 
 | Type | Contents | Best For |
 |---|---|---|
-| **Config Backup** | Roles, LDAP/SMTP settings, branding | Quick config snapshot, routine |
-| **Full Backup** | Entire database as ZIP | Before upgrades, server migrations, DR |
+| **Config Backup** | Roles, LDAP/SMTP settings, branding, departments | Quick config snapshot |
+| **Full Backup** | Entire database as ZIP | Before upgrades, server migrations, disaster recovery |
 
 ### Scheduled Backups
 
 **Settings → Backup → Add Schedule:**
+
 - Frequency: Daily, Weekly, Monthly
 - Time: HH:MM in server timezone
+- Day of week (weekly) or day of month (monthly)
 - Delivery: Email (requires SMTP configured)
 
 ### Manual Restore
 
 1. **Settings → Backup → Restore Backup**
 2. Upload the ZIP file
-3. The app validates structure and rolls back on failure
+3. The app validates the structure and rolls back on failure
 
 ### Command-line Backup (PostgreSQL)
 
@@ -348,7 +429,7 @@ Update DNS or your load balancer to point to the new server. Decommission the ol
 # Backup
 docker compose exec db pg_dump -U inventory inventory -F c > backup.dump
 
-# Restore (will replace all data)
+# Restore (replaces all data)
 docker compose exec -T db pg_restore -U inventory -d inventory --clean < backup.dump
 docker compose restart web
 ```
@@ -357,39 +438,89 @@ docker compose restart web
 
 ## LDAP / Active Directory Integration
 
-1. **Settings → LDAP**
-2. Fill in your LDAP server details:
-   - **Server:** `ldap://dc.example.com` or `ldaps://dc.example.com`
-   - **Base DN:** `DC=example,DC=com`
-   - **Bind DN:** `CN=svc-assetmgr,OU=Service Accounts,DC=example,DC=com`
-   - **Bind Password:** stored encrypted at rest (Fernet)
-3. Click **Test Connection** before saving
-4. Set a **Default Role** for new LDAP users
-5. Recommended **User List Filter** for AD: `(&(objectClass=user)(!(objectClass=computer))(sAMAccountName=*))`
+### Basic Setup
 
-Users can log in immediately with their AD credentials — accounts are auto-provisioned on first login.
+1. **Settings → LDAP**
+2. Fill in your server details:
+
+   | Field | Example |
+   |---|---|
+   | LDAP Server | `ldap://dc.example.com` or `ldaps://dc.example.com` |
+   | Base DN | `DC=example,DC=com` |
+   | Bind DN | `CN=svc-assetmgr,OU=Service Accounts,DC=example,DC=com` |
+   | Bind Password | stored encrypted at rest |
+   | User Filter | `(sAMAccountName={username})` |
+   | User List Filter | `(&(objectClass=user)(!(objectClass=computer))(sAMAccountName=*))` |
+   | User Attribute | `sAMAccountName` |
+   | Email Attribute | `mail` (or `userPrincipalName` for UPN-style addresses) |
+
+3. Click **Test Connection** before saving
+4. Set a **Default Role** for new LDAP users (e.g. `reader`)
+
+Users can log in with their AD credentials immediately — accounts are auto-provisioned on first login.
 
 ### Group-Based Roles
 
-**Settings → Groups → Import from LDAP** → assign a role to each group.
+**Settings → Groups → Import from LDAP** → assign a role to each imported group.
 
-Members of those groups automatically inherit the role at login.
+Members of those groups automatically inherit the group's role at login.
+
+### LDAP Auto-Sync Schedule
+
+Automatically import new LDAP users and update existing ones on a schedule, without manual intervention.
+
+1. Configure and save your LDAP settings first (server + Base DN are required)
+2. Go to **Settings → LDAP → Auto-Sync Schedule**
+3. Enable the schedule and choose:
+   - **Frequency:** Daily, Weekly, or Monthly
+   - **Time:** HH:MM in 24-hour format (server timezone)
+   - **Day of week** (weekly) or **day of month** (monthly)
+4. Save — the background scheduler picks it up immediately
+
+> The schedule cannot be enabled until LDAP is configured. A red warning banner is shown if you try.
+
+### Manual Sync
+
+**Settings → LDAP → Sync LDAP** — imports users immediately on demand.
 
 ---
 
 ## SMTP / Email Notifications
 
+### Setup
+
 1. **Settings → SMTP**
-2. Configure host, port, encryption (None / StartTLS / SSL)
-3. Username and password (stored encrypted at rest)
-4. Add recipients with per-event subscriptions:
-   - Create / Update / Delete / Bulk Delete
-   - Monthly Report
-   - Low Stock Alert
+2. Enable email notifications with the toggle switch
+3. Configure the connection:
+   - **SMTP Server** and **Port** (common: 587 for STARTTLS, 465 for SSL, 25 for relay)
+   - **Encryption:** None / SSL / STARTTLS
+   - **Sender Email**
+   - For relay servers with no login required, enable **Skip authentication**
+4. Save settings
+
+### Notifications
+
+| Toggle | What it sends |
+|---|---|
+| Asset assignment email | Sends an email to the user when an asset is assigned to them |
+| Monthly report | Full inventory report on a set day of the month |
+| Low stock alerts | Alert when any asset type's In Stock count falls below a threshold |
+
+### Per-Event Recipients
+
+Add one or more email addresses under **Recipients** and choose which events each address receives:
+
+- Create / Update / Delete / Bulk Delete
+- Monthly Report
+- Low Stock Alert
+
+### Manual Triggers
+
+Use the **Send monthly report now** and **Send low stock report now** buttons to test delivery without waiting for the schedule.
 
 ### Low Stock Alerts
 
-Set **Low Stock Threshold** — an alert is sent when any asset type's "In Stock" count falls below the threshold.
+Set **Low Stock Threshold** and **Frequency (days)** — an alert is sent when any asset type's In Stock count falls below the threshold, at most once per the configured interval.
 
 ---
 
@@ -413,7 +544,7 @@ curl -X POST http://localhost:5000/api/v1/auth/login \
   "expires_in": 900
 }
 
-# Use access token (valid 15 minutes)
+# Use the access token (valid 15 minutes)
 curl http://localhost:5000/api/v1/assets/laptops \
   -H "Authorization: Bearer <access_token>"
 
@@ -432,6 +563,8 @@ curl -X POST http://localhost:5000/api/v1/auth/refresh \
 | `POST` | `/api/v1/assets/{type}` | Create asset |
 | `PUT` | `/api/v1/assets/{type}/{id}` | Update asset |
 | `DELETE` | `/api/v1/assets/{type}/{id}` | Delete asset |
+
+**Supported `{type}` values:** `laptops`, `computers`, `screens`, `keyboards`, `mice`, `headsets`, `ram`, plus any custom asset type key.
 
 **Query Parameters (List):**
 
@@ -485,12 +618,12 @@ Tests are fully isolated — each test session spins up a fresh in-memory databa
 Before going to production:
 
 - [ ] **Change default admin password** — Settings → Users → admin → Edit
-- [ ] **Set a strong `SECRET_KEY`** — run `./generate_secrets.sh` (auto-generates)
+- [ ] **Set a strong `SECRET_KEY`** — run `./generate_secrets.sh` (auto-generates 64-char hex)
 - [ ] **Use a strong `DB_PASSWORD`** — auto-generated by `generate_secrets.sh`
 - [ ] **Enable HTTPS** — place nginx/Caddy/Traefik in front with a valid TLS certificate
 - [ ] **Restrict port access** — bind app to `127.0.0.1:5000` if behind a reverse proxy
-- [ ] **Set correct `TZ`** — correct timezone ensures accurate audit log timestamps
-- [ ] **Configure SMTP** — receive backup emails and security alerts
+- [ ] **Set correct `TZ`** — ensures accurate audit log timestamps
+- [ ] **Configure SMTP** — receive backup emails and low-stock alerts
 - [ ] **Schedule regular backups** — Settings → Backup → enable a daily scheduled backup
 - [ ] **Review LDAP role assignments** — be conservative with `app_admin`
 - [ ] **Keep images updated** — `docker compose pull && docker compose up -d`
@@ -536,18 +669,50 @@ Common causes:
 - Database not ready → check `docker compose logs db`
 - Port 5000 in use → change the port mapping in `docker-compose.yml`
 
+### Container shows "unhealthy"
+
+The health check runs `python3 -c "import urllib.request; urllib.request.urlopen('http://localhost:5000/login')"`. It may show "starting" for up to 15 seconds on first boot. If it stays unhealthy:
+
+```bash
+docker compose logs web --tail=50
+```
+
+If you built from source using the distroless Chainguard image, make sure your health check uses `CMD` (not `CMD-SHELL`) — distroless containers have no shell.
+
+### Laptop Generation column missing after upgrade
+
+Run:
+```bash
+docker compose restart web
+```
+
+On startup the app detects the missing column and runs `ALTER TABLE laptop ADD COLUMN generation VARCHAR(50)` automatically. Check the log:
+
+```bash
+docker compose logs web | grep generation
+```
+
+### LDAP schedule cannot be saved
+
+The schedule requires LDAP to be configured first. Go to **Settings → LDAP**, fill in at minimum the **LDAP Server** and **Base DN** fields, and save. The Auto-Sync Schedule form will then be enabled.
+
 ### LDAP login fails
 
 1. **Settings → LDAP → Test Connection**
-2. Check bind DN format (e.g. `CN=user,OU=Users,DC=example,DC=com`)
+2. Check bind DN format (`CN=user,OU=Users,DC=example,DC=com`)
 3. Use `ldap://` for port 389, `ldaps://` for 636
 4. Check firewall rules on the LDAP server
 
 ### SMTP not sending
 
-1. **Settings → SMTP** — verify host, port, encryption
-2. If you changed `SECRET_KEY` on the new server, re-enter the SMTP password (it was encrypted with the old key, then auto-migrated — but if migration didn't run, re-enter manually)
+1. **Settings → SMTP** — verify host, port, and encryption
+2. If you changed `SECRET_KEY` after restore, re-enter the SMTP password manually (the auto-migration encrypts it with the new key, but if the password was not in the backup it will be blank)
 3. Check firewall (ports 25, 465, 587)
+4. Use **Send monthly report now** to test immediately
+
+### Print report is blank
+
+Ensure you are on the latest version. An earlier bug caused all report cards to be hidden in print mode. After upgrading, hard-refresh the browser (`Ctrl+Shift+R`) and print again.
 
 ### Backup restore fails
 
@@ -563,13 +728,19 @@ Expected when `SECRET_KEY` changes. All users log in again. This is intentional 
 
 SQLite only supports one concurrent writer. Switch to PostgreSQL for multi-user deployments.
 
-### Logs are in JSON format — how do I read them?
+### How do I read the JSON logs?
 
 ```bash
-# Pretty print
-docker compose logs web | python3 -c "import sys,json; [print(json.dumps(json.loads(l), indent=2)) for l in sys.stdin if l.strip().startswith('{')]"
+# Pretty-print
+docker compose logs web | python3 -c "
+import sys, json
+for line in sys.stdin:
+    line = line.strip()
+    if line.startswith('{'):
+        print(json.dumps(json.loads(line), indent=2))
+"
 
-# Filter by level
+# Filter errors only
 docker compose logs web | grep '"level": "ERROR"'
 ```
 
