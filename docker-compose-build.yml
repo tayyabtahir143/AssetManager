@@ -24,7 +24,7 @@ services:
     volumes:
       - ./data:/data
     healthcheck:
-      test: ["CMD-SHELL", "python3 -c \"import urllib.request; urllib.request.urlopen('http://localhost:5000/login')\" 2>/dev/null || exit 1"]
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/login')"]
       interval: 30s
       timeout: 10s
       retries: 5
