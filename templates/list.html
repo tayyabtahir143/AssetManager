@@ -91,7 +91,7 @@
             <th data-sort-col="{{ loop.index }}" data-field="{{ field_name }}" style="cursor:pointer; user-select:none;">{{ label }} <span class="sort-arrow"></span></th>
           {% endfor %}
           {% if asset_perms.can_delete or asset_perms.can_add %}
-            <th>Actions</th>
+            <th style="white-space: nowrap;">Actions</th>
           {% endif %}
         </tr>
       </thead>
@@ -137,7 +137,7 @@
               </td>
             {% endfor %}
             {% if asset_perms.can_delete or asset_perms.can_add %}
-              <td>
+              <td style="white-space: nowrap;">
                 {% if asset_perms.can_add %}
                   <a class="button secondary" href="{{ url_for('view_asset', asset_type=asset_type, item_id=item.id) }}">View</a>
                   <a class="button secondary" href="{{ url_for('edit_asset', asset_type=asset_type, item_id=item.id) }}">Edit</a>
@@ -317,25 +317,26 @@
 
     const buildActionCell = (itemId) => {
       const cell = document.createElement('td');
+      cell.style.whiteSpace = 'nowrap';
       if (canAdd) {
         const view = document.createElement('a');
         view.className = 'button secondary';
         view.href = `/assets/${assetType}/view/${itemId}`;
         view.textContent = 'View';
+        view.style.marginRight = '4px';
         cell.appendChild(view);
-        view.style.marginRight = '6px';
         const edit = document.createElement('a');
         edit.className = 'button secondary';
         edit.href = `/assets/${assetType}/edit/${itemId}`;
         edit.textContent = 'Edit';
+        edit.style.marginRight = '4px';
         cell.appendChild(edit);
-        edit.style.marginRight = '6px';
         const copy = document.createElement('a');
         copy.className = 'button secondary';
         copy.href = `/assets/${assetType}/copy/${itemId}`;
         copy.textContent = 'Copy';
+        copy.style.marginRight = '4px';
         cell.appendChild(copy);
-        copy.style.marginRight = '6px';
       }
       if (canDelete) {
         const form = document.createElement('form');
