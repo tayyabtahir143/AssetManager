@@ -977,11 +977,11 @@ def send_smtp_notification(action, entity_type, entity_id, success, details):
     if detail_rows:
         detail_table = "".join(
             "<tr>"
-            "<td style=\"padding:10px 14px;width:35%;color:#8b949e;font-size:12px;font-weight:600;"
-            "text-transform:uppercase;letter-spacing:0.4px;border-bottom:1px solid #21262d;"
+            "<td style=\"padding:10px 14px;width:35%;color:#a5b4fc;font-size:11px;font-weight:700;"
+            "text-transform:uppercase;letter-spacing:0.6px;border-bottom:1px solid #1e293b;"
             "white-space:nowrap;\">{label}</td>"
-            "<td style=\"padding:10px 14px;color:#e6edf3;font-size:13px;"
-            "border-bottom:1px solid #21262d;\">{value}</td>"
+            "<td style=\"padding:10px 14px;color:#f1f5f9;font-size:13px;"
+            "border-bottom:1px solid #1e293b;\">{value}</td>"
             "</tr>".format(
                 label=html.escape(str(label)),
                 value=html.escape(str(value)),
@@ -989,11 +989,11 @@ def send_smtp_notification(action, entity_type, entity_id, success, details):
             for label, value in detail_rows
         )
         detail_html += (
-            "<div style=\"margin-bottom:16px;background-color:#0d1117;border-radius:8px;"
-            "border:1px solid #21262d;overflow:hidden;\">"
-            "<div style=\"padding:10px 14px;background-color:#1c2541;border-bottom:1px solid #21262d;"
-            "border-left:3px solid #2563eb;color:#60a5fa;font-size:12px;font-weight:700;"
-            "text-transform:uppercase;letter-spacing:0.8px;\">Details</div>"
+            "<div style=\"margin-bottom:16px;background-color:#0f172a;border-radius:8px;"
+            "border:1px solid #1e293b;overflow:hidden;\">"
+            "<div style=\"padding:10px 16px;background:linear-gradient(90deg,#4f46e5 0%,#0ea5e9 100%);"
+            "color:#ffffff;font-size:12px;font-weight:700;"
+            "text-transform:uppercase;letter-spacing:1px;\">Details</div>"
             "<table style=\"width:100%;border-collapse:collapse;\">"
             "<tbody>"
             f"{detail_table}"
@@ -1004,13 +1004,13 @@ def send_smtp_notification(action, entity_type, entity_id, success, details):
     if changes_rows:
         change_table = "".join(
             "<tr>"
-            "<td style=\"padding:10px 14px;width:30%;color:#8b949e;font-size:12px;font-weight:600;"
-            "text-transform:uppercase;letter-spacing:0.4px;border-bottom:1px solid #21262d;"
+            "<td style=\"padding:10px 14px;width:30%;color:#a5b4fc;font-size:11px;font-weight:700;"
+            "text-transform:uppercase;letter-spacing:0.6px;border-bottom:1px solid #1e293b;"
             "white-space:nowrap;\">{label}</td>"
-            "<td style=\"padding:10px 14px;color:#f87171;font-size:13px;"
-            "border-bottom:1px solid #21262d;\">{old}</td>"
-            "<td style=\"padding:10px 14px;color:#4ade80;font-size:13px;"
-            "border-bottom:1px solid #21262d;\">{new}</td>"
+            "<td style=\"padding:10px 14px;color:#fca5a5;font-size:13px;"
+            "border-bottom:1px solid #1e293b;\">{old}</td>"
+            "<td style=\"padding:10px 14px;color:#6ee7b7;font-size:13px;"
+            "border-bottom:1px solid #1e293b;\">{new}</td>"
             "</tr>".format(
                 label=html.escape(str(label)),
                 old=html.escape(str(old)),
@@ -1019,23 +1019,23 @@ def send_smtp_notification(action, entity_type, entity_id, success, details):
             for label, old, new in changes_rows
         )
         detail_html += (
-            "<div style=\"background-color:#0d1117;border-radius:8px;"
-            "border:1px solid #21262d;overflow:hidden;\">"
-            "<div style=\"padding:10px 14px;background-color:#1c2541;border-bottom:1px solid #21262d;"
-            "border-left:3px solid #2563eb;color:#60a5fa;font-size:12px;font-weight:700;"
-            "text-transform:uppercase;letter-spacing:0.8px;\">Changes</div>"
+            "<div style=\"background-color:#0f172a;border-radius:8px;"
+            "border:1px solid #1e293b;overflow:hidden;\">"
+            "<div style=\"padding:10px 16px;background:linear-gradient(90deg,#7c3aed 0%,#0ea5e9 100%);"
+            "color:#ffffff;font-size:12px;font-weight:700;"
+            "text-transform:uppercase;letter-spacing:1px;\">Changes</div>"
             "<table style=\"width:100%;border-collapse:collapse;\">"
             "<thead>"
-            "<tr>"
-            "<th style=\"padding:8px 14px;text-align:left;color:#8b949e;font-size:11px;"
-            "font-weight:600;text-transform:uppercase;letter-spacing:0.5px;"
-            "border-bottom:1px solid #21262d;background-color:#161b22;\">Field</th>"
-            "<th style=\"padding:8px 14px;text-align:left;color:#f87171;font-size:11px;"
-            "font-weight:600;text-transform:uppercase;letter-spacing:0.5px;"
-            "border-bottom:1px solid #21262d;background-color:#161b22;\">Previous</th>"
-            "<th style=\"padding:8px 14px;text-align:left;color:#4ade80;font-size:11px;"
-            "font-weight:600;text-transform:uppercase;letter-spacing:0.5px;"
-            "border-bottom:1px solid #21262d;background-color:#161b22;\">New</th>"
+            "<tr style=\"background-color:#1e293b;\">"
+            "<th style=\"padding:8px 14px;text-align:left;color:#a5b4fc;font-size:11px;"
+            "font-weight:700;text-transform:uppercase;letter-spacing:0.6px;"
+            "border-bottom:1px solid #1e293b;\">Field</th>"
+            "<th style=\"padding:8px 14px;text-align:left;color:#fca5a5;font-size:11px;"
+            "font-weight:700;text-transform:uppercase;letter-spacing:0.6px;"
+            "border-bottom:1px solid #1e293b;\">Previous</th>"
+            "<th style=\"padding:8px 14px;text-align:left;color:#6ee7b7;font-size:11px;"
+            "font-weight:700;text-transform:uppercase;letter-spacing:0.6px;"
+            "border-bottom:1px solid #1e293b;\">New</th>"
             "</tr>"
             "</thead>"
             "<tbody>"
@@ -1120,11 +1120,11 @@ def send_assignment_email(username, asset_label, specs):
     lines.append("If this is unexpected or incorrect, please contact IT.")
     body_rows = "".join(
         "<tr>"
-        "<td style=\"padding:10px 14px;width:35%;color:#8b949e;font-size:12px;font-weight:600;"
-        "text-transform:uppercase;letter-spacing:0.4px;border-bottom:1px solid #21262d;"
+        "<td style=\"padding:10px 14px;width:35%;color:#a5b4fc;font-size:11px;font-weight:700;"
+        "text-transform:uppercase;letter-spacing:0.6px;border-bottom:1px solid #1e293b;"
         "white-space:nowrap;\">{label}</td>"
-        "<td style=\"padding:10px 14px;color:#e6edf3;font-size:13px;"
-        "border-bottom:1px solid #21262d;\">{value}</td>"
+        "<td style=\"padding:10px 14px;color:#f1f5f9;font-size:13px;"
+        "border-bottom:1px solid #1e293b;\">{value}</td>"
         "</tr>".format(
             label=html.escape(str(label)),
             value=html.escape(str(value)),
@@ -1132,27 +1132,27 @@ def send_assignment_email(username, asset_label, specs):
         for label, value in specs
     )
     intro_html = (
-        f"<div style=\"font-size:17px;font-weight:600;color:#f0f6ff;margin-bottom:8px;\">"
+        f"<div style=\"font-size:17px;font-weight:600;color:#f1f5f9;margin-bottom:8px;\">"
         f"Hello {html.escape(username)},</div>"
-        f"<div style=\"margin-bottom:20px;color:#8b949e;font-size:14px;line-height:1.6;\">"
-        f"A <strong style=\"color:#60a5fa;\">{html.escape(asset_label)}</strong>"
+        f"<div style=\"margin-bottom:20px;color:#94a3b8;font-size:14px;line-height:1.6;\">"
+        f"A <strong style=\"color:#38bdf8;\">{html.escape(asset_label)}</strong>"
         f" has been assigned to you.</div>"
     )
     body_html = (
         f"{intro_html}"
-        "<div style=\"background-color:#0d1117;border-radius:8px;"
-        "border:1px solid #21262d;overflow:hidden;margin-bottom:16px;\">"
-        "<div style=\"padding:10px 14px;background-color:#1c2541;border-bottom:1px solid #21262d;"
-        "border-left:3px solid #2563eb;color:#60a5fa;font-size:12px;font-weight:700;"
-        "text-transform:uppercase;letter-spacing:0.8px;\">Asset Details</div>"
+        "<div style=\"background-color:#0f172a;border-radius:8px;"
+        "border:1px solid #1e293b;overflow:hidden;margin-bottom:16px;\">"
+        "<div style=\"padding:10px 16px;background:linear-gradient(90deg,#4f46e5 0%,#0ea5e9 100%);"
+        "color:#ffffff;font-size:12px;font-weight:700;"
+        "text-transform:uppercase;letter-spacing:1px;\">Asset Details</div>"
         "<table style=\"width:100%;border-collapse:collapse;\">"
         "<tbody>"
         f"{body_rows}"
         "</tbody>"
         "</table>"
         "</div>"
-        "<div style=\"padding:14px;background-color:#1a2333;border-radius:8px;"
-        "border:1px solid #21262d;color:#8b949e;font-size:13px;line-height:1.5;\">"
+        "<div style=\"padding:14px 16px;background-color:#1e293b;border-radius:8px;"
+        "border-left:4px solid #38bdf8;color:#94a3b8;font-size:13px;line-height:1.6;\">"
         "&#8505;&nbsp; If this assignment is unexpected or incorrect, please contact your IT administrator."
         "</div>"
     )
@@ -1208,11 +1208,11 @@ def _format_timestamp(value):
 def _render_report_html(title, subtitle, meta_lines, body_html):
     meta_items = "".join(
         "<tr>"
-        "<td style=\"padding:9px 16px;width:38%;color:#8b949e;font-size:12px;font-weight:600;"
-        "text-transform:uppercase;letter-spacing:0.4px;border-bottom:1px solid #21262d;"
+        "<td style=\"padding:10px 16px;width:38%;color:#a5b4fc;font-size:11px;font-weight:700;"
+        "text-transform:uppercase;letter-spacing:0.7px;border-bottom:1px solid #1e293b;"
         "white-space:nowrap;\">{label}</td>"
-        "<td style=\"padding:9px 16px;color:#e6edf3;font-size:13px;"
-        "border-bottom:1px solid #21262d;\">{value}</td>"
+        "<td style=\"padding:10px 16px;color:#f1f5f9;font-size:13px;"
+        "border-bottom:1px solid #1e293b;\">{value}</td>"
         "</tr>".format(
             label=html.escape(str(label)),
             value=html.escape(str(value)),
@@ -1228,47 +1228,48 @@ def _render_report_html(title, subtitle, meta_lines, body_html):
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>{html.escape(title)}</title>
   </head>
-  <body style="margin:0;padding:0;background-color:#0d1117;font-family:'Segoe UI',Arial,Helvetica,sans-serif;">
+  <body style="margin:0;padding:0;background-color:#0f172a;font-family:'Segoe UI',Arial,Helvetica,sans-serif;">
     <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
-           style="background-color:#0d1117;padding:32px 16px;">
+           style="background-color:#0f172a;padding:32px 16px;">
       <tr>
         <td align="center">
           <table width="620" cellpadding="0" cellspacing="0" role="presentation"
-                 style="max-width:620px;width:100%;background-color:#161b22;border-radius:10px;
-                        overflow:hidden;border:1px solid #30363d;">
+                 style="max-width:620px;width:100%;background-color:#1e293b;border-radius:12px;
+                        overflow:hidden;border:1px solid #334155;
+                        box-shadow:0 8px 32px rgba(0,0,0,0.5);">
             <tr>
-              <td style="background:linear-gradient(135deg,#1c2541 0%,#0d2137 100%);
-                         padding:28px 28px 24px;border-bottom:3px solid #2563eb;">
-                <div style="color:#60a5fa;font-size:11px;letter-spacing:2px;
+              <td style="background:linear-gradient(135deg,#4f46e5 0%,#0ea5e9 100%);
+                         padding:28px 28px 26px;">
+                <div style="color:rgba(255,255,255,0.75);font-size:11px;letter-spacing:2.5px;
                             text-transform:uppercase;font-weight:700;margin-bottom:8px;">
                   {html.escape(brand_name)}
                 </div>
-                <div style="color:#f0f6ff;font-size:22px;font-weight:700;line-height:1.3;">
+                <div style="color:#ffffff;font-size:24px;font-weight:700;line-height:1.3;">
                   {html.escape(title)}
                 </div>
-                <div style="color:#8b949e;font-size:13px;margin-top:5px;">
+                <div style="color:rgba(255,255,255,0.65);font-size:13px;margin-top:6px;">
                   {html.escape(subtitle)}
                 </div>
               </td>
             </tr>
             <tr>
-              <td style="padding:20px 28px 0;">
+              <td style="padding:20px 24px 0;">
                 <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
-                       style="background-color:#0d1117;border-radius:8px;
-                              border:1px solid #21262d;overflow:hidden;">
+                       style="background-color:#0f172a;border-radius:8px;
+                              border:1px solid #1e293b;overflow:hidden;">
                   {meta_items}
                 </table>
               </td>
             </tr>
             <tr>
-              <td style="padding:24px 28px;">
+              <td style="padding:20px 24px 24px;">
                 {body_html}
               </td>
             </tr>
             <tr>
-              <td style="background-color:#0d1117;padding:14px 28px;border-top:1px solid #21262d;">
-                <p style="margin:0;color:#484f58;font-size:11px;text-align:center;">
-                  Generated by <span style="color:#6e7681;font-weight:600;">{html.escape(brand_name)}</span>
+              <td style="background-color:#0f172a;padding:14px 24px;border-top:1px solid #1e293b;">
+                <p style="margin:0;color:#475569;font-size:11px;text-align:center;">
+                  Generated by <span style="color:#64748b;font-weight:600;">{html.escape(brand_name)}</span>
                   &nbsp;&bull;&nbsp; This is an automated notification.
                 </p>
               </td>
@@ -1483,10 +1484,10 @@ def send_low_stock_report(force=False):
     subject = f"[{get_branding_name()}] Low stock report"
     body_rows = "".join(
         "<tr>"
-        "<td style=\"padding:10px 14px;color:#e6edf3;font-size:13px;"
-        "border-bottom:1px solid #21262d;\">{label}</td>"
-        "<td style=\"padding:10px 14px;color:#f87171;font-size:13px;font-weight:600;"
-        "border-bottom:1px solid #21262d;text-align:right;\">{available}</td>"
+        "<td style=\"padding:10px 14px;color:#f1f5f9;font-size:13px;"
+        "border-bottom:1px solid #1e293b;\">{label}</td>"
+        "<td style=\"padding:10px 14px;color:#fca5a5;font-size:13px;font-weight:700;"
+        "border-bottom:1px solid #1e293b;text-align:right;\">{available}</td>"
         "</tr>".format(
             label=html.escape(str(item["label"])),
             available=html.escape(str(item["available"])),
@@ -1494,20 +1495,20 @@ def send_low_stock_report(force=False):
         for item in send_items
     )
     body_html = (
-        "<div style=\"background-color:#0d1117;border-radius:8px;"
-        "border:1px solid #21262d;overflow:hidden;\">"
-        "<div style=\"padding:10px 14px;background-color:#1c2541;border-bottom:1px solid #21262d;"
-        "border-left:3px solid #2563eb;color:#60a5fa;font-size:12px;font-weight:700;"
-        "text-transform:uppercase;letter-spacing:0.8px;\">Low Stock Items</div>"
+        "<div style=\"background-color:#0f172a;border-radius:8px;"
+        "border:1px solid #1e293b;overflow:hidden;\">"
+        "<div style=\"padding:10px 16px;background:linear-gradient(90deg,#dc2626 0%,#ea580c 100%);"
+        "color:#ffffff;font-size:12px;font-weight:700;"
+        "text-transform:uppercase;letter-spacing:1px;\">&#9888;&nbsp; Low Stock Items</div>"
         "<table style=\"width:100%;border-collapse:collapse;\">"
         "<thead>"
-        "<tr>"
-        "<th style=\"text-align:left;padding:9px 14px;color:#8b949e;font-size:11px;"
-        "font-weight:600;text-transform:uppercase;letter-spacing:0.5px;"
-        "border-bottom:1px solid #21262d;background-color:#161b22;\">Asset</th>"
-        "<th style=\"text-align:right;padding:9px 14px;color:#8b949e;font-size:11px;"
-        "font-weight:600;text-transform:uppercase;letter-spacing:0.5px;"
-        "border-bottom:1px solid #21262d;background-color:#161b22;\">Available</th>"
+        "<tr style=\"background-color:#1e293b;\">"
+        "<th style=\"text-align:left;padding:9px 14px;color:#a5b4fc;font-size:11px;"
+        "font-weight:700;text-transform:uppercase;letter-spacing:0.6px;"
+        "border-bottom:1px solid #1e293b;\">Asset</th>"
+        "<th style=\"text-align:right;padding:9px 14px;color:#fca5a5;font-size:11px;"
+        "font-weight:700;text-transform:uppercase;letter-spacing:0.6px;"
+        "border-bottom:1px solid #1e293b;\">Available</th>"
         "</tr>"
         "</thead>"
         "<tbody>"
@@ -1589,23 +1590,23 @@ def send_monthly_report(force=False):
             f"- {_format_timestamp(entry.created_at)} {entry.username or '-'} {entry.action} {entry.entity_type} {entry.entity_id or '-'}"
         )
     subject = f"[{get_branding_name()}] Monthly report"
-    _td = "padding:9px 14px;color:#e6edf3;font-size:12px;border-bottom:1px solid #21262d;"
-    _td_r = "padding:9px 14px;color:#e6edf3;font-size:12px;border-bottom:1px solid #21262d;text-align:right;"
-    _th = ("padding:8px 14px;text-align:left;color:#8b949e;font-size:11px;"
-           "font-weight:600;text-transform:uppercase;letter-spacing:0.5px;"
-           "border-bottom:1px solid #21262d;background-color:#161b22;")
-    _th_r = ("padding:8px 14px;text-align:right;color:#8b949e;font-size:11px;"
-             "font-weight:600;text-transform:uppercase;letter-spacing:0.5px;"
-             "border-bottom:1px solid #21262d;background-color:#161b22;")
-    _sec = ("background-color:#0d1117;border-radius:8px;border:1px solid #21262d;"
+    _td = "padding:9px 14px;color:#f1f5f9;font-size:12px;border-bottom:1px solid #1e293b;"
+    _td_r = "padding:9px 14px;color:#f1f5f9;font-size:12px;border-bottom:1px solid #1e293b;text-align:right;"
+    _th = ("padding:8px 14px;text-align:left;color:#a5b4fc;font-size:11px;"
+           "font-weight:700;text-transform:uppercase;letter-spacing:0.6px;"
+           "border-bottom:1px solid #1e293b;background-color:#1e293b;")
+    _th_r = ("padding:8px 14px;text-align:right;color:#a5b4fc;font-size:11px;"
+             "font-weight:700;text-transform:uppercase;letter-spacing:0.6px;"
+             "border-bottom:1px solid #1e293b;background-color:#1e293b;")
+    _sec = ("background-color:#0f172a;border-radius:8px;border:1px solid #1e293b;"
             "overflow:hidden;margin-bottom:20px;")
-    _sec_hdr = ("padding:10px 14px;background-color:#1c2541;border-bottom:1px solid #21262d;"
-                "border-left:3px solid #2563eb;color:#60a5fa;font-size:12px;font-weight:700;"
-                "text-transform:uppercase;letter-spacing:0.8px;")
+    _sec_hdr = ("padding:10px 16px;background:linear-gradient(90deg,#4f46e5 0%,#0ea5e9 100%);"
+                "color:#ffffff;font-size:12px;font-weight:700;"
+                "text-transform:uppercase;letter-spacing:1px;")
     counts_rows = "".join(
         "<tr>"
         "<td style=\"{td}\">{action}</td>"
-        "<td style=\"{td_r};color:#60a5fa;font-weight:600;\">{count}</td>"
+        "<td style=\"{td_r};color:#38bdf8;font-weight:700;\">{count}</td>"
         "</tr>".format(
             td=_td, td_r=_td_r,
             action=html.escape(str(action)),
@@ -1679,7 +1680,7 @@ def send_monthly_report(force=False):
         "<td style=\"{td}\">{label}</td>"
         "<td style=\"{td_r}\">{total}</td>"
         "<td style=\"{td_r}\">{assigned}</td>"
-        "<td style=\"{td_r};color:#4ade80;font-weight:600;\">{available}</td>"
+        "<td style=\"{td_r};color:#6ee7b7;font-weight:700;\">{available}</td>"
         "</tr>".format(
             td=_td, td_r=_td_r,
             label=html.escape(str(item["label"])),
@@ -2540,36 +2541,37 @@ def send_password_reset_email(user, reset_url):
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>Password Reset</title>
   </head>
-  <body style="margin:0;padding:0;background-color:#0d1117;font-family:'Segoe UI',Arial,Helvetica,sans-serif;">
+  <body style="margin:0;padding:0;background-color:#0f172a;font-family:'Segoe UI',Arial,Helvetica,sans-serif;">
     <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
-           style="background-color:#0d1117;padding:32px 16px;">
+           style="background-color:#0f172a;padding:32px 16px;">
       <tr>
         <td align="center">
           <table width="540" cellpadding="0" cellspacing="0" role="presentation"
-                 style="max-width:540px;width:100%;background-color:#161b22;border-radius:10px;
-                        overflow:hidden;border:1px solid #30363d;">
+                 style="max-width:540px;width:100%;background-color:#1e293b;border-radius:12px;
+                        overflow:hidden;border:1px solid #334155;
+                        box-shadow:0 8px 32px rgba(0,0,0,0.5);">
             <tr>
-              <td style="background:linear-gradient(135deg,#1c2541 0%,#0d2137 100%);
-                         padding:28px 28px 24px;border-bottom:3px solid #2563eb;">
-                <div style="color:#60a5fa;font-size:11px;letter-spacing:2px;
+              <td style="background:linear-gradient(135deg,#4f46e5 0%,#0ea5e9 100%);
+                         padding:28px 28px 26px;">
+                <div style="color:rgba(255,255,255,0.75);font-size:11px;letter-spacing:2.5px;
                             text-transform:uppercase;font-weight:700;margin-bottom:8px;">
                   {html.escape(get_branding_name())}
                 </div>
-                <div style="color:#f0f6ff;font-size:22px;font-weight:700;">Password Reset</div>
-                <div style="color:#8b949e;font-size:13px;margin-top:5px;">
+                <div style="color:#ffffff;font-size:22px;font-weight:700;">Password Reset</div>
+                <div style="color:rgba(255,255,255,0.65);font-size:13px;margin-top:5px;">
                   A reset link has been requested for your account
                 </div>
               </td>
             </tr>
             <tr>
               <td style="padding:28px;">
-                <p style="margin:0 0 16px;color:#e6edf3;font-size:14px;line-height:1.6;">
+                <p style="margin:0 0 16px;color:#f1f5f9;font-size:14px;line-height:1.6;">
                   We received a request to reset the password for your account.
                   Click the button below to set a new password.
                 </p>
                 <table cellpadding="0" cellspacing="0" role="presentation" style="margin:24px 0;">
                   <tr>
-                    <td style="border-radius:6px;background-color:#2563eb;">
+                    <td style="border-radius:6px;background:linear-gradient(135deg,#4f46e5,#0ea5e9);">
                       <a href="{html.escape(reset_url)}"
                          style="display:inline-block;padding:12px 28px;color:#ffffff;
                                 font-size:14px;font-weight:600;text-decoration:none;
@@ -2579,17 +2581,17 @@ def send_password_reset_email(user, reset_url):
                     </td>
                   </tr>
                 </table>
-                <p style="margin:0;color:#484f58;font-size:12px;line-height:1.6;">
+                <p style="margin:0;color:#64748b;font-size:12px;line-height:1.6;">
                   If you did not request a password reset, you can safely ignore this email.
                   This link will expire shortly for security.
                 </p>
               </td>
             </tr>
             <tr>
-              <td style="background-color:#0d1117;padding:14px 28px;border-top:1px solid #21262d;">
-                <p style="margin:0;color:#484f58;font-size:11px;text-align:center;">
+              <td style="background-color:#0f172a;padding:14px 28px;border-top:1px solid #1e293b;">
+                <p style="margin:0;color:#475569;font-size:11px;text-align:center;">
                   Generated by
-                  <span style="color:#6e7681;font-weight:600;">{html.escape(get_branding_name())}</span>
+                  <span style="color:#64748b;font-weight:600;">{html.escape(get_branding_name())}</span>
                   &nbsp;&bull;&nbsp; This is an automated notification.
                 </p>
               </td>
@@ -3091,43 +3093,44 @@ def send_config_backup_email(schedule):
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>Configuration Backup</title>
   </head>
-  <body style="margin:0;padding:0;background-color:#0d1117;font-family:'Segoe UI',Arial,Helvetica,sans-serif;">
+  <body style="margin:0;padding:0;background-color:#0f172a;font-family:'Segoe UI',Arial,Helvetica,sans-serif;">
     <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
-           style="background-color:#0d1117;padding:32px 16px;">
+           style="background-color:#0f172a;padding:32px 16px;">
       <tr>
         <td align="center">
           <table width="540" cellpadding="0" cellspacing="0" role="presentation"
-                 style="max-width:540px;width:100%;background-color:#161b22;border-radius:10px;
-                        overflow:hidden;border:1px solid #30363d;">
+                 style="max-width:540px;width:100%;background-color:#1e293b;border-radius:12px;
+                        overflow:hidden;border:1px solid #334155;
+                        box-shadow:0 8px 32px rgba(0,0,0,0.5);">
             <tr>
-              <td style="background:linear-gradient(135deg,#1c2541 0%,#0d2137 100%);
-                         padding:28px 28px 24px;border-bottom:3px solid #2563eb;">
-                <div style="color:#60a5fa;font-size:11px;letter-spacing:2px;
+              <td style="background:linear-gradient(135deg,#0f766e 0%,#0ea5e9 100%);
+                         padding:28px 28px 26px;">
+                <div style="color:rgba(255,255,255,0.75);font-size:11px;letter-spacing:2.5px;
                             text-transform:uppercase;font-weight:700;margin-bottom:8px;">
                   {html.escape(get_branding_name())}
                 </div>
-                <div style="color:#f0f6ff;font-size:22px;font-weight:700;">Configuration Backup</div>
-                <div style="color:#8b949e;font-size:13px;margin-top:5px;">
+                <div style="color:#ffffff;font-size:22px;font-weight:700;">Configuration Backup</div>
+                <div style="color:rgba(255,255,255,0.65);font-size:13px;margin-top:5px;">
                   Your scheduled configuration backup is attached
                 </div>
               </td>
             </tr>
             <tr>
               <td style="padding:28px;">
-                <p style="margin:0 0 16px;color:#e6edf3;font-size:14px;line-height:1.6;">
+                <p style="margin:0 0 16px;color:#f1f5f9;font-size:14px;line-height:1.6;">
                   Your configuration backup is attached to this email.
                 </p>
-                <div style="padding:14px;background-color:#1a2333;border-radius:8px;
-                            border:1px solid #21262d;color:#8b949e;font-size:13px;line-height:1.5;">
+                <div style="padding:14px 16px;background-color:#1e293b;border-radius:8px;
+                            border-left:4px solid #0ea5e9;color:#94a3b8;font-size:13px;line-height:1.6;">
                   &#8505;&nbsp; This backup contains configuration data only and does not include asset records.
                 </div>
               </td>
             </tr>
             <tr>
-              <td style="background-color:#0d1117;padding:14px 28px;border-top:1px solid #21262d;">
-                <p style="margin:0;color:#484f58;font-size:11px;text-align:center;">
+              <td style="background-color:#0f172a;padding:14px 28px;border-top:1px solid #1e293b;">
+                <p style="margin:0;color:#475569;font-size:11px;text-align:center;">
                   Generated by
-                  <span style="color:#6e7681;font-weight:600;">{html.escape(get_branding_name())}</span>
+                  <span style="color:#64748b;font-weight:600;">{html.escape(get_branding_name())}</span>
                   &nbsp;&bull;&nbsp; This is an automated notification.
                 </p>
               </td>
@@ -3203,43 +3206,44 @@ def send_full_backup_email(schedule):
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>Asset Backup</title>
   </head>
-  <body style="margin:0;padding:0;background-color:#0d1117;font-family:'Segoe UI',Arial,Helvetica,sans-serif;">
+  <body style="margin:0;padding:0;background-color:#0f172a;font-family:'Segoe UI',Arial,Helvetica,sans-serif;">
     <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
-           style="background-color:#0d1117;padding:32px 16px;">
+           style="background-color:#0f172a;padding:32px 16px;">
       <tr>
         <td align="center">
           <table width="540" cellpadding="0" cellspacing="0" role="presentation"
-                 style="max-width:540px;width:100%;background-color:#161b22;border-radius:10px;
-                        overflow:hidden;border:1px solid #30363d;">
+                 style="max-width:540px;width:100%;background-color:#1e293b;border-radius:12px;
+                        overflow:hidden;border:1px solid #334155;
+                        box-shadow:0 8px 32px rgba(0,0,0,0.5);">
             <tr>
-              <td style="background:linear-gradient(135deg,#1c2541 0%,#0d2137 100%);
-                         padding:28px 28px 24px;border-bottom:3px solid #2563eb;">
-                <div style="color:#60a5fa;font-size:11px;letter-spacing:2px;
+              <td style="background:linear-gradient(135deg,#7c3aed 0%,#2563eb 100%);
+                         padding:28px 28px 26px;">
+                <div style="color:rgba(255,255,255,0.75);font-size:11px;letter-spacing:2.5px;
                             text-transform:uppercase;font-weight:700;margin-bottom:8px;">
                   {html.escape(get_branding_name())}
                 </div>
-                <div style="color:#f0f6ff;font-size:22px;font-weight:700;">Asset Backup</div>
-                <div style="color:#8b949e;font-size:13px;margin-top:5px;">
+                <div style="color:#ffffff;font-size:22px;font-weight:700;">Asset Backup</div>
+                <div style="color:rgba(255,255,255,0.65);font-size:13px;margin-top:5px;">
                   Your scheduled asset backup is attached
                 </div>
               </td>
             </tr>
             <tr>
               <td style="padding:28px;">
-                <p style="margin:0 0 16px;color:#e6edf3;font-size:14px;line-height:1.6;">
+                <p style="margin:0 0 16px;color:#f1f5f9;font-size:14px;line-height:1.6;">
                   Your asset backup is attached to this email.
                 </p>
-                <div style="padding:14px;background-color:#1a2333;border-radius:8px;
-                            border:1px solid #21262d;color:#8b949e;font-size:13px;line-height:1.5;">
+                <div style="padding:14px 16px;background-color:#1e293b;border-radius:8px;
+                            border-left:4px solid #7c3aed;color:#94a3b8;font-size:13px;line-height:1.6;">
                   &#8505;&nbsp; This backup contains asset records and history only and does not include configuration data.
                 </div>
               </td>
             </tr>
             <tr>
-              <td style="background-color:#0d1117;padding:14px 28px;border-top:1px solid #21262d;">
-                <p style="margin:0;color:#484f58;font-size:11px;text-align:center;">
+              <td style="background-color:#0f172a;padding:14px 28px;border-top:1px solid #1e293b;">
+                <p style="margin:0;color:#475569;font-size:11px;text-align:center;">
                   Generated by
-                  <span style="color:#6e7681;font-weight:600;">{html.escape(get_branding_name())}</span>
+                  <span style="color:#64748b;font-weight:600;">{html.escape(get_branding_name())}</span>
                   &nbsp;&bull;&nbsp; This is an automated notification.
                 </p>
               </td>
