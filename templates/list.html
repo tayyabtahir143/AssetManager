@@ -470,8 +470,10 @@
     /* Narrow fixed columns */
     .list-table .col-chk { width: 32px; }
     .list-table .col-idx { width: 38px; text-align: center; }
-    /* Actions: fixed width, buttons compact */
-    .list-table .col-act { width: 210px; white-space: nowrap; }
+    /* Status column: needs room for badge (e.g. "Assigned" = ~76px) */
+    .list-table th[data-field="status"] { width: 95px; }
+    /* Actions: fixed width, buttons compact (View+Edit+Copy+Delete bold 11.5px ≈ 220px) */
+    .list-table .col-act { width: 245px; white-space: nowrap; }
     .list-table td.col-act .button { padding: 4px 8px; font-size: 11.5px; margin-right: 3px; }
     .list-table td.col-act form { display: inline; }
     .list-table td.col-act form .button { margin-right: 0; }
