@@ -11,11 +11,10 @@ services:
     ports:
       - "5000:5000"
     restart: always
+    env_file:
+      - .env
     environment:
-      - DATABASE_URL=${DATABASE_URL:-sqlite:////data/inventory.db}
-      - "SECRET_KEY=${SECRET_KEY:?SECRET_KEY is required - run generate_secrets.sh}"
-      - TZ=${TZ:-UTC}
-      - MAX_UPLOAD_MB=${MAX_UPLOAD_MB:-16}
+      DATABASE_URL: ${DATABASE_URL:-sqlite:////data/inventory.db}
     depends_on:
       init-perms:
         condition: service_completed_successfully

@@ -11,13 +11,10 @@ services:
     ports:
       - "5000:5000"
     restart: always
+    env_file:
+      - .env
     environment:
-      - "SECRET_KEY=${SECRET_KEY:?SECRET_KEY is required - run generate_secrets.sh}"
-      - "DATABASE_URL=postgresql+psycopg://inventory:${DB_PASSWORD:?DB_PASSWORD is required}@db:5432/inventory"
-      - "TZ=${TZ:-UTC}"
-      - "MAX_UPLOAD_MB=${MAX_UPLOAD_MB:-16}"
-      - "DB_POOL_SIZE=${DB_POOL_SIZE:-10}"
-      - "DB_MAX_OVERFLOW=${DB_MAX_OVERFLOW:-20}"
+      DATABASE_URL: postgresql+psycopg://inventory:${DB_PASSWORD}@db:5432/inventory
     depends_on:
       db:
         condition: service_healthy
@@ -35,10 +32,12 @@ services:
   db:
     image: postgres:16
     restart: always
+    env_file:
+      - .env
     environment:
-      - POSTGRES_DB=inventory
-      - POSTGRES_USER=inventory
-      - POSTGRES_PASSWORD=${DB_PASSWORD:?DB_PASSWORD is required}
+      POSTGRES_DB: inventory
+      POSTGRES_USER: inventory
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
     depends_on:
       init-perms:
         condition: service_completed_successfully
