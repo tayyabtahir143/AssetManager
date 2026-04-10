@@ -473,7 +473,9 @@
     /* Status column: needs room for badge (e.g. "Assigned" = ~76px) */
     .list-table th[data-field="status"] { width: 95px; }
     /* Actions: 4 equal-width buttons — each 62px, same as Delete */
-    .list-table .col-act { width: 265px; white-space: nowrap; }
+    /* 4×62px + 3×3px margins = 257px content + 12px cell padding = 269px */
+    .list-table .col-act { width: 275px; white-space: nowrap; }
+    .list-table td.col-act { padding-left: 6px; padding-right: 6px; }
     .list-table td.col-act .button { padding: 4px 8px; font-size: 11.5px; margin-right: 3px; width: 62px; justify-content: center; }
     .list-table td.col-act form { display: inline; }
     .list-table td.col-act form .button { margin-right: 0; }
