@@ -77,7 +77,7 @@
       </div>
     {% endif %}
     <div id="bulk-delete-error" class="flash error" style="display: none; margin: 10px 16px;"></div>
-    <div class="table-wrap" style="overflow-x: visible;">
+    <div class="table-wrap">
     <table class="list-table">
       <thead>
         <tr>
@@ -323,19 +323,16 @@
         view.className = 'button secondary';
         view.href = `/assets/${assetType}/view/${itemId}`;
         view.textContent = 'View';
-        view.style.marginRight = '4px';
         cell.appendChild(view);
         const edit = document.createElement('a');
         edit.className = 'button secondary';
         edit.href = `/assets/${assetType}/edit/${itemId}`;
         edit.textContent = 'Edit';
-        edit.style.marginRight = '4px';
         cell.appendChild(edit);
         const copy = document.createElement('a');
         copy.className = 'button secondary';
         copy.href = `/assets/${assetType}/copy/${itemId}`;
         copy.textContent = 'Copy';
-        copy.style.marginRight = '4px';
         cell.appendChild(copy);
       }
       if (canDelete) {
@@ -465,20 +462,18 @@
       text-overflow: ellipsis;
     }
     .list-table td {
-      padding: 9px 7px;
+      padding: 8px 7px;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
-      max-width: 0; /* required for ellipsis in table-layout:fixed */
     }
     /* Narrow fixed columns */
-    .list-table .col-chk { width: 32px; overflow: visible; }
-    .list-table .col-idx { width: 36px; text-align: center; }
-    /* Actions: fixed width, no ellipsis */
-    .list-table .col-act {
-      width: 170px;
-      white-space: nowrap;
-      overflow: visible;
-    }
+    .list-table .col-chk { width: 32px; }
+    .list-table .col-idx { width: 38px; text-align: center; }
+    /* Actions: fixed width, buttons compact */
+    .list-table .col-act { width: 192px; white-space: nowrap; }
+    .list-table td.col-act .button { padding: 4px 8px; font-size: 11.5px; margin-right: 3px; }
+    .list-table td.col-act form { display: inline; }
+    .list-table td.col-act form .button { margin-right: 0; }
   </style>
 {% endblock %}
