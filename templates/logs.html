@@ -1,17 +1,19 @@
 {% extends "base.html" %}
 {% block content %}
   <div class="logs-full">
-    <div class="logs-header">
-      <div>
-        <h2>Realtime Logs</h2>
-        <p class="muted">Shows the latest application logs. Auto-refreshes every 5 seconds.</p>
-      </div>
-      <div class="inline">
-        <input type="number" id="log-lines" min="50" max="2000" value="{{ lines }}">
-        <button class="button secondary" type="button" id="log-refresh">Refresh</button>
+    <div class="page-header animate-in">
+      <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+        <div>
+          <div class="page-title">Realtime Logs</div>
+          <div class="page-subtitle">Shows the latest application logs. Auto-refreshes every 5 seconds.</div>
+        </div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+          <input type="number" id="log-lines" min="50" max="2000" value="{{ lines }}">
+          <button class="button secondary" type="button" id="log-refresh">Refresh</button>
+        </div>
       </div>
     </div>
-    <div class="logs-body card" id="logs-body">
+    <div class="logs-body card animate-in" id="logs-body">
       <pre id="logs-pre">{{ log_text or "No logs yet." }}</pre>
     </div>
   </div>
@@ -21,13 +23,6 @@
       display: flex;
       flex-direction: column;
       gap: 12px;
-    }
-    .logs-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
-      flex-wrap: wrap;
     }
     .logs-body {
       flex: 1;

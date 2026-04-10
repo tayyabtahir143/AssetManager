@@ -1,8 +1,9 @@
 {% extends "base.html" %}
 {% block content %}
-  <div class="card" style="max-width: 600px;">
-    <h2>Edit {{ asset_type.label }}</h2>
+  <div class="card animate-in" style="max-width: 600px;">
+    <div style="font-size:20px; font-weight:700; letter-spacing:-0.02em; margin-bottom:4px;">Edit {{ asset_type.label }}</div>
     <form method="post" class="form-grid">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       {% for field in fields %}
         <div>
           <label for="{{ field.name }}">{{ field.label }}</label>

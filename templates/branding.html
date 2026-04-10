@@ -1,9 +1,10 @@
 {% extends "base.html" %}
 {% block content %}
-  <div class="card" style="max-width: 640px;">
-    <h2>Branding</h2>
+  <div class="card animate-in" style="max-width: 640px;">
+    <div style="font-size:20px; font-weight:700; letter-spacing:-0.02em; margin-bottom:4px;">Branding</div>
     <p class="muted">Set your company name and logo.</p>
     <form method="post" class="form-grid" enctype="multipart/form-data">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div>
         <label for="company_name">Company Name</label>
         <input id="company_name" name="company_name" type="text" value="{{ branding.company_name if branding else '' }}" placeholder="Your Company">

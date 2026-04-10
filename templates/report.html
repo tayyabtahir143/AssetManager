@@ -1,19 +1,23 @@
 {% extends "base.html" %}
 {% block content %}
-  <div class="report-header">
-    <div>
-      <h2>Asset Reports</h2>
-      <p class="muted">Generate printable, department-focused reports with full asset details.</p>
-      <p class="muted">Generated: {{ generated_at.strftime("%Y-%m-%d %H:%M:%S") }}</p>
-    </div>
-    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-      <a class="button secondary" href="{{ url_for('export_report', dept=dept_filter, asset=asset_filter, status=status_filter) }}">Export Excel</a>
-      <button class="button" type="button" onclick="window.print()">Print report</button>
+  <div class="page-header animate-in">
+    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+      <div>
+        <div class="page-title">Asset Reports</div>
+        <div class="page-subtitle">
+          Generate printable, department-focused reports with full asset details.
+          Generated: {{ generated_at.strftime("%Y-%m-%d %H:%M:%S") }}
+        </div>
+      </div>
+      <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+        <a class="button secondary" href="{{ url_for('export_report', dept=dept_filter, asset=asset_filter, status=status_filter) }}">Export Excel</a>
+        <button class="button" type="button" onclick="window.print()">Print report</button>
+      </div>
     </div>
   </div>
 
-  <div class="card" style="margin-top: 18px;">
-    <h3 style="margin-top: 0;">Filters</h3>
+  <div class="card animate-in" style="margin-top: 18px;">
+    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Filters</div>
     <form method="get" class="filter-grid">
       <div>
         <label for="dept">Department</label>
@@ -49,144 +53,207 @@
     </form>
   </div>
 
-  <div class="card" style="margin-top: 18px;">
-    <h3 style="margin-top: 0;">Assets by Type</h3>
+  <div class="card animate-in" style="margin-top: 18px;">
+    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Assets by Type</div>
     <p class="muted">Assigned vs available totals for the selected filters.</p>
     {% if asset_summary %}
-      <table>
-        <thead>
-          <tr>
-            <th>Asset</th>
-            <th>Assigned</th>
-            <th>Available</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for item in asset_summary %}
+      <div class="table-wrap">
+        <table>
+          <thead>
             <tr>
-              <td>{{ item.label }}</td>
-              <td>{{ item.assigned }}</td>
-              <td>{{ item.available }}</td>
+              <th>Asset</th>
+              <th>Assigned</th>
+              <th>Available</th>
             </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {% for item in asset_summary %}
+              <tr>
+                <td>{{ item.label }}</td>
+                <td>{{ item.assigned }}</td>
+                <td>{{ item.available }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     {% else %}
       <p>No asset data for this filter.</p>
     {% endif %}
   </div>
 
-  <div class="card" style="margin-top: 18px;">
-    <h3 style="margin-top: 0;">Detailed Asset List</h3>
+  <div class="card animate-in" style="margin-top: 18px;">
+    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Detailed Asset List</div>
     <p class="muted">Includes asset tags, specs, assigned user, and department.</p>
     {% if report_rows %}
-      <table>
-        <thead>
-          <tr>
-            <th>Asset</th>
-            <th>Asset Tag</th>
-            <th>Vendor</th>
-            <th>Model</th>
-            <th>Processor</th>
-            <th>RAM</th>
-            <th>Hard Disk</th>
-            <th>User</th>
-            <th>Department</th>
-            <th>Status</th>
-            <th>Qty</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in report_rows %}
+      <div class="table-wrap">
+        <table>
+          <thead>
             <tr>
-              <td>{{ row.asset }}</td>
-              <td>{{ row.asset_tag }}</td>
-              <td>{{ row.vendor }}</td>
-              <td>{{ row.model }}</td>
-              <td>{{ row.processor }}</td>
-              <td>{{ row.ram }}</td>
-              <td>{{ row.hard_disk }}</td>
-              <td>{{ row.user }}</td>
-              <td>{{ row.dept }}</td>
-              <td>{{ row.status }}</td>
-              <td>{{ row.quantity or "-" }}</td>
+              <th>Asset</th>
+              <th>Asset Tag</th>
+              <th>Vendor</th>
+              <th>Model</th>
+              <th>Processor</th>
+              <th>RAM</th>
+              <th>Hard Disk</th>
+              <th>Generation</th>
+              <th>User</th>
+              <th>Department</th>
+              <th>Status</th>
             </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {% for row in report_rows %}
+              <tr>
+                <td>{{ row.asset }}</td>
+                <td>{{ row.asset_tag }}</td>
+                <td>{{ row.vendor }}</td>
+                <td>{{ row.model }}</td>
+                <td>{{ row.processor }}</td>
+                <td>{{ row.ram }}</td>
+                <td>{{ row.hard_disk }}</td>
+                <td>{{ row.generation or "-" }}</td>
+                <td>{{ row.user }}</td>
+                <td>{{ row.dept }}</td>
+                <td>{{ row.status }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     {% else %}
       <p>No assets match this filter.</p>
     {% endif %}
   </div>
 
   <style>
-    .report-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: flex-start;
-      gap: 16px;
-      flex-wrap: wrap;
-    }
     .filter-grid {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
       gap: 12px;
       margin-top: 10px;
     }
+
+    /* ── Print-only report header (hidden on screen) ─────────── */
+    .print-report-header { display: none; }
+
     @media print {
+      @page { size: A4 landscape; margin: 10mm 12mm; }
+
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+
       body {
         background: #ffffff !important;
-        color: #111827 !important;
-        font-family: "Times New Roman", Times, serif;
+        color: #1e293b !important;
+        font-family: 'Inter', 'Segoe UI', system-ui, sans-serif !important;
+        font-size: 11px;
+        line-height: 1.5;
       }
-      .sidebar,
-      .topbar,
-      .back-row,
-      .report-header button,
-      .filter-grid,
-      .report-header a {
-        display: none !important;
+
+      /* Hide everything not needed */
+      .sidebar, .topbar, .back-row, .page-footer,
+      .page-header, .filter-grid { display: none !important; }
+
+      /* Reset layout */
+      .content-wrap { margin-left: 0 !important; }
+      main { max-width: 100% !important; padding: 0 !important; margin: 0 !important; }
+
+      /* Show print-only header */
+      .print-report-header {
+        display: flex !important;
+        align-items: flex-start;
+        justify-content: space-between;
+        border-bottom: 2px solid #1e293b;
+        padding-bottom: 8px;
+        margin-bottom: 14px;
       }
-      main {
-        max-width: 100%;
-        padding: 0;
+      .print-report-header .prt-title {
+        font-size: 18px; font-weight: 800; color: #1e293b; letter-spacing: -0.02em;
       }
+      .print-report-header .prt-meta {
+        font-size: 10px; color: #64748b; margin-top: 2px;
+      }
+      .print-report-header .prt-logo {
+        font-size: 11px; color: #64748b; text-align: right;
+      }
+
+      /* Cards */
       .card {
         box-shadow: none !important;
-        border: 1px solid #cbd5e1 !important;
+        border: none !important;
         border-radius: 0 !important;
         background: #ffffff !important;
+        padding: 0 0 16px 0 !important;
+        margin-top: 16px !important;
         page-break-inside: avoid;
       }
-      h2, h3, p, th, td {
-        color: #111827 !important;
-      }
-      table {
-        width: 100%;
-        border-collapse: collapse;
-        background: #ffffff !important;
-        font-size: 13px;
-        line-height: 1.4;
-      }
-      th, td {
-        border: 1px solid #cbd5e1;
-        padding: 7px 9px !important;
-        vertical-align: top;
-        word-break: break-word;
-      }
+      .card > div:first-child { font-size: 13px !important; font-weight: 700; color: #1e293b !important; margin-bottom: 4px !important; }
+      .card > p { font-size: 10px !important; color: #64748b !important; margin-bottom: 8px !important; }
+
+      /* Filters card — completely hidden */
+      .card:first-of-type { display: none !important; }
+
+      /* Summary table */
+      .table-wrap { border: none !important; box-shadow: none !important; border-radius: 0 !important; margin-top: 6px !important; }
+      table { width: 100%; border-collapse: collapse; background: #ffffff !important; }
+
+      /* Detailed report table */
       th {
-        background: #e2e8f0 !important;
+        background: #1e293b !important;
+        color: #ffffff !important;
+        font-size: 9px !important;
+        font-weight: 700 !important;
         text-transform: uppercase;
-        letter-spacing: 0.4px;
-        font-size: 11px;
+        letter-spacing: 0.06em;
+        padding: 6px 8px !important;
+        white-space: nowrap;
+        border: 1px solid #334155 !important;
       }
-      tbody tr:nth-child(even) {
-        background: #f8fafc !important;
+      td {
+        font-size: 10.5px !important;
+        color: #1e293b !important;
+        padding: 5px 8px !important;
+        border: 1px solid #e2e8f0 !important;
+        vertical-align: middle;
+        white-space: nowrap;
       }
-      @page {
-        size: A4;
-        margin: 12mm;
-      }
+      tbody tr:nth-child(even) td { background: #f8fafc !important; }
+      tbody tr:hover td { background: #f1f5f9 !important; }
+
+      /* Column widths — prevent word-breaking */
+      td:nth-child(1)  { min-width: 60px;  }  /* Asset */
+      td:nth-child(2)  { min-width: 80px;  font-weight: 600; }  /* Asset Tag */
+      td:nth-child(3)  { min-width: 55px;  }  /* Vendor */
+      td:nth-child(4)  { min-width: 90px;  }  /* Model */
+      td:nth-child(5)  { min-width: 60px;  }  /* Processor */
+      td:nth-child(6)  { min-width: 40px;  }  /* RAM */
+      td:nth-child(7)  { min-width: 65px;  }  /* Hard Disk */
+      td:nth-child(8)  { min-width: 55px;  }  /* Generation */
+      td:nth-child(9)  { min-width: 120px; font-weight: 600; color: #0f172a !important; }  /* User — wider */
+      td:nth-child(10) { min-width: 90px;  }  /* Department */
+      td:nth-child(11) { min-width: 65px;  font-weight: 600; }  /* Status */
+
+      /* Status color coding in print */
+      td:nth-child(11) { color: #1e293b !important; }
     }
   </style>
+
+  <!-- Print-only report header (hidden on screen, shown when printing) -->
+  <div class="print-report-header">
+    <div>
+      <div class="prt-title">Asset Report</div>
+      <div class="prt-meta">
+        Generated: {{ generated_at.strftime("%d %b %Y, %H:%M") }}
+        &nbsp;·&nbsp; Dept: {{ dept_filter | title }}
+        &nbsp;·&nbsp; Asset: {{ asset_filter | title }}
+        &nbsp;·&nbsp; Status: {{ status_filter | title }}
+        &nbsp;·&nbsp; Total rows: {{ report_rows | length }}
+      </div>
+    </div>
+    <div class="prt-logo">
+      <strong>{{ branding_name or "Asset" }} Manager</strong><br>
+      Confidential — Internal Use Only
+    </div>
+  </div>
 {% endblock %}

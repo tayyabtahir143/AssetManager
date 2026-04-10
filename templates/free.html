@@ -1,62 +1,96 @@
 {% extends "base.html" %}
 {% block content %}
-  <h2>Available Assets</h2>
-  <p class="muted">Unassigned assets are listed here, grouped by type.</p>
+  <div class="page-header animate-in">
+    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+      <div>
+        <div class="page-title">Available Assets</div>
+        <div class="page-subtitle">Unassigned assets are listed here, grouped by type.</div>
+      </div>
+    </div>
+  </div>
 
   {% if sections %}
-    <div style="display: flex; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; position: sticky; top: 0; z-index: 20; padding: 10px 0; background: rgba(7, 10, 18, 0.9); backdrop-filter: blur(6px);">
+    <div style="display:flex; flex-wrap:wrap; gap:10px; margin-bottom:18px; position:sticky; top:0; z-index:20; padding:10px 0; background:var(--bg); backdrop-filter:blur(8px); -webkit-backdrop-filter:blur(8px);">
       {% for section in sections %}
-        <a class="button secondary" href="#available-{{ section.key }}">
+        <a class="button secondary" href="#available-{{ section.key }}" style="font-size:13px;">
           {{ section.label }}
+          {% if section.available_count %}
+            <span class="badge badge-green" style="margin-left:4px; font-size:11px;">{{ section.available_count }}</span>
+          {% endif %}
         </a>
       {% endfor %}
     </div>
 
     {% for section in sections %}
-      <div class="card" id="available-{{ section.key }}" style="margin-bottom: 18px;">
-        <h3 style="margin-top: 0;">{{ section.label }}</h3>
-        {% if section.available_count is not none %}
-          <p class="muted">{{ section.available_count }} available · {{ section.assigned_count }} assigned</p>
-        {% endif %}
+      <div class="card animate-in" id="available-{{ section.key }}" style="margin-bottom:18px; padding:0; overflow:hidden;">
+        <!-- Section header -->
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:12px; padding:16px 20px; border-bottom:1px solid var(--border);">
+          <div>
+            <div style="font-size:15px; font-weight:700;">{{ section.label }}</div>
+            {% if section.available_count is not none %}
+              <div class="text-sm muted" style="margin-top:2px;">
+                <span class="badge badge-green" style="font-size:11px;">{{ section.available_count }} available</span>
+                &nbsp;
+                <span class="badge badge-blue" style="font-size:11px;">{{ section.assigned_count }} assigned</span>
+              </div>
+            {% endif %}
+          </div>
+          {% if section.can_edit and not section.consumable and not section.grouped and section["items"] %}
+            <div class="muted text-sm">
+              <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:inline;vertical-align:middle;margin-right:4px;opacity:0.5;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>
+              Click Edit to assign
+            </div>
+          {% endif %}
+        </div>
+
         {% if section["items"] %}
           {% if section.consumable %}
-            <table>
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Model</th>
-                  <th>Available</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for item in section["items"] %}
+            <!-- Consumable: no individual edit, just show counts -->
+            <div class="table-wrap">
+              <table>
+                <thead>
                   <tr>
-                    <td>{{ loop.index }}</td>
-                    <td>{{ item.model }}</td>
-                    <td>{{ item.available }}</td>
+                    <th>#</th>
+                    <th>Model</th>
+                    <th>Available</th>
                   </tr>
-                {% endfor %}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {% for item in section["items"] %}
+                    <tr>
+                      <td>{{ loop.index }}</td>
+                      <td>{{ item.model }}</td>
+                      <td><span class="badge badge-green">{{ item.available }}</span></td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+
           {% elif section.grouped %}
-            <table>
-              <thead>
-                <tr>
-                  <th>Model</th>
-                  <th>Quantity</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for item in section["items"] %}
+            <!-- Grouped (no asset_tag): show model + quantity, no individual edit -->
+            <div class="table-wrap">
+              <table>
+                <thead>
                   <tr>
-                    <td>{{ item.model }}</td>
-                    <td>{{ item.quantity }}</td>
+                    <th>Model</th>
+                    <th>Quantity</th>
                   </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          {% else %}
-            {% if section.key in ["laptops", "computers"] %}
+                </thead>
+                <tbody>
+                  {% for item in section["items"] %}
+                    <tr>
+                      <td>{{ item.model }}</td>
+                      <td><span class="badge badge-green">{{ item.quantity }}</span></td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+
+          {% elif section.key in ["laptops", "computers"] %}
+            <!-- Laptops / Computers: full spec columns + Edit -->
+            <div class="table-wrap">
               <table>
                 <thead>
                   <tr>
@@ -67,7 +101,8 @@
                     <th>Processor</th>
                     <th>RAM</th>
                     <th>Hard Disk</th>
-                    <th>User</th>
+                    <th>Status</th>
+                    {% if section.can_edit %}<th>Actions</th>{% endif %}
                   </tr>
                 </thead>
                 <tbody>
@@ -80,46 +115,102 @@
                       <td>{{ item.processor or "-" }}</td>
                       <td>{{ item.ram or "-" }}</td>
                       <td>{{ item.hard_disk or "-" }}</td>
-                      <td>{{ "In Stock" if not item.assigned_to or item.assigned_to|lower == "free" else item.assigned_to }}</td>
+                      <td><span class="badge badge-green">In Stock</span></td>
+                      {% if section.can_edit %}
+                        <td>
+                          <a class="button secondary" href="{{ url_for('edit_asset', asset_type=section.key, item_id=item.id) }}" style="font-size:12px; padding:5px 12px;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>
+                            Edit
+                          </a>
+                        </td>
+                      {% endif %}
                     </tr>
                   {% endfor %}
                 </tbody>
               </table>
-            {% else %}
+            </div>
+
+          {% elif section.is_custom %}
+            <!-- Custom asset type with asset_tag -->
+            <div class="table-wrap">
               <table>
                 <thead>
                   <tr>
                     <th>#</th>
-                    {% if section.show_asset_tag %}
-                      <th>Asset Tag</th>
-                    {% endif %}
+                    {% if section.show_asset_tag %}<th>Asset Tag</th>{% endif %}
                     <th>Model</th>
-                    <th>User</th>
+                    <th>Status</th>
+                    {% if section.can_edit %}<th>Actions</th>{% endif %}
                   </tr>
                 </thead>
                 <tbody>
                   {% for item in section["items"] %}
                     <tr>
                       <td>{{ loop.index }}</td>
-                      {% if section.show_asset_tag %}
-                        <td>{{ item.asset_tag or "-" }}</td>
-                      {% endif %}
+                      {% if section.show_asset_tag %}<td>{{ item.asset_tag or "-" }}</td>{% endif %}
                       <td>{{ item.model }}</td>
-                      <td>{{ "In Stock" if not item.assigned_to or item.assigned_to|lower == "free" else item.assigned_to }}</td>
+                      <td><span class="badge badge-green">In Stock</span></td>
+                      {% if section.can_edit %}
+                        <td>
+                          <a class="button secondary" href="{{ url_for('edit_custom_asset', asset_key=section.custom_key, item_id=item.id) }}" style="font-size:12px; padding:5px 12px;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>
+                            Edit
+                          </a>
+                        </td>
+                      {% endif %}
                     </tr>
                   {% endfor %}
                 </tbody>
               </table>
-            {% endif %}
+            </div>
+
+          {% else %}
+            <!-- Other built-in with asset_tag (screens, keyboards, mice, headsets) -->
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    {% if section.show_asset_tag %}<th>Asset Tag</th>{% endif %}
+                    <th>Model</th>
+                    <th>Status</th>
+                    {% if section.can_edit %}<th>Actions</th>{% endif %}
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for item in section["items"] %}
+                    <tr>
+                      <td>{{ loop.index }}</td>
+                      {% if section.show_asset_tag %}<td>{{ item.asset_tag or "-" }}</td>{% endif %}
+                      <td>{{ item.model }}</td>
+                      <td><span class="badge badge-green">In Stock</span></td>
+                      {% if section.can_edit %}
+                        <td>
+                          <a class="button secondary" href="{{ url_for('edit_asset', asset_type=section.key, item_id=item.id) }}" style="font-size:12px; padding:5px 12px;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4Z"/></svg>
+                            Edit
+                          </a>
+                        </td>
+                      {% endif %}
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
           {% endif %}
+
         {% else %}
-          <p class="muted">{{ section.note or "No available items." }}</p>
+          <div style="padding:24px 20px; color:var(--ink-3); font-size:13px;">
+            {{ section.note or "No available items." }}
+          </div>
         {% endif %}
       </div>
     {% endfor %}
+
   {% else %}
-    <div class="card">
-      <p>No available assets right now.</p>
+    <div class="card animate-in" style="text-align:center; padding:48px 24px; color:var(--ink-3);">
+      <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:10px; opacity:0.35;"><path d="M2 7.5 12 2l10 5.5v9L12 22 2 16.5z"/><path d="M12 12v10"/><path d="M2 7.5l10 4.5 10-4.5"/></svg>
+      <div>No available assets right now.</div>
     </div>
   {% endif %}
 {% endblock %}

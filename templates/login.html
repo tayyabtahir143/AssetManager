@@ -1,90 +1,318 @@
-{% extends "base.html" %}
-{% block content %}
-  <div class="login-wrap">
-    <div class="card login-card">
-      <h2>Sign in</h2>
-      <form method="post" class="form-grid">
-        <div>
-          <label for="username">Username</label>
-          <input id="username" name="username" type="text" autocomplete="username" required>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Sign In — {{ branding_name or "Asset" }} Manager</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg:        #080c14;
+      --bg-2:      #0d1221;
+      --surface:   rgba(13,18,33,0.96);
+      --border:    rgba(255,255,255,0.07);
+      --border-2:  rgba(255,255,255,0.12);
+      --ink:       #e2e8f5;
+      --ink-2:     #94a3b8;
+      --ink-3:     #64748b;
+      --accent:    #38e8c0;
+      --accent-2:  #34d399;
+      --accent-dim:rgba(56,232,192,0.14);
+      --blue:      #60a5fa;
+      --danger:    #f87171;
+      --danger-dim:rgba(248,113,113,0.14);
+      --shadow:    0 4px 24px rgba(0,0,0,0.55);
+      --shadow-lg: 0 12px 48px rgba(0,0,0,0.65);
+      --radius:    14px;
+      --radius-sm: 8px;
+      --transition:0.15s ease;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      background: var(--bg);
+      color: var(--ink);
+      min-height: 100vh;
+      -webkit-font-smoothing: antialiased;
+      display: flex;
+    }
+
+    /* ── Left panel ─────────────────────────────────── */
+    .left-panel {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 60px 64px;
+      background: linear-gradient(150deg, #080c14 0%, #0a1628 60%, #0c1f3a 100%);
+      position: relative;
+      overflow: hidden;
+    }
+    .left-panel::before {
+      content: "";
+      position: absolute;
+      top: -200px; left: -200px;
+      width: 700px; height: 700px;
+      background: radial-gradient(circle, rgba(56,232,192,0.07) 0%, transparent 65%);
+      pointer-events: none;
+    }
+    .left-panel::after {
+      content: "";
+      position: absolute;
+      bottom: -150px; right: -150px;
+      width: 500px; height: 500px;
+      background: radial-gradient(circle, rgba(96,165,250,0.06) 0%, transparent 65%);
+      pointer-events: none;
+    }
+
+    .brand-mark {
+      display: flex; align-items: center; gap: 14px;
+      margin-bottom: 52px;
+    }
+    .brand-logo {
+      width: 48px; height: 48px; border-radius: 14px;
+      background: linear-gradient(135deg, var(--accent), var(--blue));
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0; overflow: hidden;
+    }
+    .brand-logo img { width: 100%; height: 100%; object-fit: cover; border-radius: 14px; }
+    .brand-logo-text { font-size: 22px; font-weight: 800; color: #08121c; }
+    .brand-name { font-size: 17px; font-weight: 700; }
+    .brand-sub { font-size: 12px; color: var(--ink-3); font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; margin-top: 1px; }
+
+    .hero-text { position: relative; z-index: 1; }
+    .hero-text h1 {
+      font-size: 38px; font-weight: 800;
+      letter-spacing: -0.03em; line-height: 1.15;
+      margin-bottom: 14px;
+    }
+    .hero-text h1 span { color: var(--accent); }
+    .hero-text p {
+      font-size: 15px; color: var(--ink-2);
+      max-width: 420px; line-height: 1.7;
+      margin-bottom: 48px;
+    }
+
+    .feature-list { display: flex; flex-direction: column; gap: 14px; position: relative; z-index: 1; }
+    .feature-item {
+      display: flex; align-items: flex-start; gap: 14px;
+    }
+    .feature-icon {
+      width: 36px; height: 36px; border-radius: 10px;
+      background: var(--accent-dim);
+      border: 1px solid rgba(56,232,192,0.2);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .feature-body { padding-top: 2px; }
+    .feature-title { font-size: 13px; font-weight: 600; margin-bottom: 1px; }
+    .feature-desc { font-size: 12px; color: var(--ink-3); }
+
+    /* ── Right panel (login form) ───────────────────── */
+    .right-panel {
+      width: 480px;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 48px;
+      background: var(--bg-2, #0d1221);
+      border-left: 1px solid var(--border);
+    }
+
+    .login-box { width: 100%; }
+
+    .login-header { margin-bottom: 32px; }
+    .login-header h2 { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
+    .login-header p { color: var(--ink-2); font-size: 13px; margin-top: 4px; }
+
+    /* Alerts */
+    .alert {
+      padding: 12px 14px; border-radius: var(--radius-sm);
+      font-size: 13px; margin-bottom: 20px;
+      display: flex; align-items: flex-start; gap: 10px;
+    }
+    .alert-error {
+      background: var(--danger-dim);
+      border: 1px solid rgba(248,113,113,0.25);
+      color: #fca5a5;
+    }
+    .alert-success {
+      background: rgba(56,232,192,0.12);
+      border: 1px solid rgba(56,232,192,0.25);
+      color: var(--accent);
+    }
+    .alert-info {
+      background: rgba(96,165,250,0.12);
+      border: 1px solid rgba(96,165,250,0.25);
+      color: var(--blue);
+    }
+
+    /* Form */
+    .form-group { margin-bottom: 18px; }
+    .form-group label {
+      display: block; font-size: 12px; font-weight: 600;
+      color: var(--ink-2); text-transform: uppercase;
+      letter-spacing: 0.06em; margin-bottom: 6px;
+    }
+    .form-group input {
+      width: 100%; padding: 11px 14px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border-2);
+      border-radius: var(--radius-sm);
+      color: var(--ink); font-family: inherit; font-size: 14px;
+      transition: border-color var(--transition), box-shadow var(--transition);
+      outline: none;
+    }
+    .form-group input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(56,232,192,0.12);
+    }
+    .form-group input::placeholder { color: var(--ink-3); }
+
+    .submit-btn {
+      width: 100%; padding: 13px;
+      background: var(--accent);
+      color: #08121c; font-family: inherit;
+      font-size: 14px; font-weight: 700;
+      border: none; border-radius: var(--radius-sm);
+      cursor: pointer; letter-spacing: 0.01em;
+      transition: filter var(--transition), transform var(--transition);
+      margin-top: 8px;
+    }
+    .submit-btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
+    .submit-btn:active { transform: translateY(0); filter: brightness(0.96); }
+
+    .form-footer {
+      margin-top: 20px; text-align: center;
+      font-size: 12px; color: var(--ink-3);
+    }
+    .form-footer a { color: var(--accent); text-decoration: none; font-weight: 500; }
+    .form-footer a:hover { text-decoration: underline; }
+
+    .divider {
+      display: flex; align-items: center; gap: 12px;
+      margin: 24px 0; color: var(--ink-3); font-size: 12px;
+    }
+    .divider::before, .divider::after {
+      content: ""; flex: 1; height: 1px; background: var(--border-2);
+    }
+
+    /* Responsive */
+    @media (max-width: 900px) {
+      .left-panel { display: none; }
+      .right-panel { width: 100%; border-left: none; }
+    }
+    @media (max-width: 480px) {
+      .right-panel { padding: 32px 24px; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Left branding panel -->
+  <div class="left-panel">
+    <div class="brand-mark">
+      <div class="brand-logo">
+        {% if branding_logo %}
+          <img src="{{ url_for('static', filename='uploads/' + branding_logo) }}" alt="logo">
+        {% else %}
+          <span class="brand-logo-text">A</span>
+        {% endif %}
+      </div>
+      <div>
+        <div class="brand-name">{{ branding_name or "Asset" }} Manager</div>
+        <div class="brand-sub">IT Inventory Platform</div>
+      </div>
+    </div>
+
+    <div class="hero-text">
+      <h1>Track every asset,<br><span>effortlessly.</span></h1>
+      <p>A centralised inventory system for your entire IT fleet — laptops, screens, peripherals and more, all in one place.</p>
+    </div>
+
+    <div class="feature-list">
+      <div class="feature-item">
+        <div class="feature-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7.5 12 2l10 5.5v9L12 22 2 16.5z"/><path d="M12 12v10"/><path d="M2 7.5l10 4.5 10-4.5"/></svg>
         </div>
-        <div>
-          <label for="password">Password</label>
-          <div class="password-row">
-            <input id="password" name="password" type="password" autocomplete="current-password" required>
-            <button class="button secondary password-toggle" type="button" data-toggle="#password">Show</button>
-          </div>
+        <div class="feature-body">
+          <div class="feature-title">Full Asset Lifecycle</div>
+          <div class="feature-desc">From procurement to write-off, track every stage.</div>
         </div>
-        <label class="checkbox-row">
-          <input type="checkbox" name="remember_me">
-          <span class="muted">Keep me signed in</span>
-        </label>
-        <button class="button" type="submit">Sign in</button>
-      </form>
-      <div style="display: flex; justify-content: flex-start; margin-top: 12px;">
-        <a class="forgot-button" href="{{ url_for('forgot_password') }}">Forgot password?</a>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        </div>
+        <div class="feature-body">
+          <div class="feature-title">Role-Based Access</div>
+          <div class="feature-desc">Granular permissions per department and asset type.</div>
+        </div>
+      </div>
+      <div class="feature-item">
+        <div class="feature-icon">
+          <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" x2="18" y1="20" y2="10"/><line x1="12" x2="12" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="14"/></svg>
+        </div>
+        <div class="feature-body">
+          <div class="feature-title">Reports & Audit Logs</div>
+          <div class="feature-desc">Department breakdowns, utilisation charts and full history.</div>
+        </div>
       </div>
     </div>
   </div>
-  <style>
-    .login-wrap {
-      display: flex;
-      justify-content: center;
-      align-items: stretch;
-      max-width: 520px;
-      margin: 40px auto;
-    }
-    .login-card {
-      max-width: 520px;
-      margin: 0 auto;
-    }
-    .forgot-button {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 14px;
-      border-radius: 999px;
-      border: 1px solid var(--edge);
-      color: var(--accent);
-      background: rgba(76, 244, 199, 0.08);
-      text-decoration: none;
-      font-weight: 600;
-      transition: transform 0.2s ease, box-shadow 0.2s ease;
-    }
-    .forgot-button:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 8px 16px rgba(45, 230, 199, 0.2);
-    }
-    .password-row {
-      display: flex;
-      gap: 8px;
-      align-items: center;
-    }
-    .password-row input {
-      flex: 1;
-    }
-    .password-toggle {
-      white-space: nowrap;
-    }
-    @media (max-width: 860px) {
-      .login-wrap {
-        max-width: 100%;
-        padding: 0 16px;
-      }
-    }
-  </style>
-  <script>
-    document.querySelectorAll('[data-toggle]').forEach((btn) => {
-      btn.addEventListener('click', () => {
-        const target = document.querySelector(btn.dataset.toggle);
-        if (!target) return;
-        target.type = target.type === 'password' ? 'text' : 'password';
-        btn.textContent = target.type === 'password' ? 'Show' : 'Hide';
-      });
-    });
-    const usernameInput = document.getElementById('username');
-    if (usernameInput) {
-      usernameInput.focus();
-    }
-  </script>
-{% endblock %}
+
+  <!-- Right login panel -->
+  <div class="right-panel">
+    <div class="login-box">
+      <div class="login-header">
+        <h2>Welcome back</h2>
+        <p>Sign in to your account to continue.</p>
+      </div>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% for category, message in messages %}
+          <div class="alert alert-{{ category if category in ['error','success','info'] else 'info' }}">
+            {% if category == 'error' %}
+              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
+            {% else %}
+              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><polyline points="12 8 12 12 14 14"/></svg>
+            {% endif %}
+            {{ message }}
+          </div>
+        {% endfor %}
+      {% endwith %}
+
+      <form method="post" action="{{ url_for('login') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="form-group">
+          <label for="username">Username</label>
+          <input id="username" type="text" name="username" placeholder="your.username" required autofocus autocomplete="username">
+        </div>
+        <div class="form-group">
+          <label for="password">Password</label>
+          <input id="password" type="password" name="password" placeholder="••••••••" required autocomplete="current-password">
+        </div>
+        <button class="submit-btn" type="submit">Sign in</button>
+      </form>
+
+      {% if forgot_password_enabled %}
+        <div class="divider">or</div>
+        <div class="form-footer">
+          <a href="{{ url_for('forgot_password') }}">Forgot your password?</a>
+        </div>
+      {% endif %}
+
+      <div class="form-footer" style="margin-top: 32px;">
+        <a href="https://github.com/tayyabtahir143/AssetManager" target="_blank" rel="noopener" style="color:var(--blue); text-decoration:none; font-weight:500;">GitHub</a>
+        &nbsp;·&nbsp;
+        {{ branding_name or "Asset" }} Manager v{{ app_version or "1.0.0" }}
+      </div>
+    </div>
+  </div>
+</body>
+</html>

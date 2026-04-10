@@ -1,9 +1,10 @@
 {% extends "base.html" %}
 {% block content %}
-  <div class="card" style="max-width: 720px;">
-    <h2>Add Asset Type</h2>
+  <div class="card animate-in" style="max-width: 720px;">
+    <div style="font-size:20px; font-weight:700; letter-spacing:-0.02em; margin-bottom:4px;">Add Asset Type</div>
     <p class="muted">Define fields (name + label + type). Use a field named "assigned_to" to enable free inventory.</p>
     <form method="post" class="form-grid">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div>
         <label for="label">Display Label</label>
         <input id="label" name="label" type="text" required>
