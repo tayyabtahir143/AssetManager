@@ -1,177 +1,222 @@
 {% extends "base.html" %}
 {% block content %}
+  <style>
+    .backup-wrap { max-width: 1080px; display: grid; gap: 18px; }
+    .backup-hero {
+      background: linear-gradient(120deg, var(--accent-dim), var(--blue-dim));
+      border: 1px solid var(--border-2);
+      border-radius: 18px;
+      padding: 18px 20px;
+    }
+    .backup-hero-title { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+    .backup-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+    .backup-card-title { font-size: 16px; font-weight: 700; margin-bottom: 8px; letter-spacing: -0.01em; }
+    .backup-card-note { color: var(--ink-2); font-size: 13px; line-height: 1.55; margin-bottom: 14px; }
+    .backup-danger {
+      background: var(--danger-dim);
+      border: 1px solid rgba(248,113,113,0.25);
+      border-radius: 12px;
+      padding: 10px 12px;
+      color: var(--danger);
+      font-size: 12px;
+      margin-bottom: 12px;
+    }
+    .backup-form-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    .backup-form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px 12px;
+      max-width: none;
+    }
+    .backup-form-grid .full-row { grid-column: 1 / -1; }
+    @media (max-width: 900px) {
+      .backup-grid { grid-template-columns: 1fr; }
+      .backup-form-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+
   <div class="page-header animate-in">
-    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;">
-      <div>
-        <div class="page-title">Backup &amp; Restore</div>
-        <div class="page-subtitle">Download, restore, and schedule configuration and asset backups.</div>
+    <div class="page-title">Backup &amp; Restore</div>
+    <div class="page-subtitle">Professional backup operations for configuration and asset data, with optional scheduled delivery.</div>
+  </div>
+
+  <div class="backup-wrap animate-in">
+    <div class="backup-hero">
+      <div class="backup-hero-title">Operational Safety</div>
+      <div class="muted text-sm">
+        Use <strong>Configuration</strong> backup for roles/settings and <strong>Asset</strong> backup for inventory records.
+        Restore actions replace existing data in their scope.
       </div>
     </div>
-  </div>
 
-  <div class="card animate-in" style="max-width: 720px; margin-top: 18px;">
-    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Configuration Backup</div>
-    <p class="muted">
-      Download a ZIP containing all configuration data (roles, permissions, asset types,
-      LDAP/SMTP settings, departments, branding). Asset records are not included.
-    </p>
-    <a class="button" href="{{ url_for('backup_config_download') }}">Download Config Backup</a>
-  </div>
+    <div class="backup-grid">
+      <div class="card">
+        <div class="backup-card-title">Configuration Backup</div>
+        <div class="backup-card-note">
+          Download a ZIP containing roles, permissions, asset types, LDAP/SMTP settings, departments, and branding.
+          Asset records are excluded.
+        </div>
+        <a class="button" href="{{ url_for('backup_config_download') }}">Download Config Backup</a>
+      </div>
 
-  <div class="card animate-in" style="max-width: 720px; margin-top: 18px;">
-    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Restore Configuration</div>
-    <p class="muted">
-      Restoring will replace current configuration (roles, permissions, asset types,
-      departments, LDAP/SMTP, branding) and role/group assignments. Asset data is untouched.
-    </p>
-    <form method="post" action="{{ url_for('restore_config_backup') }}" enctype="multipart/form-data" style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="file" name="file" accept=".zip" required>
-      <button class="button" type="submit" onclick="return confirm('Restore configuration from this backup? This will replace current configuration.');">Restore Backup</button>
-    </form>
-  </div>
+      <div class="card">
+        <div class="backup-card-title">Restore Configuration</div>
+        <div class="backup-danger">Replaces current configuration and role/group assignments. Asset records stay untouched.</div>
+        <form method="post" action="{{ url_for('restore_config_backup') }}" enctype="multipart/form-data" class="backup-form-row">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="file" name="file" accept=".zip" required>
+          <button class="button" type="submit" onclick="return confirm('Restore configuration from this backup? This will replace current configuration.');">Restore Backup</button>
+        </form>
+      </div>
+    </div>
 
-  <div class="card animate-in" style="max-width: 720px; margin-top: 18px;">
-    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Scheduled Backup Email</div>
-    <p class="muted">
-      Send a configuration backup to your email on a daily schedule. This backup
-      does not include asset records; it only contains configuration data.
-    </p>
-    <form method="post" action="{{ url_for('update_backup_schedule') }}" class="form-grid">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <div>
-        <label for="backup_email">Backup Email</label>
-        <input id="backup_email" name="backup_email" type="email" value="{{ schedule.email or '' }}" placeholder="you@company.com">
-        <div class="muted" style="margin-top: 6px;">Where the scheduled backup will be sent.</div>
+    <div class="card">
+      <div class="backup-card-title">Scheduled Configuration Backup Email</div>
+      <div class="backup-card-note">
+        Email configuration-only backup files on your selected schedule.
       </div>
-      <div>
-        <label for="backup_time">Backup Time ({{ timezone_name }})</label>
-        <input id="backup_time" name="backup_time" type="time" value="{{ schedule.run_time or '02:00' }}">
-        <div class="muted" style="margin-top: 6px;">Time of day to send the backup email in your selected timezone.</div>
-      </div>
-      <div>
-        <label for="backup_frequency">Frequency</label>
-        <select id="backup_frequency" name="backup_frequency">
-          <option value="daily" {% if schedule.frequency == 'daily' %}selected{% endif %}>Daily</option>
-          <option value="weekly" {% if schedule.frequency == 'weekly' %}selected{% endif %}>Weekly</option>
-          <option value="monthly" {% if schedule.frequency == 'monthly' %}selected{% endif %}>Monthly</option>
-        </select>
-        <div class="muted" style="margin-top: 6px;">How often to send the backup.</div>
-      </div>
-      <div>
-        <label for="backup_day_of_week">Day of Week</label>
-        <select id="backup_day_of_week" name="backup_day_of_week">
-          {% set weekday = schedule.day_of_week if schedule.day_of_week is not none else 0 %}
-          {% for idx, name in [(0,'Mon'),(1,'Tue'),(2,'Wed'),(3,'Thu'),(4,'Fri'),(5,'Sat'),(6,'Sun')] %}
-            <option value="{{ idx }}" {% if weekday == idx %}selected{% endif %}>{{ name }}</option>
-          {% endfor %}
-        </select>
-        <div class="muted" style="margin-top: 6px;">Used only when Frequency is Weekly.</div>
-      </div>
-      <div>
-        <label for="backup_day_of_month">Day of Month</label>
-        <select id="backup_day_of_month" name="backup_day_of_month">
-          {% set dom = schedule.day_of_month if schedule.day_of_month is not none else 1 %}
-          {% for day in range(1, 32) %}
-            <option value="{{ day }}" {% if dom == day %}selected{% endif %}>{{ day }}</option>
-          {% endfor %}
-        </select>
-        <div class="muted" style="margin-top: 6px;">Used only when Frequency is Monthly.</div>
-      </div>
-      <label class="checkbox-row">
-        <input type="checkbox" name="backup_enabled" {% if schedule.enabled %}checked{% endif %}>
-        <span class="muted">Enable scheduled backup email</span>
-      </label>
-      <button class="button" type="submit">Save Schedule</button>
-    </form>
-  </div>
+      <form method="post" action="{{ url_for('update_backup_schedule') }}" class="backup-form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div>
+          <label for="backup_email">Backup Email</label>
+          <input id="backup_email" name="backup_email" type="email" value="{{ schedule.email or '' }}" placeholder="you@company.com">
+          <div class="muted text-sm" style="margin-top: 6px;">Destination email for configuration backups.</div>
+        </div>
+        <div>
+          <label for="backup_time">Backup Time ({{ timezone_name }})</label>
+          <input id="backup_time" name="backup_time" type="time" value="{{ schedule.run_time or '02:00' }}">
+          <div class="muted text-sm" style="margin-top: 6px;">Local schedule time in your configured timezone.</div>
+        </div>
+        <div>
+          <label for="backup_frequency">Frequency</label>
+          <select id="backup_frequency" name="backup_frequency">
+            <option value="daily" {% if schedule.frequency == 'daily' %}selected{% endif %}>Daily</option>
+            <option value="weekly" {% if schedule.frequency == 'weekly' %}selected{% endif %}>Weekly</option>
+            <option value="monthly" {% if schedule.frequency == 'monthly' %}selected{% endif %}>Monthly</option>
+          </select>
+        </div>
+        <div>
+          <label for="backup_day_of_week">Day of Week</label>
+          <select id="backup_day_of_week" name="backup_day_of_week">
+            {% set weekday = schedule.day_of_week if schedule.day_of_week is not none else 0 %}
+            {% for idx, name in [(0,'Mon'),(1,'Tue'),(2,'Wed'),(3,'Thu'),(4,'Fri'),(5,'Sat'),(6,'Sun')] %}
+              <option value="{{ idx }}" {% if weekday == idx %}selected{% endif %}>{{ name }}</option>
+            {% endfor %}
+          </select>
+          <div class="muted text-sm" style="margin-top: 6px;">Used only for weekly schedules.</div>
+        </div>
+        <div>
+          <label for="backup_day_of_month">Day of Month</label>
+          <select id="backup_day_of_month" name="backup_day_of_month">
+            {% set dom = schedule.day_of_month if schedule.day_of_month is not none else 1 %}
+            {% for day in range(1, 32) %}
+              <option value="{{ day }}" {% if dom == day %}selected{% endif %}>{{ day }}</option>
+            {% endfor %}
+          </select>
+          <div class="muted text-sm" style="margin-top: 6px;">Used only for monthly schedules.</div>
+        </div>
+        <label class="checkbox-row full-row">
+          <input type="checkbox" name="backup_enabled" {% if schedule.enabled %}checked{% endif %}>
+          <span class="muted">Enable scheduled configuration backup email</span>
+        </label>
+        <div class="full-row">
+          <button class="button" type="submit">Save Configuration Schedule</button>
+        </div>
+      </form>
+    </div>
 
-  <div class="card animate-in" style="max-width: 720px; margin-top: 18px;">
-    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">SQL Database Dump</div>
-    <p class="muted">
-      Download a raw SQL dump of the entire PostgreSQL database using <code>pg_dump</code>.
-      This is a complete point-in-time snapshot — ideal for migrations and disaster recovery.
-      Only available when running with a PostgreSQL backend.
-    </p>
-    <a class="button secondary" href="{{ url_for('backup_sql_download') }}" onclick="return confirm('This will run pg_dump on the live database. Continue?');">
-      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
-      Download SQL Dump (.sql)
-    </a>
-  </div>
+    <div class="backup-grid">
+      <div class="card">
+        <div class="backup-card-title">Asset Backup</div>
+        <div class="backup-card-note">
+          Download a ZIP containing asset records, custom asset items, assignment history, and comments.
+          Configuration is excluded.
+        </div>
+        <a class="button" href="{{ url_for('backup_full_download') }}">Download Asset Backup</a>
+      </div>
 
-  <div class="card animate-in" style="max-width: 720px; margin-top: 18px;">
-    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Asset Backup</div>
-    <p class="muted">
-      Download a ZIP containing asset records only (built‑in assets, custom asset items,
-      assignment history, and comments). Configuration is not included.
-    </p>
-    <a class="button" href="{{ url_for('backup_full_download') }}">Download Asset Backup</a>
-  </div>
+      <div class="card">
+        <div class="backup-card-title">Restore Asset Backup</div>
+        <div class="backup-danger">Replaces all asset records. Configuration remains unchanged.</div>
+        <form method="post" action="{{ url_for('restore_full_backup') }}" enctype="multipart/form-data" class="backup-form-row">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <input type="file" name="file" accept=".zip" required>
+          <button class="button" type="submit" onclick="return confirm('Restore asset backup? This will replace all asset data.');">Restore Asset Backup</button>
+        </form>
+      </div>
+    </div>
 
-  <div class="card animate-in" style="max-width: 720px; margin-top: 18px;">
-    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Restore Asset Backup</div>
-    <p class="muted">
-      Restoring an asset backup replaces all asset records. Configuration stays untouched.
-    </p>
-    <form method="post" action="{{ url_for('restore_full_backup') }}" enctype="multipart/form-data" style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <input type="file" name="file" accept=".zip" required>
-      <button class="button" type="submit" onclick="return confirm('Restore asset backup? This will replace all asset data.');">Restore Asset Backup</button>
-    </form>
-  </div>
+    <div class="card">
+      <div class="backup-card-title">Scheduled Asset Backup Email</div>
+      <div class="backup-card-note">
+        Schedule asset-only backup delivery to email.
+      </div>
+      <form method="post" action="{{ url_for('update_full_backup_schedule') }}" class="backup-form-grid">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div>
+          <label for="full_backup_email">Backup Email</label>
+          <input id="full_backup_email" name="full_backup_email" type="email" value="{{ full_schedule.email or '' }}" placeholder="you@company.com">
+          <div class="muted text-sm" style="margin-top: 6px;">Destination email for asset backups.</div>
+        </div>
+        <div>
+          <label for="full_backup_time">Backup Time ({{ timezone_name }})</label>
+          <input id="full_backup_time" name="full_backup_time" type="time" value="{{ full_schedule.run_time or '02:30' }}">
+          <div class="muted text-sm" style="margin-top: 6px;">Local schedule time in your configured timezone.</div>
+        </div>
+        <div>
+          <label for="full_backup_frequency">Frequency</label>
+          <select id="full_backup_frequency" name="full_backup_frequency">
+            <option value="daily" {% if full_schedule.frequency == 'daily' %}selected{% endif %}>Daily</option>
+            <option value="weekly" {% if full_schedule.frequency == 'weekly' %}selected{% endif %}>Weekly</option>
+            <option value="monthly" {% if full_schedule.frequency == 'monthly' %}selected{% endif %}>Monthly</option>
+          </select>
+        </div>
+        <div>
+          <label for="full_backup_day_of_week">Day of Week</label>
+          <select id="full_backup_day_of_week" name="full_backup_day_of_week">
+            {% set weekday_full = full_schedule.day_of_week if full_schedule.day_of_week is not none else 0 %}
+            {% for idx, name in [(0,'Mon'),(1,'Tue'),(2,'Wed'),(3,'Thu'),(4,'Fri'),(5,'Sat'),(6,'Sun')] %}
+              <option value="{{ idx }}" {% if weekday_full == idx %}selected{% endif %}>{{ name }}</option>
+            {% endfor %}
+          </select>
+          <div class="muted text-sm" style="margin-top: 6px;">Used only for weekly schedules.</div>
+        </div>
+        <div>
+          <label for="full_backup_day_of_month">Day of Month</label>
+          <select id="full_backup_day_of_month" name="full_backup_day_of_month">
+            {% set dom_full = full_schedule.day_of_month if full_schedule.day_of_month is not none else 1 %}
+            {% for day in range(1, 32) %}
+              <option value="{{ day }}" {% if dom_full == day %}selected{% endif %}>{{ day }}</option>
+            {% endfor %}
+          </select>
+          <div class="muted text-sm" style="margin-top: 6px;">Used only for monthly schedules.</div>
+        </div>
+        <label class="checkbox-row full-row">
+          <input type="checkbox" name="full_backup_enabled" {% if full_schedule.enabled %}checked{% endif %}>
+          <span class="muted">Enable scheduled asset backup email</span>
+        </label>
+        <div class="full-row">
+          <button class="button" type="submit">Save Asset Schedule</button>
+        </div>
+      </form>
+    </div>
 
-  <div class="card animate-in" style="max-width: 720px; margin-top: 18px;">
-    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Scheduled Asset Backup Email</div>
-    <p class="muted">
-      Send an asset backup (assets only) to your email on a schedule.
-    </p>
-    <form method="post" action="{{ url_for('update_full_backup_schedule') }}" class="form-grid">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-      <div>
-        <label for="full_backup_email">Backup Email</label>
-        <input id="full_backup_email" name="full_backup_email" type="email" value="{{ full_schedule.email or '' }}" placeholder="you@company.com">
-        <div class="muted" style="margin-top: 6px;">Where the scheduled backup will be sent.</div>
+    <div class="card">
+      <div class="backup-card-title">SQL Database Dump</div>
+      <div class="backup-card-note">
+        Download a raw SQL dump of the entire PostgreSQL database using <code>pg_dump</code>.
+        This is a point-in-time database snapshot suitable for migrations and recovery.
       </div>
-      <div>
-        <label for="full_backup_time">Backup Time ({{ timezone_name }})</label>
-        <input id="full_backup_time" name="full_backup_time" type="time" value="{{ full_schedule.run_time or '02:30' }}">
-        <div class="muted" style="margin-top: 6px;">Time of day to send the backup email in your selected timezone.</div>
-      </div>
-      <div>
-        <label for="full_backup_frequency">Frequency</label>
-        <select id="full_backup_frequency" name="full_backup_frequency">
-          <option value="daily" {% if full_schedule.frequency == 'daily' %}selected{% endif %}>Daily</option>
-          <option value="weekly" {% if full_schedule.frequency == 'weekly' %}selected{% endif %}>Weekly</option>
-          <option value="monthly" {% if full_schedule.frequency == 'monthly' %}selected{% endif %}>Monthly</option>
-        </select>
-        <div class="muted" style="margin-top: 6px;">How often to send the backup.</div>
-      </div>
-      <div>
-        <label for="full_backup_day_of_week">Day of Week</label>
-        <select id="full_backup_day_of_week" name="full_backup_day_of_week">
-          {% set weekday_full = full_schedule.day_of_week if full_schedule.day_of_week is not none else 0 %}
-          {% for idx, name in [(0,'Mon'),(1,'Tue'),(2,'Wed'),(3,'Thu'),(4,'Fri'),(5,'Sat'),(6,'Sun')] %}
-            <option value="{{ idx }}" {% if weekday_full == idx %}selected{% endif %}>{{ name }}</option>
-          {% endfor %}
-        </select>
-        <div class="muted" style="margin-top: 6px;">Used only when Frequency is Weekly.</div>
-      </div>
-      <div>
-        <label for="full_backup_day_of_month">Day of Month</label>
-        <select id="full_backup_day_of_month" name="full_backup_day_of_month">
-          {% set dom_full = full_schedule.day_of_month if full_schedule.day_of_month is not none else 1 %}
-          {% for day in range(1, 32) %}
-            <option value="{{ day }}" {% if dom_full == day %}selected{% endif %}>{{ day }}</option>
-          {% endfor %}
-        </select>
-        <div class="muted" style="margin-top: 6px;">Used only when Frequency is Monthly.</div>
-      </div>
-      <label class="checkbox-row">
-        <input type="checkbox" name="full_backup_enabled" {% if full_schedule.enabled %}checked{% endif %}>
-        <span class="muted">Enable asset backup email</span>
-      </label>
-      <button class="button" type="submit">Save Schedule</button>
-    </form>
+      <a class="button secondary" href="{{ url_for('backup_sql_download') }}" onclick="return confirm('This will run pg_dump on the live database. Continue?');">
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+        Download SQL Dump (.sql)
+      </a>
+    </div>
   </div>
   <script>
     const setBackupFields = (frequencyId, dayOfWeekId, dayOfMonthId) => {

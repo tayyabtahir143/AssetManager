@@ -1,8 +1,19 @@
 <!doctype html>
 <html lang="en">
+{% set brand_raw = (branding_name or "Asset") | trim %}
+{% set brand_lower = brand_raw | lower %}
+{% if brand_lower.endswith("asset manager") %}
+  {% set brand_display = brand_raw %}
+{% elif brand_lower.endswith("asset") %}
+  {% set brand_display = brand_raw ~ " Manager" %}
+{% elif brand_lower.endswith("manager") %}
+  {% set brand_display = brand_raw %}
+{% else %}
+  {% set brand_display = brand_raw ~ " Asset Manager" %}
+{% endif %}
   <head>
     <meta charset="utf-8">
-    <title>{{ (branding_name ~ " Asset Manager") if branding_name else "Asset Manager" }}</title>
+    <title>{{ brand_display }}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -898,11 +909,11 @@
               {% if branding_logo_url %}
                 <img src="{{ branding_logo_url }}" alt="Logo">
               {% else %}
-                <span class="brand-logo-text">{{ (branding_name or 'A')[0] }}</span>
+                <span class="brand-logo-text">{{ (brand_raw or 'A')[0] }}</span>
               {% endif %}
             </div>
             <div>
-              <div class="brand-name">{{ (branding_name ~ " Asset Manager") if branding_name else "Asset Manager" }}</div>
+              <div class="brand-name">{{ brand_display }}</div>
               <div class="brand-sub">Inventory Platform</div>
             </div>
           </a>
