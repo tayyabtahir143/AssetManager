@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <title>Sign In — {{ branding_name or "Asset" }} Manager</title>
+  <title>Sign In — {{ (branding_name ~ " Asset Manager") if branding_name else "Asset Manager" }}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -35,11 +35,43 @@
       font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
       font-size: 14px;
       line-height: 1.6;
-      background: var(--bg);
+      background:
+        radial-gradient(900px 520px at 8% -6%, rgba(56,232,192,0.16), transparent 58%),
+        radial-gradient(850px 500px at 92% 8%, rgba(96,165,250,0.14), transparent 56%),
+        linear-gradient(145deg, #070b13, #0b1526 52%, #101d34);
       color: var(--ink);
       min-height: 100vh;
       -webkit-font-smoothing: antialiased;
       display: flex;
+      position: relative;
+      overflow: hidden;
+    }
+    body::before,
+    body::after {
+      content: "";
+      position: fixed;
+      width: 40vw;
+      height: 40vw;
+      pointer-events: none;
+      filter: blur(48px);
+      opacity: 0.45;
+      z-index: 0;
+      animation: drift 18s ease-in-out infinite alternate;
+    }
+    body::before {
+      top: -20vw;
+      left: -12vw;
+      background: radial-gradient(circle, rgba(56,232,192,0.25), transparent 62%);
+    }
+    body::after {
+      right: -12vw;
+      bottom: -18vw;
+      background: radial-gradient(circle, rgba(96,165,250,0.22), transparent 62%);
+      animation-delay: -4s;
+    }
+    @keyframes drift {
+      from { transform: translate3d(0, 0, 0) scale(1); }
+      to { transform: translate3d(20px, -10px, 0) scale(1.08); }
     }
 
     /* ── Left panel ─────────────────────────────────── */
@@ -49,9 +81,10 @@
       flex-direction: column;
       justify-content: center;
       padding: 60px 64px;
-      background: linear-gradient(150deg, #080c14 0%, #0a1628 60%, #0c1f3a 100%);
+      background: linear-gradient(150deg, rgba(8,12,20,0.78) 0%, rgba(10,22,40,0.76) 60%, rgba(12,31,58,0.72) 100%);
       position: relative;
       overflow: hidden;
+      z-index: 1;
     }
     .left-panel::before {
       content: "";
@@ -115,21 +148,51 @@
 
     /* ── Right panel (login form) ───────────────────── */
     .right-panel {
-      width: 480px;
+      width: 500px;
       flex-shrink: 0;
       display: flex;
       align-items: center;
       justify-content: center;
       padding: 40px 48px;
-      background: var(--bg-2, #0d1221);
+      background: rgba(13,18,33,0.66);
       border-left: 1px solid var(--border);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      position: relative;
+      z-index: 1;
     }
 
-    .login-box { width: 100%; }
+    .login-box {
+      width: 100%;
+      border: 1px solid var(--border);
+      background: rgba(13,18,33,0.76);
+      border-radius: var(--radius);
+      padding: 26px;
+      box-shadow: var(--shadow-lg);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+    }
 
     .login-header { margin-bottom: 32px; }
     .login-header h2 { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
     .login-header p { color: var(--ink-2); font-size: 13px; margin-top: 4px; }
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+    .pill {
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: var(--ink-2);
+      border: 1px solid var(--border-2);
+      background: rgba(255,255,255,0.03);
+      padding: 4px 9px;
+      border-radius: 999px;
+    }
 
     /* Alerts */
     .alert {
@@ -174,6 +237,30 @@
       box-shadow: 0 0 0 3px rgba(56,232,192,0.12);
     }
     .form-group input::placeholder { color: var(--ink-3); }
+    .password-wrap { position: relative; }
+    .password-wrap input { padding-right: 44px; }
+    .password-toggle {
+      position: absolute;
+      right: 8px;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 30px;
+      height: 30px;
+      border-radius: 8px;
+      border: 1px solid var(--border-2);
+      background: rgba(255,255,255,0.04);
+      color: var(--ink-2);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: border-color var(--transition), color var(--transition), background var(--transition);
+    }
+    .password-toggle:hover {
+      border-color: rgba(56,232,192,0.4);
+      color: var(--accent);
+      background: rgba(56,232,192,0.10);
+    }
 
     .submit-btn {
       width: 100%; padding: 13px;
@@ -225,7 +312,7 @@
         {% endif %}
       </div>
       <div>
-        <div class="brand-name">{{ branding_name or "Asset" }} Manager</div>
+        <div class="brand-name">{{ (branding_name ~ " Asset Manager") if branding_name else "Asset Manager" }}</div>
         <div class="brand-sub">IT Inventory Platform</div>
       </div>
     </div>
@@ -272,6 +359,11 @@
       <div class="login-header">
         <h2>Welcome back</h2>
         <p>Sign in to your account to continue.</p>
+        <div class="pill-row">
+          <span class="pill">Live Dashboard</span>
+          <span class="pill">Smart Reports</span>
+          <span class="pill">Secure Access</span>
+        </div>
       </div>
 
       {% with messages = get_flashed_messages(with_categories=true) %}
@@ -295,7 +387,13 @@
         </div>
         <div class="form-group">
           <label for="password">Password</label>
-          <input id="password" type="password" name="password" placeholder="••••••••" required autocomplete="current-password">
+          <div class="password-wrap">
+            <input id="password" type="password" name="password" placeholder="••••••••" required autocomplete="current-password">
+            <button type="button" class="password-toggle" id="toggle-password" aria-label="Show password" title="Show password">
+              <svg id="pw-eye-open" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>
+              <svg id="pw-eye-closed" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="m15 18-.722-3.25"/><path d="M2 8a10.645 10.645 0 0 0 20 0"/><path d="m20 15-1.726-2.05"/><path d="m4 15 1.726-2.05"/><path d="m9 18 .722-3.25"/></svg>
+            </button>
+          </div>
         </div>
         <button class="submit-btn" type="submit">Sign in</button>
       </form>
@@ -310,9 +408,26 @@
       <div class="form-footer" style="margin-top: 32px;">
         <a href="https://github.com/tayyabtahir143/AssetManager" target="_blank" rel="noopener" style="color:var(--blue); text-decoration:none; font-weight:500;">GitHub</a>
         &nbsp;·&nbsp;
-        {{ branding_name or "Asset" }} Manager v{{ app_version or "1.0.0" }}
+        {{ (branding_name ~ " Asset Manager") if branding_name else "Asset Manager" }} v{{ app_version or "1.0.0" }}
       </div>
     </div>
   </div>
+  <script>
+    (function () {
+      const toggle = document.getElementById('toggle-password');
+      const password = document.getElementById('password');
+      const openEye = document.getElementById('pw-eye-open');
+      const closedEye = document.getElementById('pw-eye-closed');
+      if (!toggle || !password) return;
+      toggle.addEventListener('click', () => {
+        const showing = password.type === 'text';
+        password.type = showing ? 'password' : 'text';
+        toggle.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+        toggle.setAttribute('title', showing ? 'Show password' : 'Hide password');
+        if (openEye) openEye.style.display = showing ? '' : 'none';
+        if (closedEye) closedEye.style.display = showing ? 'none' : '';
+      });
+    })();
+  </script>
 </body>
 </html>
