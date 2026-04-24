@@ -28,10 +28,15 @@
           <div>
             <div style="font-size:15px; font-weight:700;">{{ section.label }}</div>
             {% if section.available_count is not none %}
+              {% set asset_param = section.custom_key if section.is_custom else section.key %}
               <div class="text-sm muted" style="margin-top:2px;">
-                <span class="badge badge-green" style="font-size:11px;">{{ section.available_count }} available</span>
+                <a href="{{ url_for('reports', dept='all', asset=asset_param, status='in_stock') }}" style="text-decoration:none;">
+                  <span class="badge badge-green" style="font-size:11px;">{{ section.available_count }} available</span>
+                </a>
                 &nbsp;
-                <span class="badge badge-blue" style="font-size:11px;">{{ section.assigned_count }} assigned</span>
+                <a href="{{ url_for('reports', dept='all', asset=asset_param, status='assigned') }}" style="text-decoration:none;">
+                  <span class="badge badge-blue" style="font-size:11px;">{{ section.assigned_count }} assigned</span>
+                </a>
               </div>
             {% endif %}
           </div>
