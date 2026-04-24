@@ -21,233 +21,191 @@
   <style>
     :root {
       color-scheme: dark;
-      --bg:        #080c14;
-      --bg-2:      #0d1221;
-      --surface:   rgba(13,18,33,0.96);
-      --border:    rgba(255,255,255,0.07);
-      --border-2:  rgba(255,255,255,0.12);
-      --ink:       #e2e8f5;
-      --ink-2:     #94a3b8;
-      --ink-3:     #64748b;
-      --accent:    #38e8c0;
-      --accent-2:  #34d399;
-      --accent-dim:rgba(56,232,192,0.14);
-      --blue:      #60a5fa;
-      --danger:    #f87171;
-      --danger-dim:rgba(248,113,113,0.14);
-      --shadow:    0 4px 24px rgba(0,0,0,0.55);
-      --shadow-lg: 0 12px 48px rgba(0,0,0,0.65);
-      --radius:    14px;
-      --radius-sm: 8px;
-      --transition:0.15s ease;
+      --bg: #060913;
+      --bg-2: #0b1228;
+      --surface: rgba(14, 22, 44, 0.82);
+      --surface-2: rgba(8, 13, 29, 0.86);
+      --ink: #e8eefc;
+      --ink-2: #99a9c6;
+      --ink-3: #6b7e9d;
+      --border: rgba(255,255,255,0.11);
+      --border-2: rgba(255,255,255,0.18);
+      --accent: #7c6cff;
+      --accent-2: #3ed8ff;
+      --accent-soft: rgba(124,108,255,0.2);
+      --danger: #fb7185;
+      --danger-soft: rgba(251,113,133,0.18);
+      --radius: 18px;
+      --radius-sm: 12px;
+      --shadow-xl: 0 34px 90px rgba(2, 6, 23, 0.66);
+      --shadow: 0 16px 48px rgba(4, 10, 25, 0.5);
+      --transition: 0.16s ease;
     }
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
-      font-size: 14px;
-      line-height: 1.6;
-      background:
-        radial-gradient(900px 520px at 8% -6%, rgba(56,232,192,0.16), transparent 58%),
-        radial-gradient(850px 500px at 92% 8%, rgba(96,165,250,0.14), transparent 56%),
-        linear-gradient(145deg, #070b13, #0b1526 52%, #101d34);
-      color: var(--ink);
+      font-family: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
       min-height: 100vh;
-      -webkit-font-smoothing: antialiased;
-      display: flex;
-      position: relative;
+      color: var(--ink);
+      background:
+        radial-gradient(980px 640px at 8% -10%, rgba(124,108,255,0.28), transparent 60%),
+        radial-gradient(900px 560px at 96% 10%, rgba(62,216,255,0.2), transparent 58%),
+        linear-gradient(145deg, var(--bg), var(--bg-2));
+      display: grid;
+      place-items: center;
+      padding: 30px;
+      overflow-x: hidden;
+    }
+    .layout {
+      width: min(1120px, 100%);
+      min-height: min(740px, calc(100vh - 60px));
+      border-radius: 28px;
       overflow: hidden;
+      border: 1px solid var(--border);
+      background: linear-gradient(140deg, rgba(8, 13, 29, 0.72), rgba(14, 22, 44, 0.55));
+      box-shadow: var(--shadow-xl);
+      display: grid;
+      grid-template-columns: 1.08fr minmax(340px, 460px);
+      position: relative;
     }
-    body::before,
-    body::after {
+    .layout::before {
       content: "";
-      position: fixed;
-      width: 40vw;
-      height: 40vw;
+      position: absolute;
+      inset: 0;
       pointer-events: none;
-      filter: blur(48px);
-      opacity: 0.45;
-      z-index: 0;
-      animation: drift 18s ease-in-out infinite alternate;
+      background: linear-gradient(120deg, transparent 0%, rgba(124,108,255,0.06) 40%, rgba(62,216,255,0.04) 100%);
     }
-    body::before {
-      top: -20vw;
-      left: -12vw;
-      background: radial-gradient(circle, rgba(56,232,192,0.25), transparent 62%);
-    }
-    body::after {
-      right: -12vw;
-      bottom: -18vw;
-      background: radial-gradient(circle, rgba(96,165,250,0.22), transparent 62%);
-      animation-delay: -4s;
-    }
-    @keyframes drift {
-      from { transform: translate3d(0, 0, 0) scale(1); }
-      to { transform: translate3d(20px, -10px, 0) scale(1.08); }
-    }
-
-    /* ── Left panel ─────────────────────────────────── */
-    .left-panel {
-      flex: 1;
+    .hero {
+      padding: 52px 52px 46px;
       display: flex;
       flex-direction: column;
-      justify-content: center;
-      padding: 60px 64px;
-      background: linear-gradient(150deg, rgba(8,12,20,0.78) 0%, rgba(10,22,40,0.76) 60%, rgba(12,31,58,0.72) 100%);
+      justify-content: space-between;
+      background: linear-gradient(165deg, rgba(7, 11, 23, 0.64), rgba(11, 18, 39, 0.48));
+      border-right: 1px solid var(--border);
       position: relative;
-      overflow: hidden;
       z-index: 1;
     }
-    .left-panel::before {
-      content: "";
-      position: absolute;
-      top: -200px; left: -200px;
-      width: 700px; height: 700px;
-      background: radial-gradient(circle, rgba(56,232,192,0.07) 0%, transparent 65%);
-      pointer-events: none;
-    }
-    .left-panel::after {
-      content: "";
-      position: absolute;
-      bottom: -150px; right: -150px;
-      width: 500px; height: 500px;
-      background: radial-gradient(circle, rgba(96,165,250,0.06) 0%, transparent 65%);
-      pointer-events: none;
-    }
-
-    .brand-mark {
-      display: flex; align-items: center; gap: 14px;
-      margin-bottom: 52px;
-    }
-    .brand-logo {
-      width: 48px; height: 48px; border-radius: 14px;
-      background: linear-gradient(135deg, var(--accent), var(--blue));
-      display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0; overflow: hidden;
-    }
-    .brand-logo img { width: 100%; height: 100%; object-fit: cover; border-radius: 14px; }
-    .brand-logo-text { font-size: 22px; font-weight: 800; color: #08121c; }
-    .brand-name { font-size: 17px; font-weight: 700; }
-    .brand-sub { font-size: 12px; color: var(--ink-3); font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; margin-top: 1px; }
-
-    .hero-text { position: relative; z-index: 1; }
-    .hero-text h1 {
-      font-size: 38px; font-weight: 800;
-      letter-spacing: -0.03em; line-height: 1.15;
-      margin-bottom: 14px;
-    }
-    .hero-text h1 span { color: var(--accent); }
-    .hero-text p {
-      font-size: 15px; color: var(--ink-2);
-      max-width: 420px; line-height: 1.7;
-      margin-bottom: 48px;
-    }
-
-    .feature-list { display: flex; flex-direction: column; gap: 14px; position: relative; z-index: 1; }
-    .feature-item {
-      display: flex; align-items: flex-start; gap: 14px;
-    }
-    .feature-icon {
-      width: 36px; height: 36px; border-radius: 10px;
-      background: var(--accent-dim);
-      border: 1px solid rgba(56,232,192,0.2);
-      display: flex; align-items: center; justify-content: center;
-      flex-shrink: 0;
-    }
-    .feature-body { padding-top: 2px; }
-    .feature-title { font-size: 13px; font-weight: 600; margin-bottom: 1px; }
-    .feature-desc { font-size: 12px; color: var(--ink-3); }
-
-    /* ── Right panel (login form) ───────────────────── */
-    .right-panel {
-      width: 500px;
-      flex-shrink: 0;
+    .brand {
       display: flex;
       align-items: center;
-      justify-content: center;
-      padding: 40px 48px;
-      background: rgba(13,18,33,0.66);
-      border-left: 1px solid var(--border);
-      backdrop-filter: blur(18px);
-      -webkit-backdrop-filter: blur(18px);
-      position: relative;
-      z-index: 1;
+      gap: 14px;
+      margin-bottom: 22px;
     }
-
-    .login-box {
-      width: 100%;
-      border: 1px solid var(--border);
-      background: rgba(13,18,33,0.76);
-      border-radius: var(--radius);
-      padding: 26px;
-      box-shadow: var(--shadow-lg);
-      backdrop-filter: blur(18px);
-      -webkit-backdrop-filter: blur(18px);
+    .brand-logo {
+      width: 52px;
+      height: 52px;
+      border-radius: 15px;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      box-shadow: 0 10px 28px rgba(124,108,255,0.3);
     }
-
-    .login-header { margin-bottom: 32px; }
-    .login-header h2 { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; }
-    .login-header p { color: var(--ink-2); font-size: 13px; margin-top: 4px; }
+    .brand-logo img { width: 100%; height: 100%; object-fit: cover; border-radius: 15px; }
+    .brand-logo-text { color: #050815; font-size: 22px; font-weight: 800; }
+    .brand-name { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
+    .brand-sub { margin-top: 2px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: var(--ink-3); }
+    .hero h1 {
+      font-size: clamp(28px, 4vw, 44px);
+      line-height: 1.08;
+      letter-spacing: -0.04em;
+      font-weight: 800;
+      max-width: 540px;
+    }
+    .hero h1 span {
+      background: linear-gradient(120deg, #a896ff 0%, #4ce3ff 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .hero p {
+      margin-top: 18px;
+      max-width: 520px;
+      color: var(--ink-2);
+      font-size: 15px;
+      line-height: 1.75;
+    }
     .pill-row {
+      margin-top: 22px;
       display: flex;
+      gap: 10px;
       flex-wrap: wrap;
-      gap: 8px;
-      margin-top: 14px;
     }
     .pill {
       font-size: 11px;
       font-weight: 600;
-      letter-spacing: 0.03em;
       text-transform: uppercase;
-      color: var(--ink-2);
-      border: 1px solid var(--border-2);
-      background: rgba(255,255,255,0.03);
-      padding: 4px 9px;
+      letter-spacing: 0.08em;
+      color: #cdd8f3;
+      border: 1px solid var(--border);
+      background: rgba(124,108,255,0.12);
       border-radius: 999px;
+      padding: 6px 11px;
     }
-
-    /* Alerts */
+    .feature-list {
+      margin-top: 30px;
+      display: grid;
+      gap: 10px;
+    }
+    .feature {
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 11px 13px;
+      background: rgba(9, 14, 30, 0.56);
+      font-size: 13px;
+      color: var(--ink-2);
+    }
+    .feature strong { color: var(--ink); font-weight: 600; }
+    .auth {
+      padding: 42px 38px 32px;
+      display: flex;
+      align-items: center;
+      position: relative;
+      z-index: 1;
+      background: linear-gradient(180deg, rgba(12, 18, 38, 0.8), rgba(8, 12, 27, 0.86));
+    }
+    .auth-card { width: 100%; }
+    .auth-header h2 { font-size: 28px; font-weight: 800; letter-spacing: -0.03em; }
+    .auth-header p { margin-top: 7px; color: var(--ink-2); font-size: 14px; }
     .alert {
-      padding: 12px 14px; border-radius: var(--radius-sm);
-      font-size: 13px; margin-bottom: 20px;
-      display: flex; align-items: flex-start; gap: 10px;
+      margin-top: 18px;
+      margin-bottom: 2px;
+      border-radius: var(--radius-sm);
+      border: 1px solid transparent;
+      padding: 11px 12px;
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      font-size: 13px;
     }
-    .alert-error {
-      background: var(--danger-dim);
-      border: 1px solid rgba(248,113,113,0.25);
-      color: #fca5a5;
+    .alert-error { background: var(--danger-soft); border-color: rgba(251,113,133,0.28); color: #fecdd3; }
+    .alert-success { background: rgba(62,216,255,0.16); border-color: rgba(62,216,255,0.24); color: #bcf4ff; }
+    .alert-info { background: rgba(124,108,255,0.16); border-color: rgba(124,108,255,0.24); color: #ddd7ff; }
+    .form { margin-top: 22px; }
+    .group { margin-bottom: 15px; }
+    .group label {
+      display: block;
+      margin-bottom: 6px;
+      font-size: 12px;
+      color: var(--ink-2);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      font-weight: 600;
     }
-    .alert-success {
-      background: rgba(56,232,192,0.12);
-      border: 1px solid rgba(56,232,192,0.25);
-      color: var(--accent);
-    }
-    .alert-info {
-      background: rgba(96,165,250,0.12);
-      border: 1px solid rgba(96,165,250,0.25);
-      color: var(--blue);
-    }
-
-    /* Form */
-    .form-group { margin-bottom: 18px; }
-    .form-group label {
-      display: block; font-size: 12px; font-weight: 600;
-      color: var(--ink-2); text-transform: uppercase;
-      letter-spacing: 0.06em; margin-bottom: 6px;
-    }
-    .form-group input {
-      width: 100%; padding: 11px 14px;
+    .group input {
+      width: 100%;
       background: rgba(255,255,255,0.04);
       border: 1px solid var(--border-2);
-      border-radius: var(--radius-sm);
-      color: var(--ink); font-family: inherit; font-size: 14px;
-      transition: border-color var(--transition), box-shadow var(--transition);
+      color: var(--ink);
+      border-radius: 11px;
+      padding: 12px 13px;
+      font-size: 14px;
       outline: none;
+      transition: border-color var(--transition), box-shadow var(--transition);
     }
-    .form-group input:focus {
-      border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(56,232,192,0.12);
+    .group input::placeholder { color: var(--ink-3); }
+    .group input:focus {
+      border-color: rgba(124,108,255,0.58);
+      box-shadow: 0 0 0 3px rgba(124,108,255,0.2);
     }
-    .form-group input::placeholder { color: var(--ink-3); }
     .password-wrap { position: relative; }
     .password-wrap input { padding-right: 44px; }
     .password-toggle {
@@ -258,171 +216,147 @@
       width: 30px;
       height: 30px;
       border-radius: 8px;
-      border: 1px solid var(--border-2);
-      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--border);
+      background: rgba(255,255,255,0.05);
       color: var(--ink-2);
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
+      display: grid;
+      place-items: center;
       cursor: pointer;
-      transition: border-color var(--transition), color var(--transition), background var(--transition);
+      transition: all var(--transition);
     }
     .password-toggle:hover {
-      border-color: rgba(56,232,192,0.4);
-      color: var(--accent);
-      background: rgba(56,232,192,0.10);
+      color: var(--ink);
+      border-color: rgba(124,108,255,0.45);
+      background: rgba(124,108,255,0.16);
     }
-
-    .submit-btn {
-      width: 100%; padding: 13px;
-      background: var(--accent);
-      color: #08121c; font-family: inherit;
-      font-size: 14px; font-weight: 700;
-      border: none; border-radius: var(--radius-sm);
-      cursor: pointer; letter-spacing: 0.01em;
-      transition: filter var(--transition), transform var(--transition);
+    .submit {
+      width: 100%;
       margin-top: 8px;
+      padding: 13px;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 15px;
+      font-weight: 700;
+      color: #040816;
+      background: linear-gradient(120deg, #8f80ff, #46deff);
+      transition: transform var(--transition), filter var(--transition);
+      box-shadow: 0 15px 34px rgba(70,222,255,0.2);
     }
-    .submit-btn:hover { filter: brightness(1.08); transform: translateY(-1px); }
-    .submit-btn:active { transform: translateY(0); filter: brightness(0.96); }
-
-    .form-footer {
-      margin-top: 20px; text-align: center;
-      font-size: 12px; color: var(--ink-3);
-    }
-    .form-footer a { color: var(--accent); text-decoration: none; font-weight: 500; }
-    .form-footer a:hover { text-decoration: underline; }
-
+    .submit:hover { transform: translateY(-1px); filter: brightness(1.05); }
+    .submit:active { transform: translateY(0); filter: brightness(0.96); }
     .divider {
-      display: flex; align-items: center; gap: 12px;
-      margin: 24px 0; color: var(--ink-3); font-size: 12px;
+      margin: 20px 0 0;
+      text-align: center;
+      font-size: 12px;
+      color: var(--ink-3);
     }
-    .divider::before, .divider::after {
-      content: ""; flex: 1; height: 1px; background: var(--border-2);
+    .divider a { color: var(--accent-2); text-decoration: none; }
+    .divider a:hover { text-decoration: underline; }
+    .foot {
+      margin-top: 24px;
+      text-align: center;
+      color: var(--ink-3);
+      font-size: 12px;
     }
-
-    /* Responsive */
-    @media (max-width: 900px) {
-      .left-panel { display: none; }
-      .right-panel { width: 100%; border-left: none; }
-    }
-    @media (max-width: 480px) {
-      .right-panel { padding: 32px 24px; }
+    .foot a { color: var(--accent-2); text-decoration: none; }
+    .foot a:hover { text-decoration: underline; }
+    @media (max-width: 980px) {
+      .layout { grid-template-columns: 1fr; min-height: auto; }
+      .hero { display: none; }
+      .auth {
+        min-height: calc(100vh - 60px);
+        padding: 32px 22px;
+      }
     }
   </style>
 </head>
 <body>
-  <!-- Left branding panel -->
-  <div class="left-panel">
-    <div class="brand-mark">
-      <div class="brand-logo">
-        {% if branding_logo %}
-          <img src="{{ url_for('static', filename='uploads/' + branding_logo) }}" alt="logo">
-        {% else %}
-          <span class="brand-logo-text">A</span>
-        {% endif %}
-      </div>
+  <div class="layout">
+    <section class="hero">
       <div>
-        <div class="brand-name">{{ brand_display }}</div>
-        <div class="brand-sub">IT Inventory Platform</div>
-      </div>
-    </div>
-
-    <div class="hero-text">
-      <h1>Track every asset,<br><span>effortlessly.</span></h1>
-      <p>A centralised inventory system for your entire IT fleet — laptops, screens, peripherals and more, all in one place.</p>
-    </div>
-
-    <div class="feature-list">
-      <div class="feature-item">
-        <div class="feature-icon">
-          <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7.5 12 2l10 5.5v9L12 22 2 16.5z"/><path d="M12 12v10"/><path d="M2 7.5l10 4.5 10-4.5"/></svg>
-        </div>
-        <div class="feature-body">
-          <div class="feature-title">Full Asset Lifecycle</div>
-          <div class="feature-desc">From procurement to write-off, track every stage.</div>
-        </div>
-      </div>
-      <div class="feature-item">
-        <div class="feature-icon">
-          <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-        </div>
-        <div class="feature-body">
-          <div class="feature-title">Role-Based Access</div>
-          <div class="feature-desc">Granular permissions per department and asset type.</div>
-        </div>
-      </div>
-      <div class="feature-item">
-        <div class="feature-icon">
-          <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" x2="18" y1="20" y2="10"/><line x1="12" x2="12" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="14"/></svg>
-        </div>
-        <div class="feature-body">
-          <div class="feature-title">Reports & Audit Logs</div>
-          <div class="feature-desc">Department breakdowns, utilisation charts and full history.</div>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Right login panel -->
-  <div class="right-panel">
-    <div class="login-box">
-      <div class="login-header">
-        <h2>Sign in</h2>
-        <p>Continue to {{ brand_display }}.</p>
-        <div class="pill-row">
-          <span class="pill">Live Dashboard</span>
-          <span class="pill">Smart Reports</span>
-          <span class="pill">Secure Access</span>
-        </div>
-      </div>
-
-      {% with messages = get_flashed_messages(with_categories=true) %}
-        {% for category, message in messages %}
-          <div class="alert alert-{{ category if category in ['error','success','info'] else 'info' }}">
-            {% if category == 'error' %}
-              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
+        <div class="brand">
+          <div class="brand-logo">
+            {% if branding_logo %}
+              <img src="{{ url_for('static', filename='uploads/' + branding_logo) }}" alt="logo">
             {% else %}
-              <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><polyline points="12 8 12 12 14 14"/></svg>
+              <span class="brand-logo-text">{{ (brand_raw or "A")[0] }}</span>
             {% endif %}
-            {{ message }}
           </div>
-        {% endfor %}
-      {% endwith %}
-
-      <form method="post" action="{{ url_for('login') }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <div class="form-group">
-          <label for="username">Username</label>
-          <input id="username" type="text" name="username" placeholder="your.username" required autofocus autocomplete="username">
-        </div>
-        <div class="form-group">
-          <label for="password">Password</label>
-          <div class="password-wrap">
-            <input id="password" type="password" name="password" placeholder="••••••••" required autocomplete="current-password">
-            <button type="button" class="password-toggle" id="toggle-password" aria-label="Show password" title="Show password">
-              <svg id="pw-eye-open" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>
-              <svg id="pw-eye-closed" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="m15 18-.722-3.25"/><path d="M2 8a10.645 10.645 0 0 0 20 0"/><path d="m20 15-1.726-2.05"/><path d="m4 15 1.726-2.05"/><path d="m9 18 .722-3.25"/></svg>
-            </button>
+          <div>
+            <div class="brand-name">{{ brand_display }}</div>
+            <div class="brand-sub">Inventory Platform</div>
           </div>
         </div>
-        <button class="submit-btn" type="submit">Sign in</button>
-      </form>
-
-      {% if forgot_password_enabled %}
-        <div class="divider">or</div>
-        <div class="form-footer">
-          <a href="{{ url_for('forgot_password') }}">Forgot your password?</a>
+        <h1>Your complete <span>asset operations hub</span></h1>
+        <p>Manage inventory, assignments, audits, and lifecycle workflows with a secure, modern operations experience.</p>
+        <div class="pill-row">
+          <span class="pill">Real-time Visibility</span>
+          <span class="pill">Smart Reporting</span>
+          <span class="pill">Role-based Security</span>
         </div>
-      {% endif %}
-
-      <div class="form-footer" style="margin-top: 32px;">
-        <a href="https://github.com/tayyabtahir143/AssetManager" target="_blank" rel="noopener" style="color:var(--blue); text-decoration:none; font-weight:500;">GitHub</a>
-        &nbsp;·&nbsp;
-        {{ brand_display }} v{{ app_version or "1.0.0" }}
       </div>
-    </div>
+      <div class="feature-list">
+        <div class="feature"><strong>Centralized inventory:</strong> laptops, accessories, and custom assets in one place.</div>
+        <div class="feature"><strong>Operational controls:</strong> backups, audit logs, LDAP/SMTP, and policy settings.</div>
+        <div class="feature"><strong>Action-ready insights:</strong> status and assignment metrics for faster decisions.</div>
+      </div>
+    </section>
+
+    <section class="auth">
+      <div class="auth-card">
+        <div class="auth-header">
+          <h2>Sign in</h2>
+          <p>Continue to {{ brand_display }}.</p>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+          {% for category, message in messages %}
+            <div class="alert alert-{{ category if category in ['error','success','info'] else 'info' }}">
+              {% if category == 'error' %}
+                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>
+              {% else %}
+                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;margin-top:1px"><circle cx="12" cy="12" r="10"/><polyline points="12 8 12 12 14 14"/></svg>
+              {% endif %}
+              {{ message }}
+            </div>
+          {% endfor %}
+        {% endwith %}
+
+        <form class="form" method="post" action="{{ url_for('login') }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+          <div class="group">
+            <label for="username">Username</label>
+            <input id="username" type="text" name="username" placeholder="your.username" required autofocus autocomplete="username">
+          </div>
+          <div class="group">
+            <label for="password">Password</label>
+            <div class="password-wrap">
+              <input id="password" type="password" name="password" placeholder="••••••••" required autocomplete="current-password">
+              <button type="button" class="password-toggle" id="toggle-password" aria-label="Show password" title="Show password">
+                <svg id="pw-eye-open" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg>
+                <svg id="pw-eye-closed" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none;"><path d="m15 18-.722-3.25"/><path d="M2 8a10.645 10.645 0 0 0 20 0"/><path d="m20 15-1.726-2.05"/><path d="m4 15 1.726-2.05"/><path d="m9 18 .722-3.25"/></svg>
+              </button>
+            </div>
+          </div>
+          <button class="submit" type="submit">Sign in</button>
+        </form>
+
+        {% if forgot_password_enabled %}
+          <div class="divider">
+            <a href="{{ url_for('forgot_password') }}">Forgot your password?</a>
+          </div>
+        {% endif %}
+
+        <div class="foot">
+          <a href="https://github.com/tayyabtahir143/AssetManager" target="_blank" rel="noopener">GitHub</a>
+          &nbsp;·&nbsp; {{ brand_display }} v{{ app_version or "1.0.0" }}
+        </div>
+      </div>
+    </section>
   </div>
+
   <script>
     (function () {
       const toggle = document.getElementById('toggle-password');
