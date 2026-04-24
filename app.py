@@ -977,11 +977,11 @@ def send_smtp_notification(action, entity_type, entity_id, success, details):
     if detail_rows:
         detail_table = "".join(
             "<tr>"
-            "<td style=\"padding:10px 14px;width:35%;color:#93c5fd;font-size:11px;font-weight:700;"
-            "text-transform:uppercase;letter-spacing:0.6px;border-bottom:1px solid #2b3e67;"
+            "<td style=\"padding:10px 14px;width:35%;color:#1d4ed8;font-size:11px;font-weight:700;"
+            "text-transform:uppercase;letter-spacing:0.6px;border-bottom:1px solid #d7e2f4;"
             "white-space:nowrap;\">{label}</td>"
-            "<td style=\"padding:10px 14px;color:#f8fbff;font-size:13px;"
-            "border-bottom:1px solid #2b3e67;\">{value}</td>"
+            "<td style=\"padding:10px 14px;color:#0f172a;font-size:13px;"
+            "border-bottom:1px solid #d7e2f4;\">{value}</td>"
             "</tr>".format(
                 label=html.escape(str(label)),
                 value=html.escape(str(value)),
@@ -989,8 +989,8 @@ def send_smtp_notification(action, entity_type, entity_id, success, details):
             for label, value in detail_rows
         )
         detail_html += (
-            "<div style=\"margin-bottom:16px;background-color:#0c1530;border-radius:10px;"
-            "border:1px solid #2b3e67;overflow:hidden;\">"
+            "<div style=\"margin-bottom:16px;background-color:#ffffff;border-radius:10px;"
+            "border:1px solid #d7e2f4;overflow:hidden;\">"
             "<div style=\"padding:10px 16px;background:linear-gradient(115deg,#2563eb 0%,#7c3aed 55%,#06b6d4 100%);"
             "color:#ffffff;font-size:12px;font-weight:700;"
             "text-transform:uppercase;letter-spacing:1px;\">Details</div>"
@@ -1004,13 +1004,13 @@ def send_smtp_notification(action, entity_type, entity_id, success, details):
     if changes_rows:
         change_table = "".join(
             "<tr>"
-            "<td style=\"padding:10px 14px;width:30%;color:#93c5fd;font-size:11px;font-weight:700;"
-            "text-transform:uppercase;letter-spacing:0.6px;border-bottom:1px solid #2b3e67;"
+            "<td style=\"padding:10px 14px;width:30%;color:#1d4ed8;font-size:11px;font-weight:700;"
+            "text-transform:uppercase;letter-spacing:0.6px;border-bottom:1px solid #d7e2f4;"
             "white-space:nowrap;\">{label}</td>"
-            "<td style=\"padding:10px 14px;color:#fda4af;font-size:13px;"
-            "border-bottom:1px solid #2b3e67;\">{old}</td>"
+            "<td style=\"padding:10px 14px;color:#dc2626;font-size:13px;"
+            "border-bottom:1px solid #d7e2f4;\">{old}</td>"
             "<td style=\"padding:10px 14px;color:#34d399;font-size:13px;"
-            "border-bottom:1px solid #2b3e67;\">{new}</td>"
+            "border-bottom:1px solid #d7e2f4;\">{new}</td>"
             "</tr>".format(
                 label=html.escape(str(label)),
                 old=html.escape(str(old)),
@@ -1019,23 +1019,23 @@ def send_smtp_notification(action, entity_type, entity_id, success, details):
             for label, old, new in changes_rows
         )
         detail_html += (
-            "<div style=\"background-color:#0c1530;border-radius:10px;"
-            "border:1px solid #2b3e67;overflow:hidden;\">"
+            "<div style=\"background-color:#ffffff;border-radius:10px;"
+            "border:1px solid #d7e2f4;overflow:hidden;\">"
             "<div style=\"padding:10px 16px;background:linear-gradient(115deg,#7c3aed 0%,#2563eb 60%,#06b6d4 100%);"
             "color:#ffffff;font-size:12px;font-weight:700;"
             "text-transform:uppercase;letter-spacing:1px;\">Changes</div>"
             "<table style=\"width:100%;border-collapse:collapse;\">"
             "<thead>"
-            "<tr style=\"background-color:#15244a;\">"
-            "<th style=\"padding:8px 14px;text-align:left;color:#bfdbfe;font-size:11px;"
+            "<tr style=\"background-color:#eef3fb;\">"
+            "<th style=\"padding:8px 14px;text-align:left;color:#1e40af;font-size:11px;"
             "font-weight:700;text-transform:uppercase;letter-spacing:0.6px;"
-            "border-bottom:1px solid #2b3e67;\">Field</th>"
-            "<th style=\"padding:8px 14px;text-align:left;color:#fda4af;font-size:11px;"
+            "border-bottom:1px solid #d7e2f4;\">Field</th>"
+            "<th style=\"padding:8px 14px;text-align:left;color:#dc2626;font-size:11px;"
             "font-weight:700;text-transform:uppercase;letter-spacing:0.6px;"
-            "border-bottom:1px solid #2b3e67;\">Previous</th>"
+            "border-bottom:1px solid #d7e2f4;\">Previous</th>"
             "<th style=\"padding:8px 14px;text-align:left;color:#34d399;font-size:11px;"
             "font-weight:700;text-transform:uppercase;letter-spacing:0.6px;"
-            "border-bottom:1px solid #2b3e67;\">New</th>"
+            "border-bottom:1px solid #d7e2f4;\">New</th>"
             "</tr>"
             "</thead>"
             "<tbody>"
@@ -1120,11 +1120,11 @@ def send_assignment_email(username, asset_label, specs):
     lines.append("If this is unexpected or incorrect, please contact IT.")
     body_rows = "".join(
         "<tr>"
-        "<td style=\"padding:10px 14px;width:35%;color:#93c5fd;font-size:11px;font-weight:700;"
-        "text-transform:uppercase;letter-spacing:0.6px;border-bottom:1px solid #2b3e67;"
+        "<td style=\"padding:10px 14px;width:35%;color:#1d4ed8;font-size:11px;font-weight:700;"
+        "text-transform:uppercase;letter-spacing:0.6px;border-bottom:1px solid #d7e2f4;"
         "white-space:nowrap;\">{label}</td>"
-        "<td style=\"padding:10px 14px;color:#f8fbff;font-size:13px;"
-        "border-bottom:1px solid #2b3e67;\">{value}</td>"
+        "<td style=\"padding:10px 14px;color:#0f172a;font-size:13px;"
+        "border-bottom:1px solid #d7e2f4;\">{value}</td>"
         "</tr>".format(
             label=html.escape(str(label)),
             value=html.escape(str(value)),
@@ -1132,16 +1132,16 @@ def send_assignment_email(username, asset_label, specs):
         for label, value in specs
     )
     intro_html = (
-        f"<div style=\"font-size:17px;font-weight:600;color:#f8fbff;margin-bottom:8px;\">"
+        f"<div style=\"font-size:17px;font-weight:600;color:#0f172a;margin-bottom:8px;\">"
         f"Hello {html.escape(username)},</div>"
-        f"<div style=\"margin-bottom:20px;color:#cbd5e1;font-size:14px;line-height:1.6;\">"
-        f"A <strong style=\"color:#67e8f9;\">{html.escape(asset_label)}</strong>"
+        f"<div style=\"margin-bottom:20px;color:#475569;font-size:14px;line-height:1.6;\">"
+        f"A <strong style=\"color:#0ea5e9;\">{html.escape(asset_label)}</strong>"
         f" has been assigned to you.</div>"
     )
     body_html = (
         f"{intro_html}"
-        "<div style=\"background-color:#0c1530;border-radius:10px;"
-        "border:1px solid #2b3e67;overflow:hidden;margin-bottom:16px;\">"
+        "<div style=\"background-color:#ffffff;border-radius:10px;"
+        "border:1px solid #d7e2f4;overflow:hidden;margin-bottom:16px;\">"
         "<div style=\"padding:10px 16px;background:linear-gradient(115deg,#2563eb 0%,#7c3aed 55%,#06b6d4 100%);"
         "color:#ffffff;font-size:12px;font-weight:700;"
         "text-transform:uppercase;letter-spacing:1px;\">Asset Details</div>"
@@ -1151,8 +1151,8 @@ def send_assignment_email(username, asset_label, specs):
         "</tbody>"
         "</table>"
         "</div>"
-        "<div style=\"padding:14px 16px;background-color:#111f41;border-radius:10px;"
-        "border-left:4px solid #06b6d4;color:#cbd5e1;font-size:13px;line-height:1.6;\">"
+        "<div style=\"padding:14px 16px;background-color:#f8fbff;border-radius:10px;"
+        "border-left:4px solid #06b6d4;color:#475569;font-size:13px;line-height:1.6;\">"
         "&#8505;&nbsp; If this assignment is unexpected or incorrect, please contact your IT administrator."
         "</div>"
     )
@@ -1208,18 +1208,18 @@ def _format_timestamp(value):
 def _render_report_html(title, subtitle, meta_lines, body_html):
     meta_items = "".join(
         "<tr>"
-        "<td style=\"padding:10px 16px;width:38%;color:#93c5fd;font-size:11px;font-weight:700;"
-        "text-transform:uppercase;letter-spacing:0.7px;border-bottom:1px solid #2b3e67;"
+        "<td style=\"padding:10px 16px;width:38%;color:#1d4ed8;font-size:11px;font-weight:700;"
+        "text-transform:uppercase;letter-spacing:0.7px;border-bottom:1px solid #d7e2f4;"
         "white-space:nowrap;\">{label}</td>"
-        "<td style=\"padding:10px 16px;color:#f8fbff;font-size:13px;"
-        "border-bottom:1px solid #2b3e67;\">{value}</td>"
+        "<td style=\"padding:10px 16px;color:#0f172a;font-size:13px;"
+        "border-bottom:1px solid #d7e2f4;\">{value}</td>"
         "</tr>".format(
             label=html.escape(str(label)),
             value=html.escape(str(value)),
         )
         for label, value in meta_lines
     )
-    brand_name = get_branding_name()
+    brand_name = get_branding_display_name()
     return f"""\
 <!DOCTYPE html>
 <html lang="en">
@@ -1228,26 +1228,26 @@ def _render_report_html(title, subtitle, meta_lines, body_html):
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>{html.escape(title)}</title>
   </head>
-  <body style="margin:0;padding:0;background-color:#0a1022;font-family:'Segoe UI',Arial,Helvetica,sans-serif;">
+  <body style="margin:0;padding:0;background-color:#eef3fb;font-family:'Segoe UI',Arial,Helvetica,sans-serif;">
     <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
-           style="background-color:#0a1022;padding:32px 16px;">
+           style="background-color:#eef3fb;padding:32px 16px;">
       <tr>
         <td align="center">
           <table width="620" cellpadding="0" cellspacing="0" role="presentation"
-                 style="max-width:620px;width:100%;background-color:#111b36;border-radius:14px;
-                        overflow:hidden;border:1px solid #314a7a;
-                        box-shadow:0 10px 36px rgba(3,8,22,0.64);">
+                 style="max-width:620px;width:100%;background-color:#ffffff;border-radius:14px;
+                        overflow:hidden;border:1px solid #d4def0;
+                        box-shadow:0 12px 32px rgba(15,23,42,0.16);">
             <tr>
               <td style="background:linear-gradient(125deg,#2563eb 0%,#7c3aed 50%,#06b6d4 100%);
                          padding:28px 28px 26px;">
-                <div style="color:rgba(255,255,255,0.84);font-size:11px;letter-spacing:2.5px;
+                <div style="color:rgba(255,255,255,0.9);font-size:11px;letter-spacing:2.5px;
                             text-transform:uppercase;font-weight:700;margin-bottom:8px;">
                   {html.escape(brand_name)}
                 </div>
                 <div style="color:#ffffff;font-size:24px;font-weight:700;line-height:1.3;">
                   {html.escape(title)}
                 </div>
-                <div style="color:rgba(255,255,255,0.84);font-size:13px;margin-top:6px;">
+                <div style="color:rgba(255,255,255,0.92);font-size:13px;margin-top:6px;">
                   {html.escape(subtitle)}
                 </div>
               </td>
@@ -1255,8 +1255,8 @@ def _render_report_html(title, subtitle, meta_lines, body_html):
             <tr>
               <td style="padding:20px 24px 0;">
                 <table width="100%" cellpadding="0" cellspacing="0" role="presentation"
-                       style="background-color:#0c1530;border-radius:10px;
-                              border:1px solid #2b3e67;overflow:hidden;">
+                       style="background-color:#f8fbff;border-radius:10px;
+                              border:1px solid #d7e2f4;overflow:hidden;">
                   {meta_items}
                 </table>
               </td>
@@ -1267,9 +1267,9 @@ def _render_report_html(title, subtitle, meta_lines, body_html):
               </td>
             </tr>
             <tr>
-              <td style="background-color:#0c1530;padding:14px 24px;border-top:1px solid #2b3e67;">
-                <p style="margin:0;color:#94a3b8;font-size:11px;text-align:center;">
-                  Generated by <span style="color:#cbd5e1;font-weight:600;">{html.escape(brand_name)}</span>
+              <td style="background-color:#f8fbff;padding:14px 24px;border-top:1px solid #d7e2f4;">
+                <p style="margin:0;color:#64748b;font-size:11px;text-align:center;">
+                  Generated by <span style="color:#334155;font-weight:600;">{html.escape(brand_name)}</span>
                   &nbsp;&bull;&nbsp; This is an automated notification.
                 </p>
               </td>
@@ -1484,10 +1484,10 @@ def send_low_stock_report(force=False):
     subject = f"[{get_branding_name()}] Low stock report"
     body_rows = "".join(
         "<tr>"
-        "<td style=\"padding:10px 14px;color:#f8fbff;font-size:13px;"
-        "border-bottom:1px solid #2b3e67;\">{label}</td>"
-        "<td style=\"padding:10px 14px;color:#fb7185;font-size:13px;font-weight:700;"
-        "border-bottom:1px solid #2b3e67;text-align:right;\">{available}</td>"
+        "<td style=\"padding:10px 14px;color:#0f172a;font-size:13px;"
+        "border-bottom:1px solid #d7e2f4;\">{label}</td>"
+        "<td style=\"padding:10px 14px;color:#dc2626;font-size:13px;font-weight:700;"
+        "border-bottom:1px solid #d7e2f4;text-align:right;\">{available}</td>"
         "</tr>".format(
             label=html.escape(str(item["label"])),
             available=html.escape(str(item["available"])),
@@ -1495,20 +1495,20 @@ def send_low_stock_report(force=False):
         for item in send_items
     )
     body_html = (
-        "<div style=\"background-color:#0c1530;border-radius:10px;"
-        "border:1px solid #2b3e67;overflow:hidden;\">"
+        "<div style=\"background-color:#ffffff;border-radius:10px;"
+        "border:1px solid #d7e2f4;overflow:hidden;\">"
         "<div style=\"padding:10px 16px;background:linear-gradient(115deg,#dc2626 0%,#f97316 60%,#f59e0b 100%);"
         "color:#ffffff;font-size:12px;font-weight:700;"
         "text-transform:uppercase;letter-spacing:1px;\">&#9888;&nbsp; Low Stock Items</div>"
         "<table style=\"width:100%;border-collapse:collapse;\">"
         "<thead>"
-        "<tr style=\"background-color:#15244a;\">"
-        "<th style=\"text-align:left;padding:9px 14px;color:#bfdbfe;font-size:11px;"
+        "<tr style=\"background-color:#fff1f2;\">"
+        "<th style=\"text-align:left;padding:9px 14px;color:#9f1239;font-size:11px;"
         "font-weight:700;text-transform:uppercase;letter-spacing:0.6px;"
-        "border-bottom:1px solid #2b3e67;\">Asset</th>"
-        "<th style=\"text-align:right;padding:9px 14px;color:#fda4af;font-size:11px;"
+        "border-bottom:1px solid #d7e2f4;\">Asset</th>"
+        "<th style=\"text-align:right;padding:9px 14px;color:#be123c;font-size:11px;"
         "font-weight:700;text-transform:uppercase;letter-spacing:0.6px;"
-        "border-bottom:1px solid #2b3e67;\">Available</th>"
+        "border-bottom:1px solid #d7e2f4;\">Available</th>"
         "</tr>"
         "</thead>"
         "<tbody>"
@@ -1590,15 +1590,15 @@ def send_monthly_report(force=False):
             f"- {_format_timestamp(entry.created_at)} {entry.username or '-'} {entry.action} {entry.entity_type} {entry.entity_id or '-'}"
         )
     subject = f"[{get_branding_name()}] Monthly report"
-    _td = "padding:9px 14px;color:#f8fbff;font-size:12px;border-bottom:1px solid #2b3e67;"
-    _td_r = "padding:9px 14px;color:#f8fbff;font-size:12px;border-bottom:1px solid #2b3e67;text-align:right;"
-    _th = ("padding:8px 14px;text-align:left;color:#bfdbfe;font-size:11px;"
+    _td = "padding:9px 14px;color:#0f172a;font-size:12px;border-bottom:1px solid #d7e2f4;"
+    _td_r = "padding:9px 14px;color:#0f172a;font-size:12px;border-bottom:1px solid #d7e2f4;text-align:right;"
+    _th = ("padding:8px 14px;text-align:left;color:#1d4ed8;font-size:11px;"
            "font-weight:700;text-transform:uppercase;letter-spacing:0.6px;"
-           "border-bottom:1px solid #2b3e67;background-color:#15244a;")
-    _th_r = ("padding:8px 14px;text-align:right;color:#bfdbfe;font-size:11px;"
+           "border-bottom:1px solid #d7e2f4;background-color:#eef3fb;")
+    _th_r = ("padding:8px 14px;text-align:right;color:#1d4ed8;font-size:11px;"
              "font-weight:700;text-transform:uppercase;letter-spacing:0.6px;"
-             "border-bottom:1px solid #2b3e67;background-color:#15244a;")
-    _sec = ("background-color:#0c1530;border-radius:10px;border:1px solid #2b3e67;"
+             "border-bottom:1px solid #d7e2f4;background-color:#eef3fb;")
+    _sec = ("background-color:#ffffff;border-radius:10px;border:1px solid #d7e2f4;"
             "overflow:hidden;margin-bottom:20px;")
     _sec_hdr = ("padding:10px 16px;background:linear-gradient(115deg,#2563eb 0%,#7c3aed 55%,#06b6d4 100%);"
                 "color:#ffffff;font-size:12px;font-weight:700;"
@@ -1606,7 +1606,7 @@ def send_monthly_report(force=False):
     counts_rows = "".join(
         "<tr>"
         "<td style=\"{td}\">{action}</td>"
-        "<td style=\"{td_r};color:#67e8f9;font-weight:700;\">{count}</td>"
+        "<td style=\"{td_r};color:#0369a1;font-weight:700;\">{count}</td>"
         "</tr>".format(
             td=_td, td_r=_td_r,
             action=html.escape(str(action)),
@@ -1680,7 +1680,7 @@ def send_monthly_report(force=False):
         "<td style=\"{td}\">{label}</td>"
         "<td style=\"{td_r}\">{total}</td>"
         "<td style=\"{td_r}\">{assigned}</td>"
-        "<td style=\"{td_r};color:#34d399;font-weight:700;\">{available}</td>"
+        "<td style=\"{td_r};color:#047857;font-weight:700;\">{available}</td>"
         "</tr>".format(
             td=_td, td_r=_td_r,
             label=html.escape(str(item["label"])),
@@ -2555,7 +2555,7 @@ def send_password_reset_email(user, reset_url):
                          padding:28px 28px 26px;">
                 <div style="color:rgba(255,255,255,0.75);font-size:11px;letter-spacing:2.5px;
                             text-transform:uppercase;font-weight:700;margin-bottom:8px;">
-                  {html.escape(get_branding_name())}
+                  {html.escape(get_branding_display_name())}
                 </div>
                 <div style="color:#ffffff;font-size:22px;font-weight:700;">Password Reset</div>
                 <div style="color:rgba(255,255,255,0.65);font-size:13px;margin-top:5px;">
@@ -2591,7 +2591,7 @@ def send_password_reset_email(user, reset_url):
               <td style="background-color:#0f172a;padding:14px 28px;border-top:1px solid #1e293b;">
                 <p style="margin:0;color:#475569;font-size:11px;text-align:center;">
                   Generated by
-                  <span style="color:#64748b;font-weight:600;">{html.escape(get_branding_name())}</span>
+                  <span style="color:#64748b;font-weight:600;">{html.escape(get_branding_display_name())}</span>
                   &nbsp;&bull;&nbsp; This is an automated notification.
                 </p>
               </td>
@@ -2631,6 +2631,18 @@ def get_branding():
 def get_branding_name():
     branding = get_branding()
     return branding.company_name or "Asset" if branding else "Asset"
+
+
+def get_branding_display_name():
+    brand_raw = (get_branding_name() or "Asset").strip()
+    brand_lower = brand_raw.lower()
+    if brand_lower.endswith("asset manager"):
+        return brand_raw
+    if brand_lower.endswith("asset"):
+        return f"{brand_raw} Manager"
+    if brand_lower.endswith("manager"):
+        return brand_raw
+    return f"{brand_raw} Asset Manager"
 
 
 def get_branding_logo_url():
@@ -3107,7 +3119,7 @@ def send_config_backup_email(schedule):
                          padding:28px 28px 26px;">
                 <div style="color:rgba(255,255,255,0.75);font-size:11px;letter-spacing:2.5px;
                             text-transform:uppercase;font-weight:700;margin-bottom:8px;">
-                  {html.escape(get_branding_name())}
+                  {html.escape(get_branding_display_name())}
                 </div>
                 <div style="color:#ffffff;font-size:22px;font-weight:700;">Configuration Backup</div>
                 <div style="color:rgba(255,255,255,0.65);font-size:13px;margin-top:5px;">
@@ -3130,7 +3142,7 @@ def send_config_backup_email(schedule):
               <td style="background-color:#0f172a;padding:14px 28px;border-top:1px solid #1e293b;">
                 <p style="margin:0;color:#475569;font-size:11px;text-align:center;">
                   Generated by
-                  <span style="color:#64748b;font-weight:600;">{html.escape(get_branding_name())}</span>
+                  <span style="color:#64748b;font-weight:600;">{html.escape(get_branding_display_name())}</span>
                   &nbsp;&bull;&nbsp; This is an automated notification.
                 </p>
               </td>
@@ -3220,7 +3232,7 @@ def send_full_backup_email(schedule):
                          padding:28px 28px 26px;">
                 <div style="color:rgba(255,255,255,0.75);font-size:11px;letter-spacing:2.5px;
                             text-transform:uppercase;font-weight:700;margin-bottom:8px;">
-                  {html.escape(get_branding_name())}
+                  {html.escape(get_branding_display_name())}
                 </div>
                 <div style="color:#ffffff;font-size:22px;font-weight:700;">Asset Backup</div>
                 <div style="color:rgba(255,255,255,0.65);font-size:13px;margin-top:5px;">
@@ -3243,7 +3255,7 @@ def send_full_backup_email(schedule):
               <td style="background-color:#0f172a;padding:14px 28px;border-top:1px solid #1e293b;">
                 <p style="margin:0;color:#475569;font-size:11px;text-align:center;">
                   Generated by
-                  <span style="color:#64748b;font-weight:600;">{html.escape(get_branding_name())}</span>
+                  <span style="color:#64748b;font-weight:600;">{html.escape(get_branding_display_name())}</span>
                   &nbsp;&bull;&nbsp; This is an automated notification.
                 </p>
               </td>
