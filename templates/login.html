@@ -1,8 +1,19 @@
 <!doctype html>
 <html lang="en">
+{% set brand_raw = (branding_name or "Asset") | trim %}
+{% set brand_lower = brand_raw | lower %}
+{% if brand_lower.endswith("asset manager") %}
+  {% set brand_display = brand_raw %}
+{% elif brand_lower.endswith("asset") %}
+  {% set brand_display = brand_raw ~ " Manager" %}
+{% elif brand_lower.endswith("manager") %}
+  {% set brand_display = brand_raw %}
+{% else %}
+  {% set brand_display = brand_raw ~ " Asset Manager" %}
+{% endif %}
 <head>
   <meta charset="utf-8">
-  <title>Sign In — {{ (branding_name ~ " Asset Manager") if branding_name else "Asset Manager" }}</title>
+  <title>Sign In — {{ brand_display }}</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -312,7 +323,7 @@
         {% endif %}
       </div>
       <div>
-        <div class="brand-name">{{ (branding_name ~ " Asset Manager") if branding_name else "Asset Manager" }}</div>
+        <div class="brand-name">{{ brand_display }}</div>
         <div class="brand-sub">IT Inventory Platform</div>
       </div>
     </div>
@@ -357,8 +368,8 @@
   <div class="right-panel">
     <div class="login-box">
       <div class="login-header">
-        <h2>Welcome back</h2>
-        <p>Sign in to your account to continue.</p>
+        <h2>Sign in</h2>
+        <p>Continue to {{ brand_display }}.</p>
         <div class="pill-row">
           <span class="pill">Live Dashboard</span>
           <span class="pill">Smart Reports</span>
@@ -408,7 +419,7 @@
       <div class="form-footer" style="margin-top: 32px;">
         <a href="https://github.com/tayyabtahir143/AssetManager" target="_blank" rel="noopener" style="color:var(--blue); text-decoration:none; font-weight:500;">GitHub</a>
         &nbsp;·&nbsp;
-        {{ (branding_name ~ " Asset Manager") if branding_name else "Asset Manager" }} v{{ app_version or "1.0.0" }}
+        {{ brand_display }} v{{ app_version or "1.0.0" }}
       </div>
     </div>
   </div>
