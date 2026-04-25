@@ -37,6 +37,7 @@ from ldap3.utils.conv import escape_filter_chars
 from sqlalchemy import func, text, cast, String, or_
 from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 
 
 app = Flask(__name__)
@@ -99,6 +100,9 @@ JWT_ALGORITHM = "HS256"
 APP_START_TIME = datetime.datetime.utcnow()
 DOCKERHUB_REPO = "tayyabtahir/assetmanager"
 APP_VERSION = os.environ.get("APP_VERSION", "1.0.0").strip()
+ASSET_IMAGE_MAX_BYTES = int(os.environ.get("ASSET_IMAGE_MAX_MB", "5")) * 1024 * 1024
+ASSET_IMAGE_ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "webp", "gif"}
+ASSET_IMAGE_MAX_FILES = int(os.environ.get("ASSET_IMAGE_MAX_FILES", "3"))
 UPDATE_CHECK_CACHE = {
     "timestamp": 0.0,
     "available": False,
@@ -566,6 +570,9 @@ class Laptop(db.Model):
     dept = db.Column(db.String(80), nullable=True)
     assigned_to = db.Column(db.String(80), nullable=True)
     status = db.Column(db.String(20), nullable=True)
+    photo_filename = db.Column(db.String(255), nullable=True)
+    photo_filename_2 = db.Column(db.String(255), nullable=True)
+    photo_filename_3 = db.Column(db.String(255), nullable=True)
 
 
 class Computer(db.Model):
@@ -579,6 +586,9 @@ class Computer(db.Model):
     dept = db.Column(db.String(80), nullable=True)
     assigned_to = db.Column(db.String(80), nullable=True)
     status = db.Column(db.String(20), nullable=True)
+    photo_filename = db.Column(db.String(255), nullable=True)
+    photo_filename_2 = db.Column(db.String(255), nullable=True)
+    photo_filename_3 = db.Column(db.String(255), nullable=True)
 
 
 class Screen(db.Model):
@@ -590,6 +600,9 @@ class Screen(db.Model):
     dept = db.Column(db.String(80), nullable=True)
     assigned_to = db.Column(db.String(80), nullable=True)
     status = db.Column(db.String(20), nullable=True)
+    photo_filename = db.Column(db.String(255), nullable=True)
+    photo_filename_2 = db.Column(db.String(255), nullable=True)
+    photo_filename_3 = db.Column(db.String(255), nullable=True)
 
 
 class Keyboard(db.Model):
@@ -600,6 +613,9 @@ class Keyboard(db.Model):
     dept = db.Column(db.String(80), nullable=True)
     assigned_to = db.Column(db.String(80), nullable=True)
     status = db.Column(db.String(20), nullable=True)
+    photo_filename = db.Column(db.String(255), nullable=True)
+    photo_filename_2 = db.Column(db.String(255), nullable=True)
+    photo_filename_3 = db.Column(db.String(255), nullable=True)
 
 
 class Mouse(db.Model):
@@ -610,6 +626,9 @@ class Mouse(db.Model):
     dept = db.Column(db.String(80), nullable=True)
     assigned_to = db.Column(db.String(80), nullable=True)
     status = db.Column(db.String(20), nullable=True)
+    photo_filename = db.Column(db.String(255), nullable=True)
+    photo_filename_2 = db.Column(db.String(255), nullable=True)
+    photo_filename_3 = db.Column(db.String(255), nullable=True)
 
 
 class Headset(db.Model):
@@ -618,6 +637,9 @@ class Headset(db.Model):
     dept = db.Column(db.String(80), nullable=True)
     assigned_to = db.Column(db.String(80), nullable=True)
     status = db.Column(db.String(20), nullable=True)
+    photo_filename = db.Column(db.String(255), nullable=True)
+    photo_filename_2 = db.Column(db.String(255), nullable=True)
+    photo_filename_3 = db.Column(db.String(255), nullable=True)
 
 
 class Ram(db.Model):
@@ -631,6 +653,9 @@ class Ram(db.Model):
     dept = db.Column(db.String(80), nullable=True)
     assigned_to = db.Column(db.String(80), nullable=True)
     status = db.Column(db.String(20), nullable=True)
+    photo_filename = db.Column(db.String(255), nullable=True)
+    photo_filename_2 = db.Column(db.String(255), nullable=True)
+    photo_filename_3 = db.Column(db.String(255), nullable=True)
 
 
 ASSET_DEFS = {
@@ -788,6 +813,110 @@ def format_changes(old_values, new_values):
         if old != new:
             changes.append(f"{key}: {old} -> {new}")
     return "; ".join(changes)
+
+
+def _asset_image_dir():
+    directory = os.environ.get("ASSET_IMAGE_DIR", "/data/asset-images")
+    os.makedirs(directory, exist_ok=True)
+    return directory
+
+
+def _asset_image_path(filename):
+    safe = os.path.basename(filename or "")
+    return os.path.join(_asset_image_dir(), safe)
+
+
+def _asset_photo_slots():
+    return ("photo_filename", "photo_filename_2", "photo_filename_3")
+
+
+def _get_asset_photo_filenames(item):
+    return [getattr(item, slot, None) for slot in _asset_photo_slots() if getattr(item, slot, None)]
+
+
+def _set_asset_photo_filenames(item, filenames):
+    normalized = list(filenames or [])[:ASSET_IMAGE_MAX_FILES]
+    for idx, slot in enumerate(_asset_photo_slots()):
+        setattr(item, slot, normalized[idx] if idx < len(normalized) else None)
+
+
+def _normalize_uploaded_photo_files(file_storages):
+    return [file_storage for file_storage in (file_storages or []) if (file_storage.filename or "").strip()]
+
+
+def _parse_photo_slot_values(values):
+    slots = set()
+    max_slots = len(_asset_photo_slots())
+    for raw in values or []:
+        text_value = str(raw or "").strip()
+        if not text_value:
+            continue
+        for part in text_value.split(","):
+            item = part.strip()
+            if not item:
+                continue
+            try:
+                slot = int(item)
+            except (ValueError, TypeError):
+                continue
+            if 1 <= slot <= max_slots:
+                slots.add(slot)
+    return sorted(slots)
+
+
+def _api_asset_photo_urls(asset_type, item):
+    return [
+        url_for(
+            "api_asset_photo",
+            asset_type=asset_type,
+            item_id=item.id,
+            slot=idx,
+            v=filename,
+            _external=True,
+        )
+        for idx, filename in enumerate(_get_asset_photo_filenames(item), start=1)
+    ]
+
+
+def _delete_asset_photo_file(filename):
+    if not filename:
+        return
+    path = _asset_image_path(filename)
+    try:
+        if os.path.exists(path):
+            os.remove(path)
+    except OSError:
+        app.logger.warning("Failed to delete asset photo: %s", path)
+
+
+def _delete_asset_photo_files(filenames):
+    for filename in filenames or []:
+        _delete_asset_photo_file(filename)
+
+
+def _store_uploaded_photo_files(asset_type, item, file_storages):
+    created_files = []
+    for file_storage in _normalize_uploaded_photo_files(file_storages):
+        original_name = (file_storage.filename or "").strip()
+        safe_original = secure_filename(original_name)
+        ext = safe_original.rsplit(".", 1)[-1].lower() if "." in safe_original else ""
+        if ext not in ASSET_IMAGE_ALLOWED_EXTENSIONS:
+            _delete_asset_photo_files(created_files)
+            return [], "Unsupported image format. Use PNG, JPG, JPEG, WEBP, or GIF."
+        payload = file_storage.read()
+        if not payload:
+            _delete_asset_photo_files(created_files)
+            return [], "Uploaded image is empty."
+        if len(payload) > ASSET_IMAGE_MAX_BYTES:
+            _delete_asset_photo_files(created_files)
+            max_mb = max(1, ASSET_IMAGE_MAX_BYTES // (1024 * 1024))
+            return [], f"Image is too large. Maximum allowed size is {max_mb} MB."
+        new_filename = f"{asset_type}-{item.id}-{secrets.token_hex(8)}.{ext}"
+        target_path = _asset_image_path(new_filename)
+        with open(target_path, "wb") as handle:
+            handle.write(payload)
+        created_files.append(new_filename)
+    return created_files, None
 
 
 @app.template_filter("parse_audit_details")
@@ -2645,11 +2774,36 @@ def get_branding_display_name():
     return f"{brand_raw} Asset Manager"
 
 
+def get_branding_initial():
+    brand = (get_branding_name() or "Asset").strip()
+    for ch in brand:
+        if ch.isalnum():
+            return ch.upper()
+    return "A"
+
+
 def get_branding_logo_url():
     branding = get_branding()
     if branding and branding.logo_filename:
         return url_for("branding_logo")
     return None
+
+
+@app.route("/favicon.ico")
+@app.route("/favicon.svg")
+def dynamic_favicon():
+    letter = html.escape(get_branding_initial())
+    svg = f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <defs>
+    <linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#5b7cfa"/>
+      <stop offset="100%" stop-color="#22d3ee"/>
+    </linearGradient>
+  </defs>
+  <rect width="64" height="64" rx="16" fill="url(#g)"/>
+  <text x="32" y="42" text-anchor="middle" font-size="34" font-family="Inter,Segoe UI,Arial,sans-serif" font-weight="800" fill="#08121c">{letter}</text>
+</svg>"""
+    return app.response_class(svg, mimetype="image/svg+xml")
 
 
 def get_update_status():
@@ -3926,6 +4080,50 @@ def ensure_status_columns():
     db.session.commit()
 
 
+def ensure_photo_columns():
+    tables = ("laptop", "computer", "screen", "keyboard", "mouse", "headset", "ram")
+    if db.engine.dialect.name == "sqlite":
+        for table_name in tables:
+            result = db.session.execute(text(f"PRAGMA table_info({table_name})")).fetchall()
+            if not result:
+                continue
+            columns = {row[1] for row in result}
+            if "photo_filename" not in columns:
+                db.session.execute(
+                    text(f"ALTER TABLE {table_name} ADD COLUMN photo_filename VARCHAR(255)")
+                )
+            if "photo_filename_2" not in columns:
+                db.session.execute(
+                    text(f"ALTER TABLE {table_name} ADD COLUMN photo_filename_2 VARCHAR(255)")
+                )
+            if "photo_filename_3" not in columns:
+                db.session.execute(
+                    text(f"ALTER TABLE {table_name} ADD COLUMN photo_filename_3 VARCHAR(255)")
+                )
+        db.session.commit()
+        return
+    for table_name in tables:
+        try:
+            db.session.execute(
+                text(
+                    f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS photo_filename VARCHAR(255)"
+                )
+            )
+            db.session.execute(
+                text(
+                    f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS photo_filename_2 VARCHAR(255)"
+                )
+            )
+            db.session.execute(
+                text(
+                    f"ALTER TABLE {table_name} ADD COLUMN IF NOT EXISTS photo_filename_3 VARCHAR(255)"
+                )
+            )
+        except Exception:
+            db.session.rollback()
+    db.session.commit()
+
+
 def ensure_ram_type_column():
     tables = ("ram",)
     if db.engine.dialect.name == "sqlite":
@@ -4510,6 +4708,7 @@ def init_db():
         ensure_asset_tag_columns()
         ensure_dept_columns()
         ensure_status_columns()
+        ensure_photo_columns()
         ensure_ram_type_column()
         ensure_laptop_generation_column()
         ensure_role_admin_column()
@@ -4884,6 +5083,28 @@ def api_auth_required(asset_type=None, permission=None):
     return decorator
 
 
+def _resolve_api_user_from_request():
+    auth_header = request.headers.get("Authorization", "")
+    token = ""
+    if auth_header.startswith("Bearer "):
+        token = auth_header.split(" ", 1)[1].strip()
+    if not token:
+        token = (request.args.get("access_token") or "").strip()
+    if not token:
+        return None, "Missing token"
+    try:
+        payload = _jwt_decode(token)
+    except Exception:
+        return None, "Invalid token"
+    if payload.get("type") != "access":
+        return None, "Invalid token type"
+    user_id = payload.get("sub")
+    user = User.query.get(user_id) if user_id else None
+    if not user:
+        return None, "User not found"
+    return user, None
+
+
 def is_free_filter(model):
     if hasattr(model, "status"):
         return model.query.filter(
@@ -5216,6 +5437,7 @@ def api_assets_list(asset_type):
             else:
                 value = getattr(item, field_name, None)
             row[field_name] = format_static_field_value(field_name, field_type, value)
+        row["photo_count"] = len(_get_asset_photo_filenames(item))
         rows.append(row)
     return jsonify(
         {
@@ -5245,7 +5467,36 @@ def api_assets_get(asset_type, item_id):
         else:
             value = getattr(item, field_name, None)
         row[field_name] = format_static_field_value(field_name, field_type, value)
+    row["photo_urls"] = _api_asset_photo_urls(asset_type, item)
     return jsonify(row)
+
+
+@app.route("/api/assets/<asset_type>/<int:item_id>/photo/<int:slot>", methods=["GET"])
+@csrf.exempt
+def api_asset_photo(asset_type, item_id, slot):
+    if asset_type not in ASSET_DEFS:
+        return jsonify({"error": "Unknown asset type"}), 404
+    user, auth_error = _resolve_api_user_from_request()
+    if auth_error:
+        return jsonify({"error": auth_error}), 401
+    if not get_role_asset_permissions(user, asset_type).get("can_read", False):
+        return jsonify({"error": "Forbidden"}), 403
+    definition = ASSET_DEFS[asset_type]
+    item = definition["model"].query.get_or_404(item_id)
+    if slot < 1 or slot > ASSET_IMAGE_MAX_FILES:
+        return "", 404
+    filenames = _get_asset_photo_filenames(item)
+    filename = filenames[slot - 1] if slot <= len(filenames) else None
+    if not filename:
+        return "", 404
+    photo_path = _asset_image_path(filename)
+    if not os.path.exists(photo_path):
+        return "", 404
+    response = send_file(photo_path)
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 
 
 @app.route("/api/assets/<asset_type>", methods=["POST"])
@@ -5304,6 +5555,56 @@ def api_assets_update(asset_type, item_id):
     return jsonify({"status": "updated"})
 
 
+@app.route("/api/assets/<asset_type>/<int:item_id>/photos", methods=["POST"])
+@csrf.exempt
+@api_auth_required(permission="can_add", asset_type=None)
+def api_assets_update_photos(asset_type, item_id):
+    if asset_type not in ASSET_DEFS:
+        return jsonify({"error": "Unknown asset type"}), 404
+    user = request.api_user
+    if not get_role_asset_permissions(user, asset_type).get("can_add", False):
+        return jsonify({"error": "Forbidden"}), 403
+    definition = ASSET_DEFS[asset_type]
+    item = definition["model"].query.get_or_404(item_id)
+    current_files = _get_asset_photo_filenames(item)
+    remove_slots = _parse_photo_slot_values(request.form.getlist("remove_slots"))
+    kept_files = [
+        filename
+        for idx, filename in enumerate(current_files, start=1)
+        if idx not in set(remove_slots)
+    ]
+    new_photo_files = _normalize_uploaded_photo_files(request.files.getlist("photos"))
+    max_slots = len(_asset_photo_slots())
+    if len(new_photo_files) > max_slots:
+        return jsonify({"error": f"You can upload up to {max_slots} photos per asset."}), 400
+    if len(kept_files) + len(new_photo_files) > max_slots:
+        return jsonify({"error": f"Each asset can have up to {max_slots} photos."}), 400
+    created_files = []
+    if new_photo_files:
+        created_files, image_error = _store_uploaded_photo_files(
+            asset_type, item, new_photo_files
+        )
+        if image_error:
+            _delete_asset_photo_files(created_files)
+            return jsonify({"error": image_error}), 400
+    removed_files = [
+        filename
+        for idx, filename in enumerate(current_files, start=1)
+        if idx in set(remove_slots)
+    ]
+    _set_asset_photo_filenames(item, kept_files + created_files)
+    _delete_asset_photo_files(removed_files)
+    db.session.commit()
+    log_audit(
+        "update",
+        "asset_photo",
+        entity_id=item.id,
+        details=f"type={asset_type} removed={len(removed_files)} added={len(created_files)}",
+    )
+    photo_urls = _api_asset_photo_urls(asset_type, item)
+    return jsonify({"status": "updated", "photo_urls": photo_urls})
+
+
 @app.route("/api/assets/<asset_type>/<int:item_id>", methods=["DELETE"])
 @csrf.exempt
 @api_auth_required(permission="can_delete", asset_type=None)
@@ -5316,8 +5617,10 @@ def api_assets_delete(asset_type, item_id):
     definition = ASSET_DEFS[asset_type]
     item = definition["model"].query.get_or_404(item_id)
     details = asset_audit_details(asset_type, item)
+    photo_filenames = _get_asset_photo_filenames(item)
     db.session.delete(item)
     db.session.commit()
+    _delete_asset_photo_files(photo_filenames)
     log_audit("delete", "asset", entity_id=item_id, details=details)
     return jsonify({"status": "deleted"})
 
@@ -5597,6 +5900,10 @@ def view_asset(asset_type, item_id):
         if field_name != "assigned_to"
     ]
     assigned_to = display_assignee(getattr(item, "assigned_to", None))
+    photo_urls = [
+        url_for("view_asset_photo", asset_type=asset_type, item_id=item.id, slot=idx)
+        for idx, _filename in enumerate(_get_asset_photo_filenames(item), start=1)
+    ]
     return render_template(
         "asset_detail.html",
         asset_type=asset_type,
@@ -5608,7 +5915,29 @@ def view_asset(asset_type, item_id):
         edit_history=edit_history,
         comments=comments,
         previous_users=previous_users,
+        photo_urls=photo_urls,
     )
+
+
+@app.route("/assets/<asset_type>/view/<int:item_id>/photo")
+@app.route("/assets/<asset_type>/view/<int:item_id>/photo/<int:slot>")
+@login_required
+@require_static_permission("can_read")
+def view_asset_photo(asset_type, item_id, slot=1):
+    definition = ASSET_DEFS.get(asset_type)
+    if not definition:
+        return "", 404
+    item = definition["model"].query.get_or_404(item_id)
+    if slot < 1 or slot > ASSET_IMAGE_MAX_FILES:
+        return "", 404
+    filenames = _get_asset_photo_filenames(item)
+    filename = filenames[slot - 1] if slot <= len(filenames) else None
+    if not filename:
+        return "", 404
+    photo_path = _asset_image_path(filename)
+    if not os.path.exists(photo_path):
+        return "", 404
+    return send_file(photo_path)
 
 
 @app.route("/assets/<asset_type>/view/<int:item_id>/comment", methods=["POST"])
@@ -5856,6 +6185,8 @@ def add_asset(asset_type):
     if request.method == "POST":
         data = {}
         bulk_quantity = request.form.get("bulk_quantity", "1")
+        photo_files = _normalize_uploaded_photo_files(request.files.getlist("asset_photos"))
+        has_photo = bool(photo_files)
         for field_name, _, field_type in definition["fields"]:
             if field_name == "connection" and definition["model"] in (Mouse, Keyboard):
                 data[field_name] = request.form.get(field_name, "").strip()
@@ -5946,11 +6277,46 @@ def add_asset(asset_type):
                 bulk_quantity=bulk_quantity,
                 invalid_fields={"asset_tag"},
             )
+        if bulk_count > 1 and has_photo:
+            flash("Photo upload is only supported when adding one asset at a time.", "error")
+            return render_template(
+                "add.html",
+                asset_type=asset_type,
+                definition=definition,
+                form_data=data,
+                bulk_quantity=bulk_quantity,
+            )
+        if has_photo and len(photo_files) > ASSET_IMAGE_MAX_FILES:
+            flash(f"You can upload up to {ASSET_IMAGE_MAX_FILES} photos per asset.", "error")
+            return render_template(
+                "add.html",
+                asset_type=asset_type,
+                definition=definition,
+                form_data=data,
+                bulk_quantity=bulk_quantity,
+            )
         created_items = []
         for _ in range(bulk_count):
             item = model(**data)
             db.session.add(item)
             created_items.append(item)
+        db.session.flush()
+        if has_photo:
+            new_files, image_error = _store_uploaded_photo_files(
+                asset_type, created_items[0], photo_files
+            )
+            if image_error:
+                db.session.rollback()
+                _delete_asset_photo_files(new_files)
+                flash(image_error, "error")
+                return render_template(
+                    "add.html",
+                    asset_type=asset_type,
+                    definition=definition,
+                    form_data=data,
+                    bulk_quantity=bulk_quantity,
+                )
+            _set_asset_photo_filenames(created_items[0], new_files)
         db.session.commit()
         for item in created_items:
             log_audit("create", "asset", entity_id=item.id, details=asset_audit_details(asset_type, item))
@@ -5978,8 +6344,10 @@ def delete_asset(asset_type, item_id):
     definition = ASSET_DEFS[asset_type]
     item = definition["model"].query.get_or_404(item_id)
     details = asset_audit_details(asset_type, item)
+    photo_filenames = _get_asset_photo_filenames(item)
     db.session.delete(item)
     db.session.commit()
+    _delete_asset_photo_files(photo_filenames)
     log_audit("delete", "asset", entity_id=item_id, details=details)
     return redirect(url_for("list_assets", asset_type=asset_type))
 
@@ -6002,6 +6370,9 @@ def bulk_delete_assets(asset_type):
     ids = sorted(set(ids))
     if ids:
         items = definition["model"].query.filter(definition["model"].id.in_(ids)).all()
+        photo_filenames = []
+        for item in items:
+            photo_filenames.extend(_get_asset_photo_filenames(item))
         tags = [
             getattr(item, "asset_tag", None)
             for item in items
@@ -6011,6 +6382,7 @@ def bulk_delete_assets(asset_type):
             synchronize_session=False
         )
         db.session.commit()
+        _delete_asset_photo_files(photo_filenames)
         if tags:
             detail_text = f"type={asset_type} asset_tags={tags}"
         else:
@@ -6036,6 +6408,12 @@ def edit_asset(asset_type, item_id):
         else:
             old_values[field_name] = getattr(item, field_name, None)
     if request.method == "POST":
+        photo_files = _normalize_uploaded_photo_files(request.files.getlist("asset_photos"))
+        remove_photo_slots = {
+            str(value).strip()
+            for value in request.form.getlist("remove_photo_slots")
+            if str(value).strip()
+        }
         connection_value = None
         for field_name, _, field_type in definition["fields"]:
             if field_name == "connection" and definition["model"] in (Mouse, Keyboard):
@@ -6119,6 +6497,47 @@ def edit_asset(asset_type, item_id):
                     definition=definition,
                     item=item,
                 )
+        current_files = _get_asset_photo_filenames(item)
+        kept_files = [
+            filename
+            for idx, filename in enumerate(current_files, start=1)
+            if str(idx) not in remove_photo_slots
+        ]
+        if len(photo_files) > ASSET_IMAGE_MAX_FILES:
+            flash(f"You can upload up to {ASSET_IMAGE_MAX_FILES} photos per asset.", "error")
+            return render_template(
+                "edit.html",
+                asset_type=asset_type,
+                definition=definition,
+                item=item,
+            )
+        if len(kept_files) + len(photo_files) > ASSET_IMAGE_MAX_FILES:
+            flash(f"Each asset can have up to {ASSET_IMAGE_MAX_FILES} photos.", "error")
+            return render_template(
+                "edit.html",
+                asset_type=asset_type,
+                definition=definition,
+                item=item,
+            )
+        new_files = []
+        if photo_files:
+            new_files, image_error = _store_uploaded_photo_files(asset_type, item, photo_files)
+            if image_error:
+                _delete_asset_photo_files(new_files)
+                flash(image_error, "error")
+                return render_template(
+                    "edit.html",
+                    asset_type=asset_type,
+                    definition=definition,
+                    item=item,
+                )
+        removed_files = [
+            filename
+            for idx, filename in enumerate(current_files, start=1)
+            if str(idx) in remove_photo_slots
+        ]
+        _set_asset_photo_filenames(item, kept_files + new_files)
+        _delete_asset_photo_files(removed_files)
         db.session.commit()
         new_values = {}
         for field_name, _, _ in definition["fields"]:
@@ -7192,6 +7611,7 @@ def inject_user():
         "branding": get_branding(),
         "branding_logo_url": get_branding_logo_url(),
         "branding_name": get_branding_name(),
+        "branding_display_name": get_branding_display_name(),
         "dept_options": dept_options,
         "display_assignee": display_assignee,
         "update_status": get_update_status(),

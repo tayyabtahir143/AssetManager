@@ -51,6 +51,39 @@
   </div>
   {% endif %}
 
+  {% if photo_urls %}
+  <div class="card animate-in" style="margin-top: 16px;">
+    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Asset Photos</div>
+    <div style="display:flex; gap:12px; flex-wrap:wrap;">
+      {% for photo_url in photo_urls %}
+        <img
+          src="{{ photo_url }}"
+          alt="{{ asset_title }} photo {{ loop.index }}"
+          class="asset-photo-thumb"
+          style="max-width:260px; width:100%; border-radius:12px; border:1px solid var(--border); background:var(--surface-2);"
+        >
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+
+  <div id="photo-lightbox" style="display:none; position:fixed; inset:0; background:rgba(2,6,23,0.86); z-index:1200; align-items:center; justify-content:center; padding:22px;">
+    <button
+      id="photo-lightbox-close"
+      class="button secondary"
+      type="button"
+      style="position:absolute; top:20px; right:20px; z-index:1202;"
+    >
+      Close
+    </button>
+    <img
+      id="photo-lightbox-image"
+      src=""
+      alt="Full preview"
+      style="max-width:min(1100px, 94vw); max-height:90vh; border-radius:14px; border:1px solid var(--border); box-shadow:0 20px 60px rgba(0,0,0,0.5);"
+    >
+  </div>
+
   <div class="card animate-in" style="margin-top: 16px;">
     <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Asset Overview</div>
     <div class="table-wrap">
@@ -193,4 +226,34 @@
       <p class="muted" style="margin-top: 12px;">No comments yet.</p>
     {% endif %}
   </div>
+  <script>
+    (() => {
+      const lightbox = document.getElementById('photo-lightbox');
+      const lightboxImg = document.getElementById('photo-lightbox-image');
+      const closeBtn = document.getElementById('photo-lightbox-close');
+      if (!lightbox || !lightboxImg || !closeBtn) return;
+      const open = (src, alt) => {
+        lightboxImg.src = src;
+        lightboxImg.alt = alt || 'Full preview';
+        lightbox.style.display = 'flex';
+      };
+      const close = () => {
+        lightbox.style.display = 'none';
+        lightboxImg.src = '';
+      };
+      document.querySelectorAll('.asset-photo-thumb').forEach((img) => {
+        img.style.cursor = 'zoom-in';
+        img.addEventListener('click', () => open(img.src, img.alt));
+      });
+      closeBtn.addEventListener('click', close);
+      lightbox.addEventListener('click', (event) => {
+        if (event.target === lightbox) close();
+      });
+      document.addEventListener('keydown', (event) => {
+        if (event.key === 'Escape' && lightbox.style.display === 'flex') {
+          close();
+        }
+      });
+    })();
+  </script>
 {% endblock %}
