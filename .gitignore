@@ -1,8 +1,12 @@
 __pycache__
 data
 opensource_asset_manager_flutter
+!mobile/opensource_asset_manager_flutter/
+!mobile/opensource_asset_manager_flutter/**
 postgres-deploy
 android-app
 privacy_policy
+release-artifacts/
+mobile/opensource_asset_manager_flutter/android/key/*.pem
 trivy-html.tpl
 trivy-report.html

@@ -2,7 +2,7 @@
 {% block content %}
   <div class="card animate-in" style="max-width: 600px;">
     <div style="font-size:20px; font-weight:700; letter-spacing:-0.02em; margin-bottom:4px;">Edit {{ definition.label }}</div>
-    <form method="post" class="form-grid">
+    <form method="post" class="form-grid" enctype="multipart/form-data">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       {% for field_name, label, field_type in definition.fields %}
         <div>
@@ -80,6 +80,37 @@
           {% endif %}
         </div>
       {% endfor %}
+      <div>
+        <label for="asset_photos">Asset Photos (max 3)</label>
+        <input
+          id="asset_photos"
+          name="asset_photos"
+          type="file"
+          accept="image/png,image/jpeg,image/webp,image/gif"
+          multiple
+        >
+        <div id="photo-selection-count" class="field-hint muted" style="display:block;">Optional. Pick multiple photos now, or pick again before saving.</div>
+        <div id="photo-selection-preview" style="display:flex; gap:10px; flex-wrap:wrap; margin-top:8px;"></div>
+        <div style="margin-top:10px; display:grid; gap:8px;">
+          {% for slot in [1, 2, 3] %}
+            {% set photo_attr = "photo_filename" if slot == 1 else "photo_filename_" ~ slot %}
+            {% set photo_name = item|attr(photo_attr) %}
+            {% if photo_name %}
+              <div style="display:grid; gap:8px;">
+                <img
+                  src="{{ url_for('view_asset_photo', asset_type=asset_type, item_id=item.id, slot=slot) }}"
+                  alt="Current asset photo {{ slot }}"
+                  style="max-width:220px; border-radius:10px; border:1px solid var(--border);"
+                >
+                <label style="display:flex; align-items:center; gap:8px; font-size:13px;">
+                  <input type="checkbox" name="remove_photo_slots" value="{{ slot }}">
+                  Remove photo {{ slot }}
+                </label>
+              </div>
+            {% endif %}
+          {% endfor %}
+        </div>
+      </div>
       <button class="button" type="submit">Save</button>
       <a class="button secondary" href="{{ url_for('list_assets', asset_type=asset_type) }}">Cancel</a>
     </form>
@@ -169,5 +200,78 @@
       }, 400);
     });
   })();
+  </script>
+  <script>
+    (() => {
+      const input = document.getElementById('asset_photos');
+      const preview = document.getElementById('photo-selection-preview');
+      const count = document.getElementById('photo-selection-count');
+      if (!input || !preview || !count) return;
+
+      const maxFiles = 3;
+      let queuedFiles = [];
+      const getRemainingSlots = () => {
+        const allExisting = document.querySelectorAll('input[name="remove_photo_slots"]').length;
+        const removed = document.querySelectorAll('input[name="remove_photo_slots"]:checked').length;
+        const kept = Math.max(allExisting - removed, 0);
+        return Math.max(maxFiles - kept, 0);
+      };
+
+      const updateInputFiles = () => {
+        const dt = new DataTransfer();
+        queuedFiles.forEach((file) => dt.items.add(file));
+        input.files = dt.files;
+      };
+
+      const renderPreview = () => {
+        const remainingSlots = getRemainingSlots();
+        if (queuedFiles.length > remainingSlots) {
+          queuedFiles = queuedFiles.slice(0, remainingSlots);
+          updateInputFiles();
+        }
+        preview.innerHTML = '';
+        count.textContent = `Selected ${queuedFiles.length} new photo(s). Available slots: ${remainingSlots}.`;
+        queuedFiles.forEach((file, index) => {
+          const item = document.createElement('div');
+          item.style.cssText = 'display:grid; gap:6px;';
+          const thumb = document.createElement('div');
+          thumb.style.cssText = 'width:92px;height:72px;border:1px solid var(--border);border-radius:10px;overflow:hidden;background:var(--surface-2);display:flex;align-items:center;justify-content:center;';
+          const img = document.createElement('img');
+          img.src = URL.createObjectURL(file);
+          img.alt = file.name;
+          img.style.cssText = 'width:100%;height:100%;object-fit:cover;';
+          thumb.appendChild(img);
+          const removeBtn = document.createElement('button');
+          removeBtn.type = 'button';
+          removeBtn.className = 'button secondary';
+          removeBtn.style.cssText = 'padding:4px 8px;font-size:12px;';
+          removeBtn.textContent = 'Remove';
+          removeBtn.addEventListener('click', () => {
+            queuedFiles.splice(index, 1);
+            updateInputFiles();
+            renderPreview();
+          });
+          item.appendChild(thumb);
+          item.appendChild(removeBtn);
+          preview.appendChild(item);
+        });
+      };
+
+      input.addEventListener('change', () => {
+        const remainingSlots = getRemainingSlots();
+        const newlyPicked = Array.from(input.files || []);
+        newlyPicked.forEach((file) => {
+          if (queuedFiles.length < remainingSlots) {
+            queuedFiles.push(file);
+          }
+        });
+        updateInputFiles();
+        renderPreview();
+      });
+      document.querySelectorAll('input[name="remove_photo_slots"]').forEach((checkbox) => {
+        checkbox.addEventListener('change', renderPreview);
+      });
+      renderPreview();
+    })();
   </script>
 {% endblock %}

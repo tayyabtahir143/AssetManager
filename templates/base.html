@@ -15,6 +15,8 @@
     <meta charset="utf-8">
     <title>{{ brand_display }}</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/svg+xml" href="{{ url_for('dynamic_favicon', v=(brand_raw or 'A')) }}">
+    <link rel="shortcut icon" href="{{ url_for('dynamic_favicon', v=(brand_raw or 'A')) }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -1089,8 +1091,7 @@
         </main>
 
         <footer class="page-footer">
-          <a href="https://github.com/tayyabtahir143/AssetManager" target="_blank" rel="noopener">GitHub</a>
-          &nbsp;·&nbsp; AssetManager v{{ app_version }}
+          <a href="https://github.com/tayyabtahir143/AssetManager" target="_blank" rel="noopener">GitHub · AssetManager v{{ app_version }}</a>
         </footer>
       </div>
     </div>
