@@ -519,6 +519,7 @@ class AssetType(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     key = db.Column(db.String(50), unique=True, nullable=False)
     label = db.Column(db.String(80), nullable=False)
+    has_quantity = db.Column(db.Boolean, nullable=False, default=False)
     fields = db.relationship("AssetField", backref="asset_type", cascade="all, delete-orphan")
     items = db.relationship("AssetItem", backref="asset_type", cascade="all, delete-orphan")
 
@@ -4474,6 +4475,27 @@ def ensure_custom_status_field():
     db.session.commit()
 
 
+def ensure_asset_type_quantity_column():
+    if db.engine.dialect.name == "sqlite":
+        result = db.session.execute(text("PRAGMA table_info(asset_type)")).fetchall()
+        if not result:
+            return
+        columns = {row[1] for row in result}
+        if "has_quantity" not in columns:
+            db.session.execute(
+                text("ALTER TABLE asset_type ADD COLUMN has_quantity BOOLEAN NOT NULL DEFAULT 0")
+            )
+            db.session.commit()
+    else:
+        try:
+            db.session.execute(
+                text("ALTER TABLE asset_type ADD COLUMN IF NOT EXISTS has_quantity BOOLEAN NOT NULL DEFAULT FALSE")
+            )
+            db.session.commit()
+        except Exception:
+            db.session.rollback()
+
+
 def backfill_status_values():
     for asset_key, definition in ASSET_DEFS.items():
         model = definition["model"]
@@ -4725,6 +4747,7 @@ def init_db():
         ensure_branding_table()
         ensure_department_table()
         ensure_builtin_asset_settings()
+        ensure_asset_type_quantity_column()
         ensure_custom_dept_field()
         ensure_custom_status_field()
         backfill_status_values()
@@ -6629,6 +6652,33 @@ def list_custom_assets(asset_key):
             if status == desired:
                 filtered.append(item)
         items = filtered
+    if asset_type.has_quantity:
+        stock_items = []
+        assigned_items = []
+        for i in items:
+            d = i.data or {}
+            if any(str(d.get(fn, "")).strip().lower() not in {"", "free"} for fn in assigned_fields):
+                assigned_items.append(i)
+            else:
+                stock_items.append(i)
+        stock_q = sum(_parse_int((i.data or {}).get("total_quantity", 0), 0) for i in stock_items)
+        assigned_count = len(assigned_items)
+        quantity_totals = {"total": stock_q, "assigned": assigned_count, "available": max(stock_q - assigned_count, 0)}
+        return render_template(
+            "custom_list.html",
+            asset_type=asset_type,
+            asset_title=format_asset_title(asset_type.key, asset_type.label),
+            fields=fields,
+            stock_items=stock_items,
+            assigned_items=assigned_items,
+            asset_perms=asset_perms,
+            assigned_fields=assigned_fields,
+            query=query,
+            status_filter=status_filter,
+            quantity_totals=quantity_totals,
+            import_headers=get_custom_import_headers(fields),
+            total_items=len(items),
+        )
     page = max(_parse_int(request.args.get("page", ""), 1), 1)
     per_page = DEFAULT_PAGE_SIZE
     total_items = len(items)
@@ -6651,6 +6701,7 @@ def list_custom_assets(asset_key):
         page=page,
         total_pages=total_pages,
         total_items=total_items,
+        quantity_totals=None,
     )
 
 
@@ -6795,12 +6846,20 @@ def list_custom_assets_page(asset_key):
             row["fields"][field.name] = format_custom_field_value(
                 field, data.get(field.name), assigned_fields
             )
+        if asset_type.has_quantity:
+            is_item_assigned = any(
+                str(data.get(fn, "")).strip().lower() not in {"", "free"}
+                for fn in assigned_fields
+            )
+            row["is_assigned"] = is_item_assigned
+            row["fields"]["total_quantity"] = str(_parse_int(data.get("total_quantity", 0), 0))
         rows.append(row)
     return jsonify(
         {
             "rows": rows,
             "page": page,
             "has_more": page < total_pages,
+            "has_quantity": asset_type.has_quantity,
         }
     )
 
@@ -6813,14 +6872,22 @@ def export_custom_assets_excel(asset_key):
     if not asset_type:
         return redirect(url_for("index"))
     fields = AssetField.query.filter_by(asset_type_id=asset_type.id).all()
+    assigned_fields_export, _ = get_custom_special_fields(fields)
     headers = get_custom_import_headers(fields)
+    if asset_type.has_quantity:
+        headers = ["ID", "Quantity", "Assigned", "Available"] + [f.label for f in fields]
     workbook = Workbook()
     sheet = workbook.active
     sheet.append(headers)
     items = AssetItem.query.filter_by(asset_type_id=asset_type.id).order_by(AssetItem.id.asc()).all()
     for item in items:
-        row = [item.id]
         data = item.data or {}
+        if asset_type.has_quantity:
+            total_q = _parse_int(data.get("total_quantity", 0), 0)
+            assigned_q = _parse_int(data.get("assigned_quantity", 0), 0)
+            row = [item.id, total_q, assigned_q, max(total_q - assigned_q, 0)]
+        else:
+            row = [item.id]
         for field in fields:
             value = data.get(field.name)
             if field.field_type == "checkbox" and field.options:
@@ -7001,6 +7068,20 @@ def add_custom_asset(asset_key):
                 data["status"] = "Assigned"
             else:
                 data["status"] = "In Stock"
+        if asset_type.has_quantity:
+            is_assigned_item = any(
+                str(data.get(fn, "")).strip().lower() not in {"", "free"}
+                for fn in assigned_fields
+            )
+            if is_assigned_item:
+                data["total_quantity"] = 0
+            else:
+                total_qty = _parse_int(request.form.get("total_quantity", ""), 0)
+                if total_qty < 0:
+                    flash("Quantity cannot be negative.", "error")
+                    return redirect(url_for("add_custom_asset", asset_key=asset_key))
+                data["total_quantity"] = total_qty
+            data["assigned_quantity"] = 0
         item = AssetItem(asset_type_id=asset_type.id, data=data)
         db.session.add(item)
         db.session.commit()
@@ -7026,11 +7107,13 @@ def add_custom_asset(asset_key):
                     specs.append((field.label, value))
             send_assignment_email(assigned_user, asset_type.label, specs)
         return redirect(url_for("list_custom_assets", asset_key=asset_key))
+    section = request.args.get("section", "stock")
     return render_template(
         "custom_add.html",
         asset_type=asset_type,
         fields=fields,
         assigned_fields=assigned_fields,
+        section=section,
     )
 
 
@@ -7137,6 +7220,20 @@ def edit_custom_asset(asset_key, item_id):
                 data["status"] = "Assigned"
             else:
                 data["status"] = "In Stock"
+        if asset_type.has_quantity:
+            is_assigned_item = any(
+                str(data.get(fn, "")).strip().lower() not in {"", "free"}
+                for fn in assigned_fields
+            )
+            if is_assigned_item:
+                data["total_quantity"] = 0
+            else:
+                total_qty = _parse_int(request.form.get("total_quantity", ""), 0)
+                if total_qty < 0:
+                    flash("Quantity cannot be negative.", "error")
+                    return redirect(url_for("edit_custom_asset", asset_key=asset_key, item_id=item_id))
+                data["total_quantity"] = total_qty
+            data["assigned_quantity"] = 0
         old_assigned_value = None
         for field_name in assigned_fields:
             old_assigned_value = (item.data or {}).get(field_name)
@@ -7180,12 +7277,18 @@ def edit_custom_asset(asset_key, item_id):
                         specs.append((field.label, value))
                 send_assignment_email(new_assigned_value, asset_type.label, specs)
         return redirect(url_for("list_custom_assets", asset_key=asset_key))
+    item_data = item.data or {}
+    is_stock_item = not any(
+        str(item_data.get(fn, "")).strip().lower() not in {"", "free"}
+        for fn in assigned_fields
+    )
     return render_template(
         "custom_edit.html",
         asset_type=asset_type,
         fields=fields,
         item=item,
         assigned_fields=assigned_fields,
+        is_stock_item=is_stock_item,
     )
 
 
@@ -7316,7 +7419,8 @@ def add_asset_type():
         if not field_rows:
             flash("At least one field is required.", "error")
             return redirect(url_for("add_asset_type"))
-        asset_type = AssetType(key=key, label=label)
+        has_quantity = "has_quantity" in request.form
+        asset_type = AssetType(key=key, label=label, has_quantity=has_quantity)
         db.session.add(asset_type)
         db.session.flush()
         for name, label_field, field_type, options in field_rows:
@@ -7349,6 +7453,7 @@ def edit_asset_type(asset_type_id):
             flash("Asset type label is required.", "error")
             return redirect(url_for("edit_asset_type", asset_type_id=asset_type.id))
         asset_type.label = label
+        asset_type.has_quantity = "has_quantity" in request.form
         for field in fields:
             field.label = request.form.get(f"field_label_{field.id}", field.label).strip()
             field_type = request.form.get(f"field_type_{field.id}", field.field_type)

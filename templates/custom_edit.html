@@ -4,7 +4,23 @@
     <div style="font-size:20px; font-weight:700; letter-spacing:-0.02em; margin-bottom:4px;">Edit {{ asset_type.label }}</div>
     <form method="post" class="form-grid">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      {% if asset_type.has_quantity and is_stock_item %}
+        <div>
+          <label for="total_quantity">Quantity</label>
+          <input id="total_quantity" name="total_quantity" type="number" min="0" value="{{ item.data.get('total_quantity', 0) }}" required>
+        </div>
+      {% endif %}
       {% for field in fields %}
+        {% if asset_type.has_quantity %}
+          {# Stock items: hide user/dept fields #}
+          {% if is_stock_item and (field.name in assigned_fields or field.name == 'dept') %}
+            {% continue %}
+          {% endif %}
+          {# Assignment items: hide status (it stays Assigned) #}
+          {% if not is_stock_item and field.name == 'status' %}
+            {% continue %}
+          {% endif %}
+        {% endif %}
         <div>
           <label for="{{ field.name }}">{{ field.label }}</label>
           {% if field.field_type == "checkbox" %}

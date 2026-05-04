@@ -13,6 +13,13 @@
         <input type="text" value="{{ asset_type.key }}" disabled>
       </div>
       <div>
+        <label>Quantity Tracking</label>
+        <div class="checkbox-row">
+          <input id="has_quantity" name="has_quantity" type="checkbox" {% if asset_type.has_quantity %}checked{% endif %}>
+          <span class="muted">Enable total / assigned quantity fields for each item (like RAM)</span>
+        </div>
+      </div>
+      <div>
         <label>Existing Fields</label>
         {% for field in fields %}
           <div class="field-row" style="margin-top: 10px;">

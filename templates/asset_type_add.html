@@ -14,6 +14,13 @@
         <input id="key" name="key" type="text">
       </div>
       <div>
+        <label>Quantity Tracking</label>
+        <div class="checkbox-row">
+          <input id="has_quantity" name="has_quantity" type="checkbox">
+          <span class="muted">Enable total / assigned quantity fields for each item (like RAM)</span>
+        </div>
+      </div>
+      <div>
         <label>Fields</label>
         {% for idx in range(1, 11) %}
           <div class="field-row" style="margin-top: 10px;">
