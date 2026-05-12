@@ -81,7 +81,6 @@
             <tr>
               <th>#</th>
               <th>Qty</th>
-              <th>Available</th>
               {% for field in fields %}
                 {% if field.name not in assigned_fields and field.name != 'dept' and field.name != 'status' %}
                   <th>{{ field.label }}</th>
@@ -98,7 +97,6 @@
               <tr>
                 <td>{{ loop.index }}</td>
                 <td>{{ total_q }}</td>
-                <td>{{ [total_q - quantity_totals.assigned, 0] | max }}</td>
                 {% for field in fields %}
                   {% if field.name not in assigned_fields and field.name != 'dept' and field.name != 'status' %}
                     <td>{{ item.data.get(field.name, '') or '-' }}</td>

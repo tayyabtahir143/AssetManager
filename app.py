@@ -6873,31 +6873,83 @@ def export_custom_assets_excel(asset_key):
         return redirect(url_for("index"))
     fields = AssetField.query.filter_by(asset_type_id=asset_type.id).all()
     assigned_fields_export, _ = get_custom_special_fields(fields)
-    headers = get_custom_import_headers(fields)
-    if asset_type.has_quantity:
-        headers = ["ID", "Quantity", "Assigned", "Available"] + [f.label for f in fields]
-    workbook = Workbook()
-    sheet = workbook.active
-    sheet.append(headers)
     items = AssetItem.query.filter_by(asset_type_id=asset_type.id).order_by(AssetItem.id.asc()).all()
-    for item in items:
-        data = item.data or {}
-        if asset_type.has_quantity:
-            total_q = _parse_int(data.get("total_quantity", 0), 0)
-            assigned_q = _parse_int(data.get("assigned_quantity", 0), 0)
-            row = [item.id, total_q, assigned_q, max(total_q - assigned_q, 0)]
-        else:
-            row = [item.id]
-        for field in fields:
-            value = data.get(field.name)
-            if field.field_type == "checkbox" and field.options:
-                row.append(", ".join(value) if isinstance(value, list) else (value or ""))
-            elif field.field_type == "checkbox":
-                row.append("Yes" if value else "No")
-            else:
-                row.append(value if value is not None else "")
-        sheet.append(row)
     filename = f"custom-{asset_key}-assets-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}.xlsx"
+
+    if asset_type.has_quantity:
+        stock_fields = [f for f in fields if f.name not in assigned_fields_export and f.name != "dept" and f.name != "status"]
+        assign_fields = [f for f in fields if f.name in assigned_fields_export or f.name == "dept"]
+        workbook = Workbook()
+        stock_sheet = workbook.active
+        stock_sheet.title = "Stock"
+        assign_sheet = workbook.create_sheet("Assignments")
+
+        stock_items_export = []
+        assign_items_export = []
+        for item in items:
+            d = item.data or {}
+            if any(str(d.get(fn, "")).strip().lower() not in {"", "free"} for fn in assigned_fields_export):
+                assign_items_export.append(item)
+            else:
+                stock_items_export.append(item)
+
+        total_stock = sum(_parse_int((i.data or {}).get("total_quantity", 0), 0) for i in stock_items_export)
+        total_assigned = len(assign_items_export)
+        total_available = max(total_stock - total_assigned, 0)
+
+        stock_sheet.append(["Summary", "", ""])
+        stock_sheet.append(["Total Stock", "Assigned", "Available"])
+        stock_sheet.append([total_stock, total_assigned, total_available])
+        stock_sheet.append([])
+        stock_sheet.append(["ID", "Qty"] + [f.label for f in stock_fields])
+        for item in stock_items_export:
+            d = item.data or {}
+            total_q = _parse_int(d.get("total_quantity", 0), 0)
+            row = [item.id, total_q]
+            for f in stock_fields:
+                value = d.get(f.name)
+                if f.field_type == "checkbox" and f.options:
+                    row.append(", ".join(value) if isinstance(value, list) else (value or ""))
+                elif f.field_type == "checkbox":
+                    row.append("Yes" if value else "No")
+                else:
+                    row.append(value if value is not None else "")
+            stock_sheet.append(row)
+
+        assign_sheet.append(["ID"] + [f.label for f in assign_fields] + [f.label for f in stock_fields])
+        for item in assign_items_export:
+            d = item.data or {}
+            row = [item.id]
+            for f in assign_fields:
+                value = d.get(f.name)
+                row.append(value if value is not None else "")
+            for f in stock_fields:
+                value = d.get(f.name)
+                if f.field_type == "checkbox" and f.options:
+                    row.append(", ".join(value) if isinstance(value, list) else (value or ""))
+                elif f.field_type == "checkbox":
+                    row.append("Yes" if value else "No")
+                else:
+                    row.append(value if value is not None else "")
+            assign_sheet.append(row)
+    else:
+        headers = get_custom_import_headers(fields)
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.append(headers)
+        for item in items:
+            data = item.data or {}
+            row = [item.id]
+            for field in fields:
+                value = data.get(field.name)
+                if field.field_type == "checkbox" and field.options:
+                    row.append(", ".join(value) if isinstance(value, list) else (value or ""))
+                elif field.field_type == "checkbox":
+                    row.append("Yes" if value else "No")
+                else:
+                    row.append(value if value is not None else "")
+            sheet.append(row)
+
     output = io.BytesIO()
     workbook.save(output)
     output.seek(0)
@@ -7079,7 +7131,7 @@ def add_custom_asset(asset_key):
                 total_qty = _parse_int(request.form.get("total_quantity", ""), 0)
                 if total_qty < 0:
                     flash("Quantity cannot be negative.", "error")
-                    return redirect(url_for("add_custom_asset", asset_key=asset_key))
+                    return redirect(url_for("add_custom_asset", asset_key=asset_key, section=request.form.get("section", "stock")))
                 data["total_quantity"] = total_qty
             data["assigned_quantity"] = 0
         item = AssetItem(asset_type_id=asset_type.id, data=data)

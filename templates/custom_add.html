@@ -24,57 +24,56 @@
         {% endif %}
       {% endif %}
       {% for field in fields %}
-        {% if asset_type.has_quantity %}
-          {# Stock form: hide user/dept fields #}
-          {% if section != 'assign' and (field.name in assigned_fields or field.name == 'dept') %}
-            {% continue %}
-          {% endif %}
-          {# Assign form: hide status (auto-set to Assigned) #}
-          {% if section == 'assign' and field.name == 'status' %}
-            {% continue %}
-          {% endif %}
+        {% set skip = false %}
+        {% if asset_type.has_quantity and section != 'assign' and (field.name in assigned_fields or field.name == 'dept') %}
+          {% set skip = true %}
         {% endif %}
-        <div>
-          <label for="{{ field.name }}">{{ field.label }}</label>
-          {% if field.field_type == "checkbox" %}
-            {% if field.options %}
-              <div style="display: flex; flex-wrap: wrap; gap: 12px;">
-                {% for opt in field.options %}
-                  <label style="display: flex; align-items: center; gap: 6px;">
-                    <input type="checkbox" name="{{ field.name }}" value="{{ opt }}">
-                    <span>{{ opt }}</span>
-                  </label>
-                {% endfor %}
-              </div>
-            {% else %}
-              <div class="checkbox-row">
-                <input id="{{ field.name }}" name="{{ field.name }}" type="checkbox">
-                <span class="muted">Toggle to set</span>
-              </div>
-            {% endif %}
-          {% elif field.field_type == "select" %}
-            <select id="{{ field.name }}" name="{{ field.name }}" {% if field.name != "assigned_to" %}required{% endif %}>
-              {% for opt in field.options %}
-                <option value="{{ opt }}">{{ opt }}</option>
-              {% endfor %}
-            </select>
-          {% else %}
-            {% if field.name == "dept" %}
-              <select id="{{ field.name }}" name="{{ field.name }}" {% if field.name != "assigned_to" %}required{% endif %}>
-                <option value="">-</option>
-                {% if not dept_options %}
-                  <option value="" disabled>No departments added</option>
-                {% else %}
-                  {% for option in dept_options %}
-                    <option value="{{ option }}">{{ option }}</option>
+        {% if asset_type.has_quantity and section == 'assign' and field.name == 'status' %}
+          {% set skip = true %}
+        {% endif %}
+        {% if not skip %}
+          <div>
+            <label for="{{ field.name }}">{{ field.label }}</label>
+            {% if field.field_type == "checkbox" %}
+              {% if field.options %}
+                <div style="display: flex; flex-wrap: wrap; gap: 12px;">
+                  {% for opt in field.options %}
+                    <label style="display: flex; align-items: center; gap: 6px;">
+                      <input type="checkbox" name="{{ field.name }}" value="{{ opt }}">
+                      <span>{{ opt }}</span>
+                    </label>
                   {% endfor %}
-                {% endif %}
+                </div>
+              {% else %}
+                <div class="checkbox-row">
+                  <input id="{{ field.name }}" name="{{ field.name }}" type="checkbox">
+                  <span class="muted">Toggle to set</span>
+                </div>
+              {% endif %}
+            {% elif field.field_type == "select" %}
+              <select id="{{ field.name }}" name="{{ field.name }}" {% if field.name not in assigned_fields or (asset_type.has_quantity and section == 'assign') %}required{% endif %}>
+                {% for opt in field.options %}
+                  <option value="{{ opt }}">{{ opt }}</option>
+                {% endfor %}
               </select>
             {% else %}
-              <input id="{{ field.name }}" name="{{ field.name }}" type="text" {% if field.name in assigned_fields %}list="ldap-users"{% endif %} {% if field.name != "assigned_to" %}required{% endif %}>
+              {% if field.name == "dept" %}
+                <select id="{{ field.name }}" name="{{ field.name }}">
+                  <option value="">-</option>
+                  {% if not dept_options %}
+                    <option value="" disabled>No departments added</option>
+                  {% else %}
+                    {% for option in dept_options %}
+                      <option value="{{ option }}">{{ option }}</option>
+                    {% endfor %}
+                  {% endif %}
+                </select>
+              {% else %}
+                <input id="{{ field.name }}" name="{{ field.name }}" type="text" {% if field.name in assigned_fields %}list="ldap-users"{% endif %} {% if field.name not in assigned_fields or (asset_type.has_quantity and section == 'assign') %}required{% endif %}>
+              {% endif %}
             {% endif %}
-          {% endif %}
-        </div>
+          </div>
+        {% endif %}
       {% endfor %}
       <button class="button" type="submit">Save</button>
       <a class="button secondary" href="{{ url_for('list_custom_assets', asset_key=asset_type.key) }}">Cancel</a>
