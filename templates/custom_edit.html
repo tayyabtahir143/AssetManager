@@ -11,16 +11,14 @@
         </div>
       {% endif %}
       {% for field in fields %}
-        {% if asset_type.has_quantity %}
-          {# Stock items: hide user/dept fields #}
-          {% if is_stock_item and (field.name in assigned_fields or field.name == 'dept') %}
-            {% continue %}
-          {% endif %}
-          {# Assignment items: hide status (it stays Assigned) #}
-          {% if not is_stock_item and field.name == 'status' %}
-            {% continue %}
-          {% endif %}
+        {% set skip = false %}
+        {% if asset_type.has_quantity and is_stock_item and (field.name in assigned_fields or field.name == 'dept') %}
+          {% set skip = true %}
         {% endif %}
+        {% if asset_type.has_quantity and not is_stock_item and field.name == 'status' %}
+          {% set skip = true %}
+        {% endif %}
+        {% if not skip %}
         <div>
           <label for="{{ field.name }}">{{ field.label }}</label>
           {% if field.field_type == "checkbox" %}
@@ -95,6 +93,7 @@
             <div class="field-hint muted" style="display:block;">No departments added.</div>
           {% endif %}
         </div>
+        {% endif %}
       {% endfor %}
       <button class="button" type="submit">Save</button>
       <a class="button secondary" href="{{ url_for('list_custom_assets', asset_key=asset_type.key) }}">Cancel</a>
