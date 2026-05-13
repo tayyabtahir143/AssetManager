@@ -7134,17 +7134,23 @@ def add_custom_asset(asset_key):
                     return redirect(url_for("add_custom_asset", asset_key=asset_key, section=request.form.get("section", "stock")))
                 data["total_quantity"] = total_qty
             data["assigned_quantity"] = 0
-        item = AssetItem(asset_type_id=asset_type.id, data=data)
-        db.session.add(item)
+        bulk_count = 1
+        if not asset_type.has_quantity:
+            bulk_count = max(_parse_int(request.form.get("bulk_quantity", "1"), 1), 1)
+        created_items = []
+        for _ in range(bulk_count):
+            item = AssetItem(asset_type_id=asset_type.id, data=dict(data))
+            db.session.add(item)
+            created_items.append(item)
         db.session.commit()
-        log_audit("create", "custom_asset", entity_id=item.id, details=asset_key)
+        for item in created_items:
+            log_audit("create", "custom_asset", entity_id=item.id, details=asset_key)
         assigned_user = None
         for field_name in assigned_fields:
             assigned_user = data.get(field_name)
             if assigned_user:
                 break
         if assigned_user and str(assigned_user).strip().lower() not in {"", "free"}:
-            log_assignment_change(f"custom:{asset_key}", item.id, None, assigned_user, user)
             specs = []
             for field in fields:
                 if field.name in assigned_fields:
@@ -7157,7 +7163,11 @@ def add_custom_asset(asset_key):
                         value = "Yes" if value else "No"
                 if value not in (None, ""):
                     specs.append((field.label, value))
-            send_assignment_email(assigned_user, asset_type.label, specs)
+            for item in created_items:
+                log_assignment_change(f"custom:{asset_key}", item.id, None, assigned_user, user)
+                send_assignment_email(assigned_user, asset_type.label, specs)
+        if bulk_count > 1:
+            flash(f"Added {bulk_count} {asset_type.label} items.", "success")
         return redirect(url_for("list_custom_assets", asset_key=asset_key))
     section = request.args.get("section", "stock")
     return render_template(

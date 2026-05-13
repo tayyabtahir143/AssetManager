@@ -118,53 +118,27 @@
   <script>
     (() => {
       const statusEl = document.getElementById('status');
+      if (!statusEl) return;
       const deptEl = document.getElementById('dept');
       const assignedEl = document.getElementById('assigned_to');
-      if (!statusEl || !deptEl) return;
       const normalize = (value) => (value || '').toString().toLowerCase().replace('_', ' ').trim();
-      const showHint = (field) => {
-        if (!field) return;
-        const hint = document.querySelector(`[data-hint-for="${field.id}"]`);
-        if (!hint) return;
-        hint.style.display = 'block';
-        clearTimeout(hint._timer);
-        hint._timer = setTimeout(() => {
-          hint.style.display = field.disabled ? 'block' : 'none';
-        }, 2500);
-      };
       const toggle = () => {
-        const status = normalize(statusEl.value);
-        const disableDept = status === 'broken' || status === 'write off' || status === 'in stock';
-        deptEl.disabled = disableDept;
-        deptEl.required = !disableDept;
-        if (disableDept) {
-          deptEl.value = '';
-        }
-        const deptHint = document.querySelector('[data-hint-for="dept"]');
-        if (deptHint) {
-          deptHint.style.display = disableDept ? 'block' : 'none';
-        }
+        const isAssigned = normalize(statusEl.value) === 'assigned';
         if (assignedEl) {
-          const assignedActive = status === 'assigned';
-          assignedEl.disabled = !assignedActive;
-          assignedEl.required = assignedActive;
-          if (!assignedActive) {
-            assignedEl.value = '';
-          }
-          const userHint = document.querySelector('[data-hint-for="assigned_to"]');
-          if (userHint) {
-            userHint.style.display = !assignedActive ? 'block' : 'none';
-          }
+          const row = assignedEl.parentElement;
+          if (row) row.style.display = isAssigned ? '' : 'none';
+          assignedEl.disabled = !isAssigned;
+          assignedEl.required = isAssigned;
+          if (!isAssigned) assignedEl.value = '';
+        }
+        if (deptEl) {
+          const row = deptEl.parentElement;
+          if (row) row.style.display = isAssigned ? '' : 'none';
+          deptEl.disabled = !isAssigned;
+          deptEl.required = false;
+          if (!isAssigned) deptEl.value = '';
         }
       };
-      deptEl.addEventListener('click', () => {
-        if (deptEl.disabled) showHint(deptEl);
-      });
-      if (assignedEl) {
-        assignedEl.addEventListener('click', () => {
-          if (assignedEl.disabled) showHint(assignedEl);
-        });
-      }
       statusEl.addEventListener('change', toggle);
       toggle();
     })();

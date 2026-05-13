@@ -22,6 +22,11 @@
             <input id="total_quantity" name="total_quantity" type="number" min="0" value="0" required>
           </div>
         {% endif %}
+      {% else %}
+        <div>
+          <label for="bulk_quantity">Quantity</label>
+          <input id="bulk_quantity" name="bulk_quantity" type="number" min="1" value="1" required>
+        </div>
       {% endif %}
       {% for field in fields %}
         {% set skip = false %}
@@ -79,4 +84,32 @@
       <a class="button secondary" href="{{ url_for('list_custom_assets', asset_key=asset_type.key) }}">Cancel</a>
     </form>
   </div>
+  <script>
+    (() => {
+      const statusEl = document.getElementById('status');
+      if (!statusEl) return;
+      const deptEl = document.getElementById('dept');
+      const userInputs = Array.from(document.querySelectorAll('input[list="ldap-users"]'));
+      const normalize = (value) => (value || '').toString().toLowerCase().replace('_', ' ').trim();
+      const toggle = () => {
+        const isAssigned = normalize(statusEl.value) === 'assigned';
+        userInputs.forEach(el => {
+          const row = el.parentElement;
+          if (row) row.style.display = isAssigned ? '' : 'none';
+          el.disabled = !isAssigned;
+          el.required = isAssigned;
+          if (!isAssigned) el.value = '';
+        });
+        if (deptEl) {
+          const row = deptEl.parentElement;
+          if (row) row.style.display = isAssigned ? '' : 'none';
+          deptEl.disabled = !isAssigned;
+          deptEl.required = false;
+          if (!isAssigned) deptEl.value = '';
+        }
+      };
+      statusEl.addEventListener('change', toggle);
+      toggle();
+    })();
+  </script>
 {% endblock %}
