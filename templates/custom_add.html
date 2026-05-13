@@ -22,6 +22,11 @@
             <input id="total_quantity" name="total_quantity" type="number" min="0" value="0" required>
           </div>
         {% endif %}
+      {% else %}
+        <div>
+          <label for="bulk_quantity">How many to add</label>
+          <input id="bulk_quantity" name="bulk_quantity" type="number" min="1" value="1" required>
+        </div>
       {% endif %}
       {% for field in fields %}
         {% set skip = false %}
