@@ -894,6 +894,51 @@
       .animate-in:nth-child(2) { animation-delay: 0.05s; }
       .animate-in:nth-child(3) { animation-delay: 0.10s; }
       .animate-in:nth-child(4) { animation-delay: 0.15s; }
+
+      /* ── Auto-logout modal ──────────────────────────────────────── */
+      .autologout-overlay {
+        display: none; position: fixed; inset: 0;
+        background: rgba(0,0,0,0.7); z-index: 10000;
+        backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+        align-items: center; justify-content: center;
+      }
+      .autologout-overlay.show { display: flex; }
+      .autologout-modal {
+        background: var(--surface-2);
+        border: 1px solid var(--border-2);
+        border-radius: var(--radius);
+        padding: 32px 36px;
+        max-width: 400px; width: 90%;
+        box-shadow: var(--shadow-lg);
+        text-align: center;
+        animation: fadeUp 0.2s ease;
+      }
+      .autologout-icon {
+        width: 52px; height: 52px; border-radius: 50%;
+        background: var(--warning-dim);
+        border: 2px solid rgba(251,191,36,0.4);
+        display: flex; align-items: center; justify-content: center;
+        margin: 0 auto 18px;
+        font-size: 22px;
+      }
+      .autologout-title {
+        font-size: 18px; font-weight: 700;
+        margin-bottom: 10px;
+      }
+      .autologout-msg {
+        font-size: 14px; color: var(--ink-2);
+        margin-bottom: 8px; line-height: 1.6;
+      }
+      .autologout-countdown {
+        font-size: 36px; font-weight: 800;
+        color: var(--warning);
+        margin: 14px 0;
+        font-variant-numeric: tabular-nums;
+      }
+      .autologout-actions {
+        display: flex; gap: 10px; justify-content: center;
+        margin-top: 20px;
+      }
     </style>
   </head>
   <body>
@@ -1097,6 +1142,23 @@
     </div>
 
     <div class="mobile-overlay" id="mobile-overlay"></div>
+
+    {% if show_sidebar %}
+    <!-- Auto-logout warning modal -->
+    <div class="autologout-overlay" id="autologout-overlay" role="dialog" aria-modal="true" aria-labelledby="autologout-title">
+      <div class="autologout-modal">
+        <div class="autologout-icon">⏱</div>
+        <div class="autologout-title" id="autologout-title">Session Expiring</div>
+        <div class="autologout-msg">You've been inactive. You'll be signed out in:</div>
+        <div class="autologout-countdown" id="autologout-countdown">60</div>
+        <div class="autologout-msg">Move your mouse or press a key to stay signed in.</div>
+        <div class="autologout-actions">
+          <button class="button" id="autologout-stay">Stay Signed In</button>
+          <a class="button secondary" href="{{ url_for('logout') }}">Sign Out Now</a>
+        </div>
+      </div>
+    </div>
+    {% endif %}
 
     {% if ldap_users %}
       <datalist id="ldap-users">
@@ -1330,6 +1392,70 @@
       }
     });
     </script>
+    {% if show_sidebar %}
+    <script>
+    /* ── Auto-logout after 5 minutes of inactivity ───────────────── */
+    (function () {
+      const IDLE_MS    = 5 * 60 * 1000;  // 5 minutes total
+      const WARN_MS    = 60 * 1000;       // show warning 60s before logout
+      const LOGOUT_URL = {{ url_for('logout') | tojson }};
+
+      const overlay    = document.getElementById('autologout-overlay');
+      const countEl    = document.getElementById('autologout-countdown');
+      const stayBtn    = document.getElementById('autologout-stay');
+
+      let idleTimer   = null;
+      let warnTimer   = null;
+      let countdownId = null;
+      let warnAt      = null;
+
+      function clearAll() {
+        clearTimeout(idleTimer);
+        clearTimeout(warnTimer);
+        clearInterval(countdownId);
+      }
+
+      function hideWarning() {
+        if (overlay) overlay.classList.remove('show');
+        clearInterval(countdownId);
+      }
+
+      function showWarning() {
+        if (!overlay) return;
+        overlay.classList.add('show');
+        warnAt = Date.now();
+        const tick = () => {
+          const remaining = Math.max(0, Math.ceil((WARN_MS - (Date.now() - warnAt)) / 1000));
+          if (countEl) countEl.textContent = remaining;
+          if (remaining <= 0) {
+            clearInterval(countdownId);
+            window.location.href = LOGOUT_URL;
+          }
+        };
+        tick();
+        countdownId = setInterval(tick, 500);
+      }
+
+      function resetTimers() {
+        clearAll();
+        hideWarning();
+        warnTimer = setTimeout(showWarning, IDLE_MS - WARN_MS);
+        idleTimer = setTimeout(() => { window.location.href = LOGOUT_URL; }, IDLE_MS);
+      }
+
+      /* Activity events that reset the idle timer */
+      ['mousemove', 'mousedown', 'keydown', 'scroll', 'touchstart', 'click', 'wheel'].forEach(ev => {
+        document.addEventListener(ev, resetTimers, { passive: true });
+      });
+
+      stayBtn?.addEventListener('click', resetTimers);
+
+      /* Start on load */
+      resetTimers();
+    })();
+    </script>
+    {% endif %}
+
     {% block scripts %}{% endblock %}
   </body>
 </html>
