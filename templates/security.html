@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="page-header">
+    <div class="page-title">Security</div>
+    <div class="page-subtitle">Configure session and security settings.</div>
+  </div>
+
+  <div class="card animate-in" style="max-width: 560px;">
+    <div style="font-size:17px; font-weight:700; letter-spacing:-0.02em; margin-bottom:4px;">Auto-Logout</div>
+    <p class="muted" style="margin-bottom:20px;">
+      Automatically sign users out after a period of inactivity. Set to <strong>0</strong> to disable.
+    </p>
+    <form method="post" class="form-grid">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+
+      <div class="form-group">
+        <label for="autologout_minutes">Inactivity timeout (minutes)</label>
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+          <input id="autologout_minutes" name="autologout_minutes" type="number" min="0" max="480" step="1"
+                 value="{{ autologout_minutes }}" style="width:110px;">
+          <span class="muted text-sm">0 = disabled</span>
+        </div>
+        <!-- Quick-fill shortcuts for the field above -->
+        <div style="margin-top:8px;">
+          <span class="text-xs muted" style="display:block; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.08em;">Quick select timeout:</span>
+          <div style="display:flex; gap:6px; flex-wrap:wrap;">
+            {% for preset in [1, 2, 5, 10, 15, 30] %}
+              <button type="button" class="button secondary"
+                      onclick="document.getElementById('autologout_minutes').value='{{ preset }}'"
+                      style="padding:5px 11px; font-size:12px;">
+                {{ preset }} min
+              </button>
+            {% endfor %}
+            <button type="button" class="button secondary"
+                    onclick="document.getElementById('autologout_minutes').value='0'"
+                    style="padding:5px 11px; font-size:12px;">
+              Disable
+            </button>
+          </div>
+        </div>
+        <div class="text-sm muted" style="margin-top:10px; padding:10px 12px; background:var(--bg-3); border-radius:var(--radius-sm); border:1px solid var(--border);">
+          ℹ A warning countdown appears 60 seconds before the session expires. Any mouse or keyboard activity resets the timer.
+        </div>
+      </div>
+
+      <button class="button" type="submit" style="margin-top:4px; width:fit-content;">Save Settings</button>
+    </form>
+  </div>
+{% endblock %}

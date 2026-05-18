@@ -499,6 +499,12 @@ class BrandingConfig(db.Model):
     logo_filename = db.Column(db.String(255), nullable=True)
 
 
+class SiteSetting(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    key = db.Column(db.String(80), unique=True, nullable=False)
+    value = db.Column(db.Text, nullable=True)
+
+
 class Department(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(80), unique=True, nullable=False)
@@ -2773,6 +2779,28 @@ def get_branding_display_name():
     if brand_lower.endswith("manager"):
         return brand_raw
     return f"{brand_raw} Asset Manager"
+
+
+def get_site_setting(key, default=None):
+    row = SiteSetting.query.filter_by(key=key).first()
+    return row.value if row else default
+
+
+def set_site_setting(key, value):
+    row = SiteSetting.query.filter_by(key=key).first()
+    if row:
+        row.value = str(value)
+    else:
+        db.session.add(SiteSetting(key=key, value=str(value)))
+    db.session.commit()
+
+
+def get_autologout_minutes():
+    try:
+        val = int(get_site_setting("autologout_minutes", "5") or "5")
+        return max(0, val)
+    except (ValueError, TypeError):
+        return 5
 
 
 def get_branding_initial():
@@ -7785,6 +7813,7 @@ def inject_user():
         "dockerhub_repo": DOCKERHUB_REPO,
         "app_version": APP_VERSION or "dev",
         "tz_name": os.environ.get("TZ", "UTC"),
+        "autologout_minutes": get_autologout_minutes(),
     }
 
 
@@ -8111,6 +8140,26 @@ def logs_tail():
     lines = max(min(lines, 2000), 50)
     log_text = read_log_tail(lines=lines)
     return app.response_class(log_text or "", mimetype="text/plain")
+
+
+@app.route("/settings/security", methods=["GET", "POST"])
+@login_required
+@require_app_admin
+def security_settings():
+    if request.method == "POST":
+        raw = request.form.get("autologout_minutes", "5").strip()
+        try:
+            minutes = int(raw)
+            if minutes < 0:
+                raise ValueError
+        except ValueError:
+            flash("Please enter a valid number of minutes (0 to disable).", "error")
+            return redirect(url_for("security_settings"))
+        set_site_setting("autologout_minutes", minutes)
+        log_audit("update_security_settings", "settings", details=f"autologout_minutes={minutes}")
+        flash("Security settings saved.", "success")
+        return redirect(url_for("security_settings"))
+    return render_template("security.html", autologout_minutes=get_autologout_minutes())
 
 
 @app.route("/backups")
