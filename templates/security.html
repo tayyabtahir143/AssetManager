@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block content %}
+  <div class="page-header">
+    <div class="page-title">Security</div>
+    <div class="page-subtitle">Configure session and security settings.</div>
+  </div>
+
+  <div class="card animate-in" style="max-width: 560px;">
+    <div style="font-size:17px; font-weight:700; letter-spacing:-0.02em; margin-bottom:4px;">Auto-Logout</div>
+    <p class="muted" style="margin-bottom:20px;">Automatically sign users out after a period of inactivity. Set to <strong>0</strong> to disable.</p>
+    <form method="post" class="form-grid">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="form-group">
+        <label for="autologout_minutes">Inactivity timeout (minutes)</label>
+        <div style="display:flex; gap:10px; align-items:center;">
+          <input id="autologout_minutes" name="autologout_minutes" type="number" min="0" max="480" step="1"
+                 value="{{ autologout_minutes }}" style="width:120px;">
+          <span class="muted text-sm">0 = disabled</span>
+        </div>
+        <div class="text-sm muted" style="margin-top:6px;">
+          A warning is shown 60 seconds before logout. Any mouse or keyboard activity resets the timer.
+        </div>
+      </div>
+
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:4px;">
+        {% for preset in [1, 2, 5, 10, 15, 30] %}
+          <button type="button" class="button secondary"
+                  onclick="document.getElementById('autologout_minutes').value='{{ preset }}'"
+                  style="padding:5px 12px; font-size:12px;">
+            {{ preset }} min
+          </button>
+        {% endfor %}
+        <button type="button" class="button secondary"
+                onclick="document.getElementById('autologout_minutes').value='0'"
+                style="padding:5px 12px; font-size:12px;">
+          Disable
+        </button>
+      </div>
+
+      <button class="button" type="submit" style="margin-top:4px;">Save Settings</button>
+    </form>
+  </div>
+{% endblock %}
