@@ -505,6 +505,30 @@ class SiteSetting(db.Model):
     value = db.Column(db.Text, nullable=True)
 
 
+class Agent(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(120), nullable=False)
+    api_key_hash = db.Column(db.String(64), unique=True, nullable=False)
+    hostname = db.Column(db.String(255), nullable=True)
+    ip_address = db.Column(db.String(64), nullable=True)
+    os_name = db.Column(db.String(120), nullable=True)
+    os_version = db.Column(db.String(255), nullable=True)
+    architecture = db.Column(db.String(32), nullable=True)
+    last_seen = db.Column(db.DateTime, nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, default=datetime.datetime.utcnow)
+    inventory = db.relationship(
+        "AgentInventory", backref="agent", uselist=False, cascade="all, delete-orphan"
+    )
+
+
+class AgentInventory(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    agent_id = db.Column(db.Integer, db.ForeignKey("agent.id"), nullable=False)
+    hardware = db.Column(db.JSON, nullable=True)
+    software = db.Column(db.JSON, nullable=True)
+    updated_at = db.Column(db.DateTime, nullable=False, default=datetime.datetime.utcnow)
+
+
 class Department(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(80), unique=True, nullable=False)
@@ -2801,6 +2825,17 @@ def get_autologout_minutes():
         return max(0, val)
     except (ValueError, TypeError):
         return 5
+
+
+def _generate_agent_key():
+    raw = secrets.token_urlsafe(32)
+    hashed = hashlib.sha256(raw.encode()).hexdigest()
+    return raw, hashed
+
+
+def _get_agent_by_key(raw_key):
+    hashed = hashlib.sha256(raw_key.encode()).hexdigest()
+    return Agent.query.filter_by(api_key_hash=hashed).first()
 
 
 def get_branding_initial():
@@ -8160,6 +8195,99 @@ def security_settings():
         flash("Security settings saved.", "success")
         return redirect(url_for("security_settings"))
     return render_template("security.html", autologout_minutes=get_autologout_minutes())
+
+
+# ── Agents ────────────────────────────────────────────────────────────────────
+
+@app.route("/agents")
+@login_required
+@require_app_admin
+def list_agents():
+    agents = Agent.query.order_by(Agent.name.asc()).all()
+    now = datetime.datetime.utcnow()
+    return render_template("agents.html", agents=agents, now=now)
+
+
+@app.route("/agents/add", methods=["GET", "POST"])
+@login_required
+@require_app_admin
+def add_agent():
+    if request.method == "POST":
+        name = request.form.get("name", "").strip()
+        if not name:
+            flash("Agent name is required.", "error")
+            return redirect(url_for("add_agent"))
+        raw_key, key_hash = _generate_agent_key()
+        agent = Agent(name=name, api_key_hash=key_hash)
+        db.session.add(agent)
+        db.session.commit()
+        log_audit("add_agent", "agent", entity_id=agent.id, details=name)
+        server_url = request.host_url.rstrip("/")
+        return render_template("agent_created.html", agent=agent, api_key=raw_key, server_url=server_url)
+    return render_template("agent_add.html")
+
+
+@app.route("/agents/<int:agent_id>")
+@login_required
+@require_app_admin
+def agent_detail(agent_id):
+    agent = Agent.query.get_or_404(agent_id)
+    now = datetime.datetime.utcnow()
+    return render_template("agent_detail.html", agent=agent, now=now)
+
+
+@app.route("/agents/<int:agent_id>/delete", methods=["POST"])
+@login_required
+@require_app_admin
+def delete_agent(agent_id):
+    agent = Agent.query.get_or_404(agent_id)
+    name = agent.name
+    db.session.delete(agent)
+    db.session.commit()
+    log_audit("delete_agent", "agent", entity_id=agent_id, details=name)
+    flash(f"Agent '{name}' deleted.", "success")
+    return redirect(url_for("list_agents"))
+
+
+@app.route("/agents/<int:agent_id>/config")
+@login_required
+@require_app_admin
+def download_agent_config(agent_id):
+    # Config download is not possible after creation (key is shown only once).
+    flash("The API key is only shown once at creation. Delete and re-add the agent to generate a new key.", "error")
+    return redirect(url_for("agent_detail", agent_id=agent_id))
+
+
+@app.route("/api/agent/checkin", methods=["POST"])
+@csrf.exempt
+@limiter.limit("120 per minute")
+def agent_checkin():
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return jsonify({"error": "unauthorized"}), 401
+    raw_key = auth[7:].strip()
+    agent = _get_agent_by_key(raw_key)
+    if not agent:
+        return jsonify({"error": "invalid key"}), 401
+
+    data = request.get_json(silent=True) or {}
+    agent.hostname = data.get("hostname") or agent.hostname
+    agent.ip_address = data.get("ip_address") or agent.ip_address
+    agent.os_name = data.get("os_name") or agent.os_name
+    agent.os_version = data.get("os_version") or agent.os_version
+    agent.architecture = data.get("architecture") or agent.architecture
+    agent.last_seen = datetime.datetime.utcnow()
+
+    inv = agent.inventory
+    if not inv:
+        inv = AgentInventory(agent_id=agent.id)
+        db.session.add(inv)
+    inv.hardware = data.get("hardware") or {}
+    inv.software = data.get("software") or []
+    inv.updated_at = datetime.datetime.utcnow()
+
+    db.session.commit()
+    return jsonify({"status": "ok"})
 
 
 @app.route("/backups")

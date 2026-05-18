@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <div class="page-title">Agent Created</div>
+  <div class="page-subtitle">Save the API key and config below — the key is shown only once.</div>
+</div>
+
+<div class="card animate-in" style="max-width:640px;">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
+    <div style="width:40px;height:40px;border-radius:50%;background:var(--green-dim);border:1px solid rgba(74,222,128,0.3);display:flex;align-items:center;justify-content:center;font-size:18px;">✓</div>
+    <div>
+      <div style="font-weight:700;">{{ agent.name }}</div>
+      <div class="text-sm muted">Agent registered successfully</div>
+    </div>
+  </div>
+
+  <div class="flash error" style="margin-bottom:20px;">
+    <span class="flash-icon">⚠</span>
+    <span><strong>Copy this API key now.</strong> It will not be shown again. If you lose it, delete this agent and create a new one.</span>
+  </div>
+
+  <div class="form-group" style="margin-bottom:20px;">
+    <label>API Key</label>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <input id="api-key-field" type="text" value="{{ api_key }}" readonly style="font-family:monospace;font-size:13px;flex:1;">
+      <button type="button" class="button secondary" onclick="copyKey()" id="copy-btn" style="white-space:nowrap;">Copy</button>
+    </div>
+  </div>
+
+  <div class="form-group" style="margin-bottom:24px;">
+    <label>agent.ini — paste this into the config file on the target machine</label>
+    <textarea id="config-text" rows="8" readonly style="font-family:monospace;font-size:12px;line-height:1.7;">[server]
+url = {{ server_url }}
+api_key = {{ api_key }}
+
+[agent]
+; Check-in interval in seconds (3600 = 1 hour)
+interval = 3600
+; Set to false only if using a self-signed SSL certificate
+verify_ssl = true</textarea>
+    <button type="button" class="button secondary" onclick="copyConfig()" style="margin-top:8px;font-size:12px;">Copy Config</button>
+  </div>
+
+  <div class="card" style="background:var(--bg-3);border-color:var(--border-2);padding:16px;margin-bottom:20px;">
+    <div style="font-weight:600;margin-bottom:10px;">Deployment steps</div>
+    <ol style="margin:0;padding-left:20px;line-height:2;color:var(--ink-2);font-size:13px;">
+      <li>Download the agent binary for your OS from the <strong>Releases</strong> page of this project.</li>
+      <li>Place <code style="background:var(--bg-2);padding:1px 5px;border-radius:4px;">agent.ini</code> in the same folder as the binary.</li>
+      <li><strong>Windows:</strong> run <code style="background:var(--bg-2);padding:1px 5px;border-radius:4px;">assetmanager-agent.exe</code> — optionally add it as a scheduled task.<br>
+          <strong>Linux:</strong> run <code style="background:var(--bg-2);padding:1px 5px;border-radius:4px;">./assetmanager-agent</code> — optionally install as a systemd service.</li>
+    </ol>
+  </div>
+
+  <a class="button" href="{{ url_for('list_agents') }}">Back to Agents</a>
+</div>
+
+<script>
+function copyKey() {
+  const f = document.getElementById('api-key-field');
+  f.select(); document.execCommand('copy');
+  document.getElementById('copy-btn').textContent = 'Copied!';
+  setTimeout(() => { document.getElementById('copy-btn').textContent = 'Copy'; }, 2000);
+}
+function copyConfig() {
+  const t = document.getElementById('config-text');
+  t.select(); document.execCommand('copy');
+  showToast('Config copied to clipboard', 'success');
+}
+</script>
+{% endblock %}

@@ -1,0 +1,11 @@
+[server]
+; AssetManager server URL (no trailing slash)
+url = http://your-server:5000
+; API key generated in the Agents section of AssetManager
+api_key = YOUR_API_KEY_HERE
+
+[agent]
+; How often to report inventory, in seconds (3600 = 1 hour)
+interval = 3600
+; Set to false if your server uses a self-signed SSL certificate
+verify_ssl = true

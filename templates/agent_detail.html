@@ -1,0 +1,184 @@
+{% extends "base.html" %}
+{% block content %}
+{% set inv = agent.inventory %}
+{% set hw = inv.hardware if inv else {} %}
+{% set sw = inv.software if inv else [] %}
+{% set age = (now - agent.last_seen).total_seconds() if agent.last_seen else None %}
+{% if age is none %}{% set status = 'never' %}
+{% elif age < 7200 %}{% set status = 'online' %}
+{% elif age < 86400 %}{% set status = 'stale' %}
+{% else %}{% set status = 'offline' %}{% endif %}
+
+<div class="page-header">
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;">
+    <div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+        <div class="page-title" style="margin:0;">{{ agent.name }}</div>
+        {% if status == 'online' %}
+          <span class="badge badge-green"><span class="badge-dot" style="background:var(--green);"></span>Online</span>
+        {% elif status == 'stale' %}
+          <span class="badge badge-warn"><span class="badge-dot" style="background:var(--warning);"></span>Stale</span>
+        {% elif status == 'offline' %}
+          <span class="badge badge-danger"><span class="badge-dot" style="background:var(--danger);"></span>Offline</span>
+        {% else %}
+          <span class="badge badge-default"><span class="badge-dot" style="background:var(--ink-3);"></span>Never seen</span>
+        {% endif %}
+      </div>
+      <div class="page-subtitle">
+        {{ agent.hostname or 'Unknown host' }}
+        {% if agent.ip_address %} · {{ agent.ip_address }}{% endif %}
+        {% if agent.os_name %} · {{ agent.os_name }}{% endif %}
+        {% if agent.last_seen %} · Last seen {{ agent.last_seen.strftime('%Y-%m-%d %H:%M') }} UTC{% endif %}
+      </div>
+    </div>
+    <form method="post" action="{{ url_for('delete_agent', agent_id=agent.id) }}" class="inline"
+          onsubmit="return confirm('Delete this agent? This cannot be undone.')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <button class="button danger" type="submit">Delete Agent</button>
+    </form>
+  </div>
+</div>
+
+{% if not inv %}
+<div class="card animate-in" style="text-align:center;padding:40px;">
+  <div style="font-size:32px;margin-bottom:12px;">📡</div>
+  <div style="font-weight:600;margin-bottom:8px;">Waiting for first check-in</div>
+  <p class="muted">Deploy the agent on this device and it will report inventory on its next scheduled run.</p>
+</div>
+{% else %}
+
+<!-- Hardware summary -->
+<div class="stat-grid animate-in" style="margin-bottom:20px;">
+  <!-- CPU -->
+  <div class="stat-card stat-card-accent">
+    <div class="stat-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="16" x="4" y="4" rx="2"/><rect width="6" height="6" x="9" y="9" rx="1"/><path d="M15 2v2M15 20v2M2 15h2M20 15h2M15 2v2M9 2v2M2 9h2M20 9h2M2 15h2M20 15h2M9 20v2"/></rect></svg></div>
+    <div class="stat-label">CPU</div>
+    <div style="font-size:14px;font-weight:700;line-height:1.3;margin-top:4px;">{{ (hw.cpu or {}).get('model') or 'Unknown' }}</div>
+    <div class="stat-sub">
+      {{ (hw.cpu or {}).get('cores_physical') or '?' }} physical · {{ (hw.cpu or {}).get('cores_logical') or '?' }} logical cores
+      {% if (hw.cpu or {}).get('frequency_mhz') %} · {{ (hw.cpu or {}).get('frequency_mhz') }} MHz{% endif %}
+    </div>
+  </div>
+
+  <!-- RAM -->
+  {% set mem = hw.memory or {} %}
+  <div class="stat-card stat-card-blue">
+    <div class="stat-icon stat-icon-blue"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 19v-3"/><path d="M10 19v-3"/><path d="M14 19v-3"/><path d="M18 19v-3"/><rect width="20" height="9" x="2" y="7" rx="2"/><path d="M2 11h20"/></svg></div>
+    <div class="stat-label">Memory</div>
+    <div class="stat-value">{{ mem.get('total_gb') or '?' }} <span style="font-size:16px;">GB</span></div>
+    <div class="stat-sub">
+      {% if mem.get('percent_used') %}{{ mem.percent_used }}% used · {{ mem.get('available_gb') }} GB free{% endif %}
+    </div>
+  </div>
+
+  <!-- OS -->
+  <div class="stat-card">
+    <div class="stat-icon"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="3" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div>
+    <div class="stat-label">Operating System</div>
+    <div style="font-size:14px;font-weight:700;margin-top:4px;">{{ agent.os_name or '—' }}</div>
+    <div class="stat-sub">{{ agent.architecture or '' }}</div>
+  </div>
+
+  <!-- Software count -->
+  <div class="stat-card stat-card-green">
+    <div class="stat-icon stat-icon-green"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/></svg></div>
+    <div class="stat-label">Installed Software</div>
+    <div class="stat-value">{{ sw | length }}</div>
+    <div class="stat-sub">packages / applications</div>
+  </div>
+</div>
+
+<!-- Disks -->
+{% set disks = hw.disks or [] %}
+{% if disks %}
+<div class="card animate-in" style="margin-bottom:20px;">
+  <div class="card-title">Storage</div>
+  <div class="table-wrap" style="margin-top:0;">
+    <table>
+      <thead><tr><th>Device</th><th>Mount</th><th>Filesystem</th><th>Total</th><th>Used</th><th>Free</th><th>Usage</th></tr></thead>
+      <tbody>
+        {% for d in disks %}
+        <tr>
+          <td style="font-family:monospace;font-size:12px;">{{ d.device }}</td>
+          <td style="font-family:monospace;font-size:12px;">{{ d.mountpoint }}</td>
+          <td><span class="badge badge-default">{{ d.filesystem or '—' }}</span></td>
+          <td>{{ d.total_gb }} GB</td>
+          <td>{{ d.used_gb }} GB</td>
+          <td>{{ d.free_gb }} GB</td>
+          <td style="min-width:120px;">
+            {% set pct = d.percent_used | int %}
+            {% set color = 'var(--danger)' if pct > 85 else ('var(--warning)' if pct > 65 else 'var(--green)') %}
+            <div style="display:flex;align-items:center;gap:8px;">
+              <div style="flex:1;height:6px;background:var(--border-2);border-radius:3px;overflow:hidden;">
+                <div style="width:{{ pct }}%;height:100%;background:{{ color }};border-radius:3px;"></div>
+              </div>
+              <span style="font-size:11px;color:var(--ink-3);min-width:30px;">{{ pct }}%</span>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<!-- Network -->
+{% set nets = hw.network or [] %}
+{% if nets %}
+<div class="card animate-in" style="margin-bottom:20px;">
+  <div class="card-title">Network Interfaces</div>
+  <div class="table-wrap" style="margin-top:0;">
+    <table>
+      <thead><tr><th>Interface</th><th>IP Address</th><th>MAC Address</th></tr></thead>
+      <tbody>
+        {% for n in nets %}
+        <tr>
+          <td style="font-weight:600;">{{ n.interface }}</td>
+          <td style="font-family:monospace;font-size:12px;">{{ n.ip or '—' }}</td>
+          <td style="font-family:monospace;font-size:12px;color:var(--ink-3);">{{ n.mac or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endif %}
+
+<!-- Software -->
+<div class="card animate-in">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">
+    <div class="card-title" style="margin:0;">Installed Software ({{ sw | length }})</div>
+    <input id="sw-search" type="text" placeholder="Search software…" style="width:220px;" oninput="filterSoftware(this.value)">
+  </div>
+  {% if sw %}
+  <div class="table-wrap" style="margin-top:0;max-height:500px;overflow-y:auto;">
+    <table id="sw-table">
+      <thead><tr><th>Name</th><th>Version</th><th>Publisher</th></tr></thead>
+      <tbody>
+        {% for app in sw %}
+        <tr>
+          <td style="font-weight:500;">{{ app.name }}</td>
+          <td style="font-family:monospace;font-size:12px;color:var(--ink-2);">{{ app.version or '—' }}</td>
+          <td style="color:var(--ink-3);font-size:13px;">{{ app.publisher or '—' }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  {% else %}
+  <p class="muted">No software inventory available.</p>
+  {% endif %}
+</div>
+
+{% endif %}{# end if inv #}
+
+<script>
+function filterSoftware(q) {
+  q = q.toLowerCase();
+  document.querySelectorAll('#sw-table tbody tr').forEach(row => {
+    row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+</script>
+{% endblock %}
