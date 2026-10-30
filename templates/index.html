@@ -1,147 +1,121 @@
 {% extends "base.html" %}
 {% block content %}
-<style>
-  .hero-shell {
-    background: linear-gradient(130deg, rgba(139,92,246,0.16), rgba(34,211,238,0.10) 44%, rgba(9,11,25,0.72));
-    border: 1px solid rgba(167,139,250,0.30);
-    border-radius: 24px;
-    padding: 24px;
-    margin-bottom: 22px;
-    box-shadow: 0 20px 55px rgba(15, 10, 35, 0.35);
-  }
-  .hero-title {
-    font-size: 34px;
-    font-weight: 800;
-    letter-spacing: -0.04em;
-    line-height: 1.1;
-    margin-bottom: 8px;
-  }
-  .hero-title span {
-    background: linear-gradient(120deg, var(--accent), var(--blue));
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-  }
-  .hero-sub { font-size: 14px; color: var(--ink-2); max-width: 720px; }
-  .hero-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
-  .kpi-grid {
-    margin-top: 16px;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-    gap: 12px;
-  }
-  .kpi-chip {
-    padding: 14px;
-    border-radius: 14px;
-    border: 1px solid var(--border);
-    background: rgba(12,14,30,0.54);
-  }
-  .kpi-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--ink-3); }
-  .kpi-value { font-size: 26px; font-weight: 800; letter-spacing: -0.03em; margin-top: 4px; }
-  .kpi-hint { font-size: 12px; color: var(--ink-2); }
-  .section-title { font-size: 17px; font-weight: 700; letter-spacing: -0.02em; }
-  @media (max-width: 700px) {
-    .hero-title { font-size: 28px; }
-  }
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}">
+<div class="dashboard">
+  <header class="dashboard-header">
+    <div>
+      <p class="dashboard-eyebrow">Inventory management</p>
+      <h1>Inventory overview</h1>
+      <p class="dashboard-description">Track allocation, browse asset types, and review recent changes.</p>
+    </div>
+    <nav class="dashboard-actions" aria-label="Inventory actions">
+      <a class="button secondary" href="{{ url_for('user_assets') }}">User assets</a>
+      <a class="button secondary" href="{{ url_for('free_inventory') }}">Available assets</a>
+      <a class="button" href="{{ url_for('reports') }}">Open reports <span aria-hidden="true">↗</span></a>
+    </nav>
+  </header>
 
-<div class="hero-shell animate-in">
-  <div class="hero-title">Welcome to your <span>Asset Command Center</span></div>
-  <div class="hero-sub">Live visibility across inventory, utilisation, and ownership with faster access to operational actions.</div>
-  <div class="hero-actions">
-    <a class="button" href="{{ url_for('reports') }}">Open Reports</a>
-    <a class="button secondary" href="{{ url_for('free_inventory') }}">View Available Assets</a>
-    <a class="button secondary" href="{{ url_for('user_assets') }}">Browse User Assets</a>
-  </div>
-  <div class="kpi-grid">
-    <div class="kpi-chip">
-      <div class="kpi-label">Total Assets</div>
-      <div class="kpi-value">{{ total_assets }}</div>
-      <div class="kpi-hint">All tracked items</div>
+  <dl class="dashboard-kpis" aria-label="Inventory totals">
+    <div class="dashboard-kpi">
+      <dt>Total assets</dt>
+      <dd>{{ total_assets }}</dd>
+      <p>All tracked items</p>
     </div>
-    <div class="kpi-chip">
-      <div class="kpi-label">Assigned</div>
-      <div class="kpi-value" style="color:var(--blue);">{{ total_assigned }}</div>
-      <div class="kpi-hint">Currently with users</div>
+    <div class="dashboard-kpi">
+      <dt>Assigned</dt>
+      <dd>{{ total_assigned }}</dd>
+      <p>Currently with users</p>
     </div>
-    <div class="kpi-chip">
-      <div class="kpi-label">Available</div>
-      <div class="kpi-value" style="color:var(--green);">{{ total_available }}</div>
-      <div class="kpi-hint">Ready for allocation</div>
+    <div class="dashboard-kpi">
+      <dt>Available</dt>
+      <dd class="dashboard-accent">{{ total_available }}</dd>
+      <p>Ready for allocation</p>
     </div>
     {% if total_assets > 0 %}
-    <div class="kpi-chip">
-      <div class="kpi-label">Utilisation</div>
-      <div class="kpi-value" style="color:var(--warning);">{{ ((total_assigned / total_assets) * 100) | int }}%</div>
-      <div class="kpi-hint">Assigned / total assets</div>
+    <div class="dashboard-kpi">
+      <dt>Utilisation</dt>
+      <dd>{{ ((total_assigned / total_assets) * 100) | int }}<span class="dashboard-unit">%</span></dd>
+      <p>Assigned / total assets</p>
     </div>
     {% endif %}
-  </div>
-</div>
+  </dl>
 
-<!-- Charts row -->
-{% if total_assets > 0 %}
-<div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-top:24px;" class="animate-in">
-  <div class="card">
-    <div class="section-title">Status Distribution</div>
-    <div class="muted text-sm" style="margin-bottom:14px;">Overall asset breakdown by status.</div>
-    <div style="position:relative; height:220px;">
-      <canvas id="statusChart"></canvas>
+  <section class="dashboard-section" aria-labelledby="asset-types-title">
+    <div class="dashboard-section-heading">
+      <div>
+        <h2 id="asset-types-title">Asset types</h2>
+        <p>Browse inventory by category.</p>
+      </div>
+      <span class="dashboard-column-hint">Tracked items</span>
     </div>
-  </div>
-  <div class="card">
-    <div class="section-title">Department Breakdown</div>
-    <div class="muted text-sm" style="margin-bottom:14px;">Assigned vs. available per department.</div>
-    <div style="position:relative; height:220px;">
-      <canvas id="deptChart"></canvas>
+    <div class="dashboard-category-filter" id="dashboard-category-filter" hidden>
+      <label for="dashboard-category-search">Find an asset type</label>
+      <input type="search" id="dashboard-category-search" placeholder="Search categories…" autocomplete="off" aria-controls="dashboard-category-list" aria-describedby="dashboard-category-results">
+      <span id="dashboard-category-results" role="status" aria-live="polite"></span>
     </div>
-  </div>
-</div>
-{% endif %}
-
-<!-- Asset types grid -->
-<div style="margin-top: 24px;" class="animate-in">
-  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
-    <div>
-      <div class="section-title">Asset Types</div>
-      <div class="muted text-sm">Jump directly into a specific category.</div>
-    </div>
-  </div>
-  <div class="card-grid">
-    {% for asset in assets %}
-      <a href="{{ asset.url }}" style="text-decoration:none;">
-        <div class="stat-card" style="cursor:pointer; gap:10px; border-top: 3px solid var(--accent);">
-          <div style="font-size:14px; font-weight:700; color:var(--ink);">{{ asset.label }}</div>
-          <div style="font-size:26px; font-weight:800; color:var(--accent);">{{ asset.count }}</div>
-          <div class="text-sm muted">items</div>
-        </div>
+    <div class="dashboard-categories" id="dashboard-category-list">
+      {% for asset in assets %}
+      <a class="dashboard-category" href="{{ asset.url }}" data-category-label="{{ asset.label }}" data-quick-nav="{{ asset.label }}">
+        <span class="dashboard-category-label">{{ asset.label }}</span>
+        <span class="dashboard-category-count">{{ asset.count }} <span class="dashboard-category-unit">items</span></span>
+        <span class="dashboard-category-arrow" aria-hidden="true">→</span>
       </a>
-    {% else %}
-      <div class="card"><span class="muted">No readable asset types for your role.</span></div>
-    {% endfor %}
-  </div>
-</div>
-
-<!-- Department table -->
-<div class="card animate-in" style="margin-top: 24px;">
-  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
-    <div>
-      <div class="section-title">By Department</div>
-      <div class="muted text-sm">Assigned vs. available totals per department.</div>
+      {% else %}
+      <div class="dashboard-empty">No readable asset types for your role.</div>
+      {% endfor %}
+      <div class="dashboard-empty" id="dashboard-category-no-match" hidden>No asset types match your search.</div>
     </div>
-    <a class="button secondary" href="{{ url_for('reports') }}" style="gap:6px;">
-      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" x2="18" y1="20" y2="10"/><line x1="12" x2="12" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="14"/></svg>
-      Full Report
-    </a>
+  </section>
+
+  {% if total_assets > 0 %}
+  <div class="dashboard-chart-row">
+    <section class="dashboard-panel" aria-labelledby="status-title">
+      <div class="dashboard-section-heading">
+        <div>
+          <h2 id="status-title">Status distribution</h2>
+          <p>Overall asset breakdown by status.</p>
+        </div>
+      </div>
+      <div class="dashboard-chart">
+        <canvas id="statusChart" role="img" aria-label="Asset counts by status. Totals are shown above; open reports for full details.">Asset status distribution</canvas>
+      </div>
+    </section>
+    <section class="dashboard-panel" aria-labelledby="dept-chart-title">
+      <div class="dashboard-section-heading">
+        <div>
+          <h2 id="dept-chart-title">Department breakdown</h2>
+          <p>Assigned vs. available per department.</p>
+        </div>
+      </div>
+      <div class="dashboard-chart">
+        <canvas id="deptChart" role="img" aria-label="Assigned and available assets by department. Detailed counts are in the department table below.">Department asset breakdown</canvas>
+      </div>
+    </section>
   </div>
-  {% if dept_summary %}
-    <div class="table-wrap">
+  {% else %}
+  <section class="dashboard-panel dashboard-empty" aria-labelledby="inventory-empty-title">
+    <h2 id="inventory-empty-title">No assets tracked yet</h2>
+    <p>Your inventory breakdown will appear here once assets are added.</p>
+  </section>
+  {% endif %}
+
+  <section class="dashboard-panel" aria-labelledby="departments-title">
+    <div class="dashboard-section-heading">
+      <div>
+        <h2 id="departments-title">By department</h2>
+        <p>Assigned vs. available totals per department.</p>
+      </div>
+      <a class="button secondary" href="{{ url_for('reports') }}">Full report <span aria-hidden="true">↗</span></a>
+    </div>
+    {% if dept_summary %}
+    <div class="table-wrap dashboard-table" tabindex="0" role="region" aria-label="Department inventory totals">
       <table>
         <thead>
           <tr>
-            <th>Department</th>
-            <th>Assigned</th>
-            <th>Available</th>
-            <th>Utilisation</th>
+            <th scope="col">Department</th>
+            <th scope="col" class="dashboard-numeric">Assigned</th>
+            <th scope="col" class="dashboard-numeric">Available</th>
+            <th scope="col">Utilisation</th>
           </tr>
         </thead>
         <tbody>
@@ -154,24 +128,13 @@
             {% set total_dept  = dept.assigned + dept.available %}
             {% set util_pct    = ((dept.assigned / total_dept) * 100) | int if total_dept > 0 else 0 %}
             <tr>
+              <td><a class="dashboard-dept-link" href="{{ url_for('reports', dept=dept_param, asset='all', status=status_param) }}">{{ dept.dept }}</a></td>
+              <td class="dashboard-numeric">{{ dept.assigned }}</td>
+              <td class="dashboard-numeric">{{ dept.available }}</td>
               <td>
-                <a href="{{ url_for('reports', dept=dept_param, asset='all', status=status_param) }}"
-                   style="color:var(--ink); text-decoration:none; font-weight:600; hover:color:var(--accent);">
-                  {{ dept.dept }}
-                </a>
-              </td>
-              <td>
-                <span class="badge badge-blue">{{ dept.assigned }}</span>
-              </td>
-              <td>
-                <span class="badge badge-green">{{ dept.available }}</span>
-              </td>
-              <td style="min-width:120px;">
-                <div style="display:flex; align-items:center; gap:8px;">
-                  <div style="flex:1; height:4px; border-radius:999px; background:var(--border-2); overflow:hidden;">
-                    <div style="height:100%; width:{{ util_pct }}%; background:var(--accent); border-radius:999px;"></div>
-                  </div>
-                  <span class="text-xs muted">{{ util_pct }}%</span>
+                <div class="dashboard-utilisation">
+                  <div class="dashboard-utilisation-track" aria-hidden="true"><div style="width:{{ util_pct }}%;"></div></div>
+                  <span>{{ util_pct }}%</span>
                 </div>
               </td>
             </tr>
@@ -179,78 +142,90 @@
         </tbody>
       </table>
     </div>
-  {% else %}
-    <div style="padding:32px; text-align:center; color:var(--ink-3);">
-      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:8px; opacity:0.4;"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/></svg>
-      <div>No department data yet. Add assets and assign departments to see the breakdown.</div>
-    </div>
-  {% endif %}
-</div>
+    {% else %}
+    <div class="dashboard-empty">No department data yet. Add assets and assign departments to see the breakdown.</div>
+    {% endif %}
+  </section>
 
-<!-- Recent Activity & Unassigned Alert row -->
-<div style="display:grid; grid-template-columns:1fr 1fr; gap:20px; margin-top:24px;" class="animate-in">
-  {% if total_available > 0 %}
-  <div class="card" style="border-top:3px solid var(--green);">
-    <div style="display:flex; align-items:center; gap:10px; margin-bottom:10px;">
-      <div style="width:36px; height:36px; border-radius:var(--radius-sm); background:var(--green-dim); display:flex; align-items:center; justify-content:center; flex-shrink:0;">
-        <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="7" rx="2" ry="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
-      </div>
-      <div>
-        <div style="font-size:15px; font-weight:700;">Unassigned Assets</div>
-        <div class="muted text-sm">Ready to allocate to users</div>
-      </div>
-    </div>
-    <div style="font-size:32px; font-weight:800; color:var(--green); letter-spacing:-0.03em;">{{ total_available }}</div>
-    <div class="muted text-sm" style="margin-top:6px;">items currently in stock / unassigned</div>
-    <a class="button secondary" href="{{ url_for('free_inventory') }}" style="margin-top:14px;">View Available Assets</a>
-  </div>
-  {% else %}
-  <div class="card" style="border-top:3px solid var(--accent);">
-    <div style="font-size:15px; font-weight:700; margin-bottom:6px;">Inventory Status</div>
-    <div class="muted text-sm">All assets are currently assigned or accounted for.</div>
-    <div style="font-size:28px; font-weight:800; color:var(--accent); margin-top:10px;">{{ total_assigned }} / {{ total_assets }}</div>
-    <div class="muted text-sm">assigned of total</div>
-  </div>
-  {% endif %}
-
-  <div class="card">
-    <div style="font-size:15px; font-weight:700; margin-bottom:14px;">Recent Activity</div>
-    {% if recent_activity %}
-      <div style="display:grid; gap:8px;">
+  <div class="dashboard-activity-row">
+    <section class="dashboard-panel dashboard-allocation" aria-labelledby="allocation-title">
+      {% if total_available > 0 %}
+      <h2 id="allocation-title">Ready to allocate</h2>
+      <p class="dashboard-description">Unassigned assets available for your team.</p>
+      <p class="dashboard-allocation-total">{{ total_available }} <span>items in stock / unassigned</span></p>
+      <a class="button secondary" href="{{ url_for('free_inventory') }}">View available assets <span aria-hidden="true">→</span></a>
+      {% else %}
+      <h2 id="allocation-title">Inventory status</h2>
+      {% if total_assets > 0 %}
+      <p class="dashboard-description">All assets are currently assigned or accounted for.</p>
+      {% else %}
+      <p class="dashboard-description">No inventory is available for allocation yet.</p>
+      {% endif %}
+      <p class="dashboard-allocation-total">{{ total_assigned }} / {{ total_assets }} <span>assigned of total</span></p>
+      {% endif %}
+    </section>
+    <section class="dashboard-panel" aria-labelledby="activity-title">
+      <div class="dashboard-section-heading"><h2 id="activity-title">Recent activity</h2></div>
+      {% if recent_activity %}
+      <ul class="dashboard-activity-list">
         {% for entry in recent_activity %}
           {% set action = entry.action or "" %}
-          {% if "create" in action %}{% set ac = "#5af0c7" %}
-          {% elif "update" in action %}{% set ac = "#79b8ff" %}
-          {% elif "delete" in action %}{% set ac = "#ff9a9a" %}
-          {% elif "login" in action or "auth" in action %}{% set ac = "#c4a0ff" %}
+          {% if "create" in action %}{% set ac = "var(--green)" %}
+          {% elif "update" in action %}{% set ac = "var(--blue)" %}
+          {% elif "delete" in action %}{% set ac = "var(--danger)" %}
+          {% elif "login" in action or "auth" in action %}{% set ac = "var(--accent)" %}
           {% else %}{% set ac = "var(--ink-3)" %}
           {% endif %}
-          <div style="display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:var(--radius-sm); background:var(--bg-3); border:1px solid var(--border);">
-            <div style="width:7px; height:7px; border-radius:50%; background:{{ ac }}; flex-shrink:0;"></div>
-            <div style="flex:1; min-width:0;">
-              <div style="font-size:12.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                <span style="color:{{ ac }};">{{ entry.action }}</span>
-                {% if entry.username %} by <strong>{{ entry.username }}</strong>{% endif %}
-              </div>
-              <div class="muted" style="font-size:11px; margin-top:1px;">{{ entry.display_time or entry.created_at }}</div>
+          <li class="dashboard-activity-item">
+            <span class="dashboard-activity-dot" style="background:{{ ac }};" aria-hidden="true"></span>
+            <div>
+              <p class="dashboard-activity-action">{{ entry.action }}{% if entry.username %} <span>by</span> <strong>{{ entry.username }}</strong>{% endif %}</p>
+              <p class="dashboard-activity-time">{{ entry.display_time or entry.created_at }}</p>
             </div>
-          </div>
+          </li>
         {% endfor %}
-      </div>
-      <a class="button secondary" href="{{ url_for('audit_log') }}" style="margin-top:14px; width:100%; justify-content:center;">Full Audit Log</a>
-    {% else %}
-      <div style="text-align:center; padding:24px; color:var(--ink-3);">
-        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:8px; opacity:0.4;"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/></svg>
-        <div class="text-sm">No activity yet</div>
-      </div>
-    {% endif %}
+      </ul>
+      <a class="dashboard-text-link" href="{{ url_for('audit_log') }}">Full audit log <span aria-hidden="true">→</span></a>
+      {% else %}
+      <div class="dashboard-empty">No activity yet</div>
+      {% endif %}
+    </section>
   </div>
 </div>
-
 {% endblock %}
 {% block scripts %}
+<script>
+(function () {
+  const search = document.getElementById('dashboard-category-search');
+  const categories = Array.from(document.querySelectorAll('[data-category-label]'));
+  if (!search || !categories.length) return;
+  const results = document.getElementById('dashboard-category-results');
+  const empty = document.getElementById('dashboard-category-no-match');
+  document.getElementById('dashboard-category-filter').hidden = false;
+  function filterCategories() {
+    const query = search.value.trim().toLocaleLowerCase();
+    let visible = 0;
+    categories.forEach(category => {
+      const matches = category.dataset.categoryLabel.toLocaleLowerCase().includes(query);
+      category.hidden = !matches;
+      if (matches) visible += 1;
+    });
+    results.textContent = `${visible} of ${categories.length} asset types`;
+    empty.hidden = visible > 0;
+  }
+  search.addEventListener('input', filterCategories);
+  search.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && search.value) {
+      event.preventDefault();
+      search.value = '';
+      filterCategories();
+    }
+  });
+  filterCategories();
+})();
+</script>
 {% if total_assets > 0 %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="{{ url_for('static', filename='vendor/chart.umd.min.js') }}"></script>
 <script>
 (function () {
   function tok(name) {

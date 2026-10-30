@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% block content %}
-  <div class="card animate-in" style="max-width: 600px;">
+  <div class="card asset-editor animate-in">
     <div style="font-size:20px; font-weight:700; letter-spacing:-0.02em; margin-bottom:4px;">Add {{ definition.label }}</div>
-    <form method="post" class="form-grid" enctype="multipart/form-data" {% if form_action %}action="{{ form_action }}"{% endif %}>
+    <form method="post" class="form-grid editor-grid" data-unsaved-form enctype="multipart/form-data" {% if form_action %}action="{{ form_action }}"{% endif %}>
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       {% if definition.bulk_add %}
         <div>
@@ -89,8 +89,11 @@
         <div id="photo-selection-count" class="field-hint muted" style="display:block;">Optional. Up to 3 photos. You can pick multiple now, or pick again before saving.</div>
         <div id="photo-selection-preview" style="display:flex; gap:10px; flex-wrap:wrap; margin-top:8px;"></div>
       </div>
-      <button class="button" type="submit">Save</button>
+      <div class="editor-actions">
+        <span class="editor-state" data-editor-state role="status">Changes are saved only when you select Save.</span>
+        <button class="button" type="submit">Save</button>
       <a class="button secondary" href="{{ url_for('list_assets', asset_type=asset_type) }}">Cancel</a>
+      </div>
     </form>
   </div>
   <script>

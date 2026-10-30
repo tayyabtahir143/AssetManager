@@ -1,39 +1,25 @@
 {% extends "base.html" %}
 {% block content %}
-<style>
-  /* ── Compact fixed-layout table so all columns fit without scrolling ── */
-  .list-table { table-layout: fixed; width: 100%; font-size: 12.5px; }
-  .list-table th { padding: 9px 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .list-table td { padding: 8px 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  /* Narrow fixed columns */
-  .list-table .col-chk { width: 32px; }
-  .list-table .col-idx { width: 38px; text-align: center; }
-  /* Status column: needs room for badge (e.g. "Assigned" ~76px) */
-  .list-table th[data-field="status"] { width: 95px; }
-  /* Actions column: font-size:0 kills whitespace-node gaps between inline-flex buttons */
-  .list-table .col-act { width: 280px; white-space: nowrap; }
-  .list-table td.col-act { padding: 8px 6px; font-size: 0; text-overflow: clip; }
-  /* Restore font-size on buttons; equal width matching Delete */
-  .list-table td.col-act .button { font-size: 11.5px; padding: 4px 8px; margin-right: 3px; width: 62px; justify-content: center; }
-  .list-table td.col-act form { display: inline; }
-  .list-table td.col-act form .button { margin-right: 0; }
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='inventory.css') }}">
+<section class="inventory-page" data-asset-type="{{ asset_type }}" aria-label="{{ asset_title }} inventory">
 <div class="page-header animate-in">
   <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;">
     <div>
-      <div class="page-title">{{ asset_title }}</div>
+      <h1 class="page-title">{{ asset_title }}</h1>
       <div class="page-subtitle">{{ total_items }} item{{ "s" if total_items != 1 else "" }} total</div>
     </div>
     <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-      <form method="get" style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
-        <input type="text" name="q" placeholder="Search…" value="{{ query or '' }}" style="min-width:180px;">
-        <select name="status">
+      <form method="get" class="inventory-filters" role="search" aria-label="Filter inventory">
+        <div class="inventory-filter"><label for="inventory-query">Search inventory</label>
+        <input id="inventory-query" type="search" name="q" placeholder="Tag, model, user…" value="{{ query or '' }}"></div>
+        <div class="inventory-filter"><label for="inventory-status">Filter by status</label>
+        <select id="inventory-status" name="status">
           <option value="all" {% if status_filter == "all" %}selected{% endif %}>All statuses</option>
           <option value="assigned" {% if status_filter == "assigned" %}selected{% endif %}>Assigned</option>
           <option value="in_stock" {% if status_filter == "in_stock" %}selected{% endif %}>In Stock</option>
           <option value="broken" {% if status_filter == "broken" %}selected{% endif %}>Broken</option>
           <option value="write_off" {% if status_filter == "write_off" %}selected{% endif %}>Write Off</option>
-        </select>
+        </select></div>
         <button class="button secondary" type="submit">
           <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg>
           Search
@@ -67,7 +53,8 @@
         {% if asset_perms.can_add %}
           <form method="post" action="{{ url_for('import_assets_excel', asset_type=asset_type) }}" enctype="multipart/form-data" style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <input type="file" name="file" accept=".xlsx" required>
+            <label for="inventory-file" class="inventory-sr-only">Excel file</label>
+            <input id="inventory-file" type="file" name="file" accept=".xlsx" required>
             <button class="button" type="submit">Import Excel</button>
           </form>
         {% endif %}
@@ -75,7 +62,21 @@
     </div>
   {% endif %}
 
-  <div class="card animate-in" style="margin-top: 18px; padding: 0; overflow: hidden;">
+  <div class="inventory-table-tools">
+    <span class="muted text-sm">Your workspace · preferences saved in this browser</span>
+    <details class="inventory-columns">
+      <summary>Columns</summary>
+      <div class="inventory-columns-panel">
+        <fieldset><legend>Visible fields</legend>
+          {% for field_name, label, field_type in definition.fields %}
+          <label><input type="checkbox" data-column-choice="{{ field_name }}" checked> {{ label }}</label>
+          {% endfor %}
+        </fieldset>
+        <button type="button" class="button secondary" id="reset-inventory-columns">Reset columns</button>
+      </div>
+    </details>
+  </div>
+  <div class="card animate-in" style="margin-top: 10px; padding: 0; overflow: hidden;">
   <form method="post" action="{{ url_for('bulk_delete_assets', asset_type=asset_type) }}" id="bulk-delete-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
     <input type="hidden" name="bulk_delete_intent" id="bulk-delete-intent" value="">
@@ -95,18 +96,19 @@
       </div>
     {% endif %}
     <div id="bulk-delete-error" class="flash error" style="display: none; margin: 10px 16px;"></div>
-    <div class="table-wrap">
+    <p class="inventory-table-hint" id="inventory-table-hint">All fields fit this view. Sort applies to loaded items.</p>
+    <div class="table-wrap" tabindex="0" role="region" aria-label="Inventory table" aria-describedby="inventory-table-hint">
     <table class="list-table">
       <thead>
         <tr>
           {% if asset_perms.can_bulk_delete %}
             <th class="col-chk">
-              <input type="checkbox" id="select-all-assets" class="bulk-toggle-asset" style="display: none;">
+              <input type="checkbox" id="select-all-assets" aria-label="Select all loaded assets" class="bulk-toggle-asset" style="display: none;">
             </th>
           {% endif %}
-          <th class="col-idx" data-sort-col="0" style="cursor:pointer; user-select:none;"># <span class="sort-arrow"></span></th>
+          <th scope="col" class="col-idx" aria-sort="none" data-sort-col="{{ 1 if asset_perms.can_bulk_delete else 0 }}"><button class="inventory-sort" type="button"># <span class="sort-arrow" aria-hidden="true"></span></button></th>
           {% for field_name, label, field_type in definition.fields %}
-            <th data-sort-col="{{ loop.index }}" data-field="{{ field_name }}" style="cursor:pointer; user-select:none;">{{ label }} <span class="sort-arrow"></span></th>
+            <th scope="col" aria-sort="none" data-sort-col="{{ loop.index + (1 if asset_perms.can_bulk_delete else 0) }}" data-field="{{ field_name }}"><button class="inventory-sort" type="button">{{ label }} <span class="sort-arrow" aria-hidden="true"></span></button></th>
           {% endfor %}
           {% if asset_perms.can_delete or asset_perms.can_add %}
             <th class="col-act">Actions</th>
@@ -117,7 +119,7 @@
         {% for item in items %}
           <tr>
             {% if asset_perms.can_bulk_delete %}
-              <td class="col-chk"><input type="checkbox" class="asset-checkbox bulk-toggle-asset" name="selected_ids" value="{{ item.id }}" style="display: none;"></td>
+              <td class="col-chk"><input type="checkbox" aria-label="Select asset {{ item.id }}" class="asset-checkbox bulk-toggle-asset" name="selected_ids" value="{{ item.id }}" style="display: none;"></td>
             {% endif %}
             <td class="col-idx">{{ loop.index }}</td>
             {% for field_name, label, field_type in definition.fields %}
@@ -169,7 +171,7 @@
           </tr>
         {% else %}
           <tr>
-            <td colspan="{{ definition.fields|length + (4 if asset_perms.can_delete or asset_perms.can_add else 3) }}">No items found.</td>
+            <td colspan="{{ definition.fields|length + 1 + (1 if asset_perms.can_bulk_delete else 0) + (1 if asset_perms.can_delete or asset_perms.can_add else 0) }}">No items found.</td>
           </tr>
         {% endfor %}
       </tbody>
@@ -193,12 +195,17 @@
       </div>
     </div>
   </div>
-  <div id="infinite-status" class="muted" style="margin-top: 14px;">Loading more items…</div>
+  <div class="inventory-pagination">
+    <div id="infinite-status" class="muted text-sm" role="status" aria-live="polite"></div>
+    <button id="load-more-assets" type="button" class="button secondary" {% if page >= total_pages %}hidden{% endif %}>Load more</button>
+    <label class="inventory-autoload"><input type="checkbox" id="inventory-autoload"> Automatically load on scroll</label>
+    <noscript>{% if page < total_pages %}<a href="{{ url_for('list_assets', asset_type=asset_type, page=page + 1, q=query or '', status=status_filter) }}">Next page</a>{% endif %}</noscript>
+  </div>
   {% if asset_perms.can_bulk_delete %}
     <script>
       const selectAllAssets = document.getElementById('select-all-assets');
       const toggleAssetBulk = document.getElementById('toggle-asset-bulk');
-      const assetBulkItems = document.querySelectorAll('.bulk-toggle-asset');
+
       const bulkDeleteForm = document.getElementById('bulk-delete-form');
       const bulkDeleteOverlay = document.getElementById('bulk-delete-overlay');
       const bulkDeleteSubmit = document.getElementById('bulk-delete-submit');
@@ -248,7 +255,7 @@
       if (toggleAssetBulk) {
         toggleAssetBulk.addEventListener('click', () => {
           bulkModeEnabled = !bulkModeEnabled;
-          assetBulkItems.forEach((item) => {
+          document.querySelectorAll('.bulk-toggle-asset').forEach((item) => {
             item.style.display = bulkModeEnabled ? '' : 'none';
             if (item.type === 'checkbox') {
               item.checked = false;
@@ -317,153 +324,14 @@
       });
     </script>
   {% endif %}
-  <script>
-    const assetTableBody = document.querySelector('tbody');
-    const infiniteStatus = document.getElementById('infinite-status');
-    const totalPages = {{ total_pages }};
-    const assetType = "{{ asset_type }}";
-    const assetQuery = "{{ query or '' | e }}";
-    const assetStatus = "{{ status_filter or 'all' }}";
-    const assetFields = {{ definition.fields | tojson }};
-    const canAdd = {{ 'true' if asset_perms.can_add else 'false' }};
-    const canDelete = {{ 'true' if asset_perms.can_delete else 'false' }};
-    const canBulk = {{ 'true' if asset_perms.can_bulk_delete else 'false' }};
-    const bulkToggleVisible = () => (typeof bulkModeEnabled !== 'undefined' ? bulkModeEnabled : false);
-    let currentPage = {{ page }};
-    let loading = false;
-    let hasMore = currentPage < totalPages;
-
-    const buildActionCell = (itemId) => {
-      const cell = document.createElement('td');
-      cell.className = 'col-act';
-      if (canAdd) {
-        const view = document.createElement('a');
-        view.className = 'button secondary';
-        view.href = `/assets/${assetType}/view/${itemId}`;
-        view.textContent = 'View';
-        cell.appendChild(view);
-        const edit = document.createElement('a');
-        edit.className = 'button secondary';
-        edit.href = `/assets/${assetType}/edit/${itemId}`;
-        edit.textContent = 'Edit';
-        cell.appendChild(edit);
-        const copy = document.createElement('a');
-        copy.className = 'button secondary';
-        copy.href = `/assets/${assetType}/copy/${itemId}`;
-        copy.textContent = 'Copy';
-        cell.appendChild(copy);
-      }
-      if (canDelete) {
-        const form = document.createElement('form');
-        form.method = 'post';
-        form.action = `/assets/${assetType}/delete/${itemId}`;
-        form.style.display = 'inline';
-        const button = document.createElement('button');
-        button.className = 'button secondary';
-        button.type = 'submit';
-        button.textContent = 'Delete';
-        button.onclick = () => confirm('Delete this item?');
-        form.appendChild(button);
-        cell.appendChild(form);
-      }
-      return cell;
-    };
-
-    const appendRow = (rowData) => {
-      const row = document.createElement('tr');
-      if (canBulk) {
-        const checkCell = document.createElement('td');
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.name = 'selected_ids';
-        checkbox.value = rowData.id;
-        checkbox.className = 'asset-checkbox bulk-toggle-asset';
-        checkbox.style.display = bulkToggleVisible() ? '' : 'none';
-        if (bulkToggleVisible() && selectAllAssets && selectAllAssets.checked) {
-          checkbox.checked = true;
-        }
-        checkCell.appendChild(checkbox);
-        row.appendChild(checkCell);
-      }
-      const indexCell = document.createElement('td');
-      indexCell.className = 'col-idx';
-      indexCell.textContent = assetTableBody.children.length + 1;
-      row.appendChild(indexCell);
-      assetFields.forEach(([fieldName, _label, _fieldType]) => {
-        const cell = document.createElement('td');
-        const val = rowData.fields[fieldName] || '-';
-        cell.textContent = val;
-        cell.title = val;
-        row.appendChild(cell);
-      });
-      if (canDelete || canAdd) {
-        row.appendChild(buildActionCell(rowData.id));
-      }
-      assetTableBody.appendChild(row);
-    };
-
-    const loadMore = async () => {
-      if (!hasMore || loading) return;
-      loading = true;
-      infiniteStatus.textContent = 'Loading more items…';
-      const nextPage = currentPage + 1;
-      const params = new URLSearchParams({ page: nextPage, q: assetQuery, status: assetStatus });
-      const resp = await fetch(`/assets/${assetType}/page?${params.toString()}`);
-      if (resp.ok) {
-        const data = await resp.json();
-        data.rows.forEach(appendRow);
-        currentPage = data.page;
-        hasMore = data.has_more;
-      }
-      loading = false;
-      infiniteStatus.textContent = hasMore ? 'Scroll to load more.' : 'All items loaded.';
-    };
-
-    const onScroll = () => {
-      const threshold = 200;
-      if ((window.innerHeight + window.scrollY) >= (document.body.offsetHeight - threshold)) {
-        loadMore();
-      }
-    };
-
-    infiniteStatus.textContent = hasMore ? 'Scroll to load more.' : 'All items loaded.';
-    window.addEventListener('scroll', onScroll);
-  </script>
-  <script>
-  /* ── Column sorting ─────────────────────────────────────────── */
-  (function () {
-    const table = document.querySelector('table');
-    if (!table) return;
-    let sortCol = -1, sortDir = 1;
-    const headers = table.querySelectorAll('th[data-sort-col]');
-    headers.forEach(th => {
-      th.addEventListener('click', () => {
-        const col = parseInt(th.dataset.sortCol);
-        if (sortCol === col) { sortDir *= -1; } else { sortCol = col; sortDir = 1; }
-        headers.forEach(h => { const arr = h.querySelector('.sort-arrow'); if (arr) arr.textContent = ''; });
-        const arrow = th.querySelector('.sort-arrow');
-        if (arrow) arrow.textContent = sortDir === 1 ? ' ↑' : ' ↓';
-        const tbody = table.querySelector('tbody');
-        const rows = Array.from(tbody.querySelectorAll('tr'));
-        rows.sort((a, b) => {
-          const cells = a => Array.from(a.querySelectorAll('td'));
-          const ca = cells(a)[col], cb = cells(b)[col];
-          if (!ca || !cb) return 0;
-          const va = ca.textContent.trim().toLowerCase();
-          const vb = cb.textContent.trim().toLowerCase();
-          const na = parseFloat(va), nb = parseFloat(vb);
-          if (!isNaN(na) && !isNaN(nb)) return (na - nb) * sortDir;
-          return va.localeCompare(vb) * sortDir;
-        });
-        rows.forEach(r => tbody.appendChild(r));
-        /* Re-number index column */
-        tbody.querySelectorAll('tr').forEach((r, i) => {
-          const cells = r.querySelectorAll('td');
-          const offset = {{ 1 if asset_perms.can_bulk_delete else 0 }};
-          if (cells[offset]) cells[offset].textContent = i + 1;
-        });
-      });
-    });
-  })();
-  </script>
+  <script id="inventory-config" type="application/json">{{ {
+    'assetType': asset_type, 'query': query or '', 'status': status_filter or 'all',
+    'fields': definition.fields, 'page': page, 'totalPages': total_pages,
+    'canAdd': asset_perms.can_add, 'canDelete': asset_perms.can_delete,
+    'canBulk': asset_perms.can_bulk_delete,
+    'pageUrl': url_for('list_assets_page', asset_type=asset_type),
+    'assetBase': url_for('list_assets', asset_type=asset_type)
+  } | tojson }}</script>
+  <script src="{{ url_for('static', filename='inventory.js') }}"></script>
+</section>
 {% endblock %}
