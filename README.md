@@ -33,9 +33,20 @@ A production-ready IT asset inventory management system built with Python/Flask.
 
 ## What's New
 
-This major release brings significant UI improvements, new features, and important fixes. If you are upgrading from a previous version, follow the [Upgrading](#upgrading-an-existing-installation) section.
+This release adds global search, printable QR labels, bulk assign/status updates, CSV export, and forced first-login password changes — on top of a modernised workspace UI, hardened security headers, and a GitHub Actions test pipeline.
 
 ### New Features
+
+- **Global asset search** — press `Ctrl+K` (or the Search button) anywhere in the app to search every asset type at once by asset tag, vendor, model, or assignee, and jump straight to the asset. Also available to API clients as `GET /api/search?q=`.
+- **Printable QR labels** — from any asset list, select items and choose **Print labels** to open a printable page with a QR code (encoding the asset's URL) and asset tag per item. Works for built-in and custom asset types.
+- **Bulk assign / status change** — select multiple assets in a list and update their assignee or status in one action (same rules as Excel import: assigning sets the status to Assigned, releasing returns it to In Stock).
+- **CSV export** — every built-in and custom asset list now has a **CSV** download button alongside the existing Excel export (UTF-8 with BOM, Excel-friendly).
+- **Forced password change on first login** — new local accounts (including the default `admin` account) must change their password on first sign-in. Admins can re-require a password change for any user at any time from **Settings → Users → Edit**.
+- **Workspace UI refresh** — modern design system, quick navigation, density toggle, theme persistence, responsive stacked records on narrow screens (no sideways scrolling).
+- **Security hardening** — Content-Security-Policy, `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy`, `Permissions-Policy`, `SameSite=Lax` HttpOnly session cookies, versioned static assets, and login rate limiting.
+- **GitHub Actions CI** — every pull request runs the full test suite.
+
+### Also in this release
 
 - **Generation field for Laptops** — track the hardware generation (e.g. Intel 12th Gen) on every laptop. Fully supported in Excel import and export.
 - **LDAP Auto-Sync Schedule** — configure automated LDAP user/group sync on a daily, weekly, or monthly schedule directly from the UI (Settings → LDAP). Requires LDAP to be configured before the schedule can be enabled.
@@ -78,6 +89,11 @@ This major release brings significant UI improvements, new features, and importa
 - **Role-based access control** — granular per-asset-type permissions
 - **Email notifications** — SMTP with TLS/SSL, per-event per-recipient subscriptions, monthly reports, low-stock alerts
 - **Excel import/export** — bulk import with header validation; export any view
+- **CSV export** — Excel-friendly CSV download for every built-in and custom asset list
+- **Global search** — search all asset types at once (tag / vendor / model / assignee) from the quick-nav dialog or the REST API
+- **Printable QR labels** — select rows in any list and print asset-tag labels with QR codes
+- **Bulk assign / status update** — reassign or change status for many assets at once
+- **Forced password change** — first-login password change for new accounts, re-requirable per user by admins
 - **Scheduled backups** — config-only or full database, delivered via email
 - **LDAP auto-sync schedule** — automatic user/group sync on a configurable daily/weekly/monthly schedule
 - **Audit log** — every create/update/delete action recorded with user, IP, and structured diff view
@@ -117,7 +133,9 @@ docker compose up -d
 open http://localhost:5000
 ```
 
-**Default credentials: `admin` / `admin` — change immediately after first login.**
+> **Isolated preview (development):** `docker compose -p assetmanager-design -f compose.design.yml up -d --build` builds the local image and starts a loopback-only preview on `127.0.0.1:5000` with fresh volumes — it never touches `./data` or another installation's database.
+
+**Default credentials: `admin` / `admin`.** On first sign-in you are **forced to change the password** before you can use the app. See [Default Credentials & Password Management](#default-credentials--password-management).
 
 ---
 
@@ -196,11 +214,20 @@ docker compose -f docker-compose-build.yml up -d
 
 ### Kubernetes
 
+Production-ready manifests ship in `kubernetes/` (namespace, Secrets, ConfigMap, PVC, PostgreSQL StatefulSet + Service, web Deployment + Service, optional Ingress). Step-by-step instructions live in `kubernetes/README.md`.
+
 ```bash
+# 1. Update the placeholder values in kubernetes/secret.yaml
+#    (SECRET_KEY, DB_PASSWORD) and kubernetes/configmap.yaml first.
+
+# 2. Apply everything
 kubectl apply -f kubernetes/
+
+# 3. Access locally via port-forward
+kubectl port-forward svc/assetmanager-web 5000:80
 ```
 
-Edit `kubernetes/deployment.yaml` to set `SECRET_KEY` and database credentials as Kubernetes Secrets before applying.
+The app runs as a non-root user (`65532:65532`), stores logs and SQLite data on the PVC, and auto-initialises the schema on first start. The forced first-login password change for the default `admin` account applies here too.
 
 ---
 
@@ -243,6 +270,7 @@ docker compose logs web -f
 | Migration | What it does |
 |---|---|
 | `ensure_laptop_generation_column` | Adds the `generation` column to the `laptop` table if missing |
+| `ensure_user_password_change_column` | Adds the `must_change_password` column to the `user` table if missing (PostgreSQL: `ADD COLUMN IF NOT EXISTS`) |
 | `migrate_plaintext_credentials` | Re-encrypts any plaintext LDAP/SMTP passwords stored by older versions |
 | `init_db` | Creates any missing tables for new models |
 
@@ -575,6 +603,31 @@ curl -X POST http://localhost:5000/api/v1/auth/refresh \
 | `page` | Page number | `1` |
 | `per_page` | Items per page (max 200) | `25` |
 
+### Global Search
+
+```bash
+# Search every asset type at once (tag / vendor / model / assignee)
+curl "http://localhost:5000/api/search?q=thinkpad" \
+  -H "Authorization: Bearer ***"
+
+# Response
+{
+  "results": [
+    {
+      "id": 3,
+      "asset_type": "laptops",
+      "label": "Laptops",
+      "asset_tag": "LT-0042",
+      "title": "ThinkPad T14",
+      "subtitle": "Lenovo · LT-0042",
+      "url": "/assets/laptops/view/3"
+    }
+  ]
+}
+```
+
+Queries must be at least 2 characters; results are capped at 15 across built-in and custom asset types.
+
 ### Reference Endpoints
 
 | Method | Path | Description |
@@ -746,13 +799,33 @@ docker compose logs web | grep '"level": "ERROR"'
 
 ---
 
-## Default Credentials
+## Default Credentials & Password Management
 
 | Username | Password | Role |
 |---|---|---|
 | `admin` | `admin` | App Administrator |
 
-**Change the admin password immediately after first login.**
+**The password must be changed on first sign-in** — the app redirects you to the change-password screen and blocks all other pages until you set a new password (minimum 8 characters). The `reader` and `operator` default accounts behave the same way.
+
+### Change your own password
+
+While signed in, you can change your password from the user menu (the forced-change screen appears automatically when your account is flagged).
+
+### Reset a forgotten password
+
+1. On the login page click **Forgot password?**
+2. Enter your username and email address
+3. The app emails you a reset link (requires SMTP to be configured — see [SMTP / Email Notifications](#smtp--email-notifications))
+4. Follow the link and set a new password
+
+### Admin-initiated reset
+
+Admins can reset any local user's password from **Settings → Users → Edit**:
+
+- Set a temporary password, and tick **Require password change on next sign-in** to force the user to pick their own password at next login.
+- This does not apply to LDAP/Active Directory accounts — their passwords are managed by AD.
+
+> Local accounts only. LDAP users authenticate against your directory server.
 
 ---
 
