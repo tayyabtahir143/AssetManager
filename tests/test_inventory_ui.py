@@ -38,7 +38,7 @@ def inventory_browser(application):
                 return render_template(
                     "list.html", user=admin, app_admin=True, asset_type=asset_type,
                     definition=definition, asset_title=definition["label"], items=items,
-                    asset_perms=SimpleNamespace(can_add=not readonly, can_delete=not readonly, can_bulk_delete=bulk),
+                    asset_perms=SimpleNamespace(can_add=not readonly, can_delete=not readonly, can_bulk_delete=bulk, can_read=True),
                     query=query, status_filter="all", import_headers=[], page=1,
                     total_pages=pages, total_items=len(items),
                 )
@@ -276,4 +276,80 @@ def test_opt_in_scroll_loading_and_bulk_toggle_include_new_rows(inventory_browse
     expect(box).to_be_visible()
     page.get_by_role("button", name="Bulk Delete", exact=True).click()
     expect(box).to_be_hidden()
+    assert not errors
+
+
+def test_csv_export_link_beside_excel_export(inventory_browser):
+    open_inventory, page, errors = inventory_browser
+    open_inventory()
+    expect(page.get_by_role("link", name="Export Excel", exact=True)).to_be_visible()
+    csv_link = page.get_by_role("link", name="Export CSV", exact=True)
+    expect(csv_link).to_be_visible()
+    assert csv_link.get_attribute("href") == "/assets/laptops/export.csv"
+    assert not errors
+
+
+def test_print_labels_link_tracks_checked_ids(inventory_browser):
+    open_inventory, page, errors = inventory_browser
+    open_inventory()
+    link = page.get_by_role("link", name="Print Labels", exact=True)
+    expect(link).to_be_hidden()
+    page.get_by_role("button", name="Bulk Delete", exact=True).click()
+    expect(link).to_be_visible()
+    expect(link).to_have_attribute("aria-disabled", "true")
+    expect(link).to_have_attribute("href", "/labels/laptops")
+    link.click(force=True)
+    assert len(page.context.pages) == 1
+    assert page.url == "http://inventory.test/assets/laptops"
+    page.get_by_label("Select asset 1", exact=True).check()
+    expect(link).to_have_attribute("href", "/labels/laptops?ids=1")
+    expect(link).not_to_have_attribute("aria-disabled", "true")
+    page.get_by_label("Select all loaded assets", exact=True).check()
+    expect(link).to_have_attribute("href", "/labels/laptops?ids=1,2")
+    page.get_by_label("Select all loaded assets", exact=True).uncheck()
+    expect(link).to_have_attribute("href", "/labels/laptops")
+    expect(link).to_have_attribute("aria-disabled", "true")
+    assert not errors
+
+
+def test_bulk_update_apply_posts_selected_ids_field_value_and_csrf(inventory_browser):
+    open_inventory, page, errors = inventory_browser
+    open_inventory()
+    page.get_by_role("button", name="Bulk Delete", exact=True).click()
+    apply = page.get_by_role("button", name="Apply", exact=True)
+    field = page.get_by_label("Field to update", exact=True)
+    value = page.get_by_label("Bulk update value", exact=True)
+    expect(apply).to_be_visible()
+    expect(apply).to_be_disabled()
+    expect(field).to_have_value("assigned_to")
+    page.get_by_label("Select asset 1", exact=True).check()
+    expect(apply).to_be_enabled()
+    token = page.locator('#bulk-delete-form [name="csrf_token"]').input_value()
+    posts = []
+
+    def capture(route):
+        posts.append(route.request)
+        route.fulfill(status=200, body="Captured bulk update")
+
+    page.route("**/assets/laptops/bulk-update", capture)
+    field.select_option("status")
+    value.fill("Broken")
+    apply.click()
+    page.wait_for_url("**/assets/laptops/bulk-update")
+    from urllib.parse import parse_qs
+    assert posts[0].method == "POST"
+    data = parse_qs(posts[0].post_data)
+    assert data["csrf_token"] == [token]
+    assert data["selected_ids"] == ["1"]
+    assert data["field"] == ["status"]
+    assert data["value"] == ["Broken"]
+    assert not errors
+
+
+def test_bulk_tools_absent_without_permissions_but_csv_export_remains(inventory_browser):
+    open_inventory, page, errors = inventory_browser
+    open_inventory(bulk=False, readonly=True)
+    expect(page.get_by_role("link", name="Export CSV", exact=True)).to_be_visible()
+    assert page.get_by_role("link", name="Print Labels", exact=True).count() == 0
+    assert page.get_by_role("button", name="Apply", exact=True).count() == 0
     assert not errors

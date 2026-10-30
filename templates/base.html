@@ -22,6 +22,21 @@
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='foundation.css', v=app_version) }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='workspace.css', v=app_version) }}">
+    <style>
+      /* ── Global asset search results in the quick-nav dialog ─────────── */
+      /* Extends the .quick-nav-* surface using the shared workspace tokens. */
+      #quick-nav-assets { border-top: 1px solid var(--border); padding: 8px; overflow-y: auto; max-height: 24dvh; }
+      #quick-nav-assets:empty { display: none; }
+      .quick-nav-assets-label { padding: 4px 12px 6px; color: var(--ink-3); font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+      .quick-nav-asset-result { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center; padding: 9px 12px; border-radius: var(--radius-sm); color: var(--ink); text-decoration: none; font-size: 12px; transition: background var(--transition); }
+      .quick-nav-asset-result:hover, .quick-nav-asset-result:focus { background: var(--accent-dim); color: var(--ink); }
+      .qna-title { font-weight: 600; color: var(--ink); }
+      .quick-nav-asset-result:hover .qna-title, .quick-nav-asset-result:focus .qna-title { color: var(--accent); }
+      .qna-badge { justify-self: end; background: var(--accent-dim); color: var(--accent); border-radius: var(--radius-xs); padding: 1px 7px; font-size: 9px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+      .qna-tag { grid-column: 1 / -1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--ink-2); font-size: 10px; }
+      .qna-subtitle { grid-column: 1 / -1; color: var(--ink-3); font-size: 10px; }
+      .quick-nav-assets-loading, .quick-nav-assets-empty, .quick-nav-assets-hint { padding: 14px 12px; color: var(--ink-2); font-size: 12px; }
+    </style>
     <script>
       try {
         const theme = localStorage.getItem('theme');
@@ -251,9 +266,10 @@
         <button type="button" class="btn-icon" id="quick-nav-close" aria-label="Close quick navigation">×</button>
       </div>
       <div class="quick-nav-field">
-        <input type="search" id="quick-nav-search" placeholder="Search navigation…" aria-label="Search pages and actions" autocomplete="off">
+        <input type="search" id="quick-nav-search" placeholder="Search pages and assets…" aria-label="Search pages and actions" autocomplete="off">
       </div>
       <div class="quick-nav-results" id="quick-nav-results" aria-label="Matching pages"></div>
+      <div class="quick-nav-assets" id="quick-nav-assets" aria-label="Matching assets"></div>
       <div id="quick-nav-status" class="sr-only" aria-live="polite"></div>
       <div class="quick-nav-footer"><kbd>↑</kbd> <kbd>↓</kbd> to move &nbsp; <kbd>Enter</kbd> to open &nbsp; <kbd>Esc</kbd> to close</div>
     </dialog>
