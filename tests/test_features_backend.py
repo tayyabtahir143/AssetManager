@@ -59,6 +59,11 @@ class TestGlobalSearch:
         data = client.get("/api/search?q=zzz-no-such", headers=auth_headers).get_json()
         assert data["results"] == []
 
+    def test_session_search_for_page_use(self, admin_client, seeded_laptops):
+        data = admin_client.get("/search?q=acme").get_json()
+        assert any(r["asset_tag"] == "LT-SEARCH-1" for r in data["results"])
+        assert admin_client.get("/search?q=").get_json() == {"results": []}
+
 
 class TestCsvExport:
     def test_builtin_csv_export(self, admin_client, seeded_laptops):

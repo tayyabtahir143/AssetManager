@@ -9641,12 +9641,12 @@ def bulk_delete_roles():
 # labels. Read paths and row updates only — no schema changes.
 # ---------------------------------------------------------------------------
 
-@app.route("/api/search", methods=["GET"])
-@api_auth_required(permission="can_read", asset_type=None)
-def api_search():
-    q = (request.args.get("q") or "").strip()
+def _perform_asset_search(q):
+    """Search builtin and custom assets by tag/vendor/model/assignee. Returns a
+    list of result dicts; shared by the JWT API and the session-based UI."""
+    q = (q or "").strip()
     if len(q) < 2:
-        return jsonify({"error": "Query must be at least 2 characters."}), 400
+        return []
     needle = q.lower()
     results = []
     limit = 15
@@ -9696,7 +9696,25 @@ def api_search():
                     "subtitle": " · ".join(str(x) for x in (data.get("vendor"), tag) if x) or asset_type.label,
                     "url": url_for("view_custom_asset", asset_key=asset_type.key, item_id=item.id),
                 })
-    return jsonify({"results": results})
+    return results
+
+
+@app.route("/api/search", methods=["GET"])
+@api_auth_required(permission="can_read", asset_type=None)
+def api_search():
+    q = request.args.get("q") or ""
+    if len(q.strip()) < 2:
+        return jsonify({"error": "Query must be at least 2 characters."}), 400
+    return jsonify({"results": _perform_asset_search(q)})
+
+
+@app.route("/search")
+@login_required
+@require_permission("can_read")
+def session_search():
+    """Session-authenticated search used by the in-page quick navigation;
+    the JWT API endpoint above is for external clients."""
+    return jsonify({"results": _perform_asset_search(request.args.get("q") or "")})
 
 
 def _csv_response(filename, text):
