@@ -163,6 +163,7 @@
       hasMore = data.has_more;
       applyColumns();
       sortRows();
+      refreshBulkTools();
     } catch (_) {
       failed = true;
     } finally {
@@ -176,4 +177,41 @@
     if (autoLoad.checked && !failed && window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 200) loadMore();
   }, { passive: true });
   renderLoadingState();
+
+  // Bulk toolbar extras: keep the print-labels link and the bulk-update Apply
+  // button in sync with the existing bulk-select machinery. All writes reuse
+  // the single CSRF-protected #bulk-delete-form — no second token is created.
+  const labelsLink = document.getElementById('bulk-labels-link');
+  const labelsBase = labelsLink ? labelsLink.getAttribute('href') : '';
+  const bulkUpdateSubmit = document.getElementById('bulk-update-submit');
+  const bulkUpdateValue = document.getElementById('bulk-update-value');
+  const bulkUpdateField = document.getElementById('bulk-update-field');
+  const refreshBulkTools = () => {
+    const ids = [...document.querySelectorAll('.asset-checkbox:checked')].map(box => box.value);
+    if (labelsLink) {
+      const suffix = ids.length ? `?ids=${ids.map(encodeURIComponent).join(',')}` : '';
+      labelsLink.setAttribute('href', `${labelsBase}${suffix}`);
+      if (ids.length) labelsLink.removeAttribute('aria-disabled');
+      else labelsLink.setAttribute('aria-disabled', 'true');
+    }
+    if (bulkUpdateSubmit) bulkUpdateSubmit.disabled = ids.length === 0;
+  };
+  if (labelsLink) {
+    labelsLink.addEventListener('click', event => {
+      if (labelsLink.getAttribute('aria-disabled') === 'true') event.preventDefault();
+    });
+  }
+  if (bulkUpdateField && bulkUpdateValue) {
+    bulkUpdateField.addEventListener('change', () => {
+      bulkUpdateValue.placeholder = bulkUpdateField.value === 'status'
+        ? 'Status, e.g. In Stock, Assigned, Broken, Write Off'
+        : "Name, or 'free' to release";
+    });
+  }
+  document.addEventListener('change', event => {
+    const target = event.target;
+    if (target && (target.id === 'select-all-assets' || (target.classList && target.classList.contains('asset-checkbox')))) refreshBulkTools();
+  });
+  document.addEventListener('click', () => queueMicrotask(refreshBulkTools));
+  refreshBulkTools();
 })();

@@ -247,14 +247,24 @@ class TestCustomSearchAndLabels:
             db.session.add(asset_type)
             db.session.commit()
             admin_role = app_module.Role.query.filter_by(name="admin").first()
-            db.session.add(app_module.RolePermission(role_id=admin_role.id, asset_type="custom:cables", can_read=True))
+            perm = app_module.RolePermission.query.filter_by(
+                role_id=admin_role.id, asset_type="custom:cables").first()
+            if perm is None:
+                perm = app_module.RolePermission(
+                    role_id=admin_role.id, asset_type="custom:cables", can_read=True)
+                db.session.add(perm)
+            else:
+                perm.can_read = True
             db.session.commit()
             item = AssetItem(asset_type_id=asset_type.id, data={"asset_tag": "CBL-77", "model": "HDMI 1m"})
             db.session.add(item)
             db.session.commit()
-            resp = admin_client.get(f"/labels/custom/cables?ids={item.id}")
-            assert resp.status_code == 200
-            assert b"CBL-77" in resp.data
-            db.session.delete(item)
-            db.session.delete(asset_type)
-            db.session.commit()
+            try:
+                resp = admin_client.get(f"/labels/custom/cables?ids={item.id}")
+                assert resp.status_code == 200
+                assert b"CBL-77" in resp.data
+            finally:
+                db.session.delete(item)
+                db.session.delete(perm)
+                db.session.delete(asset_type)
+                db.session.commit()

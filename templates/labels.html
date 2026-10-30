@@ -5,7 +5,7 @@
   <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;">
     <div>
       <h1 class="page-title">{{ type_label }} labels</h1>
-      <p class="page-subtitle">{{ label_items|length }} label{{ "s" if label_items|length != 1 else "" }} ready to print. Each label shows the asset tag and links back to the asset.</p>
+      <p class="page-subtitle">{{ label_items|length }} label{{ "s" if label_items|length != 1 else "" }} ready to print. Each label shows the asset tag and a scannable QR code linking back to the asset.</p>
     </div>
     <div class="labels-print-row">
       <a class="button" href="{{ url_for('index') }}">Back to dashboard</a>
@@ -17,10 +17,13 @@
 <div class="labels-grid">
   {% for label in label_items %}
   <a class="label-card" href="{{ label.url }}">
-    <span class="label-type">{{ type_label }}</span>
-    <span class="label-tag">{{ label.tag }}</span>
-    <span class="label-title">{{ label.title }}</span>
-    {% if label.extra %}<span class="label-extra">{{ label.extra }}</span>{% endif %}
+    <div class="label-info">
+      <span class="label-type">{{ type_label }}</span>
+      <span class="label-tag">{{ label.tag }}</span>
+      <span class="label-title">{{ label.title }}</span>
+      {% if label.extra %}<span class="label-extra">{{ label.extra }}</span>{% endif %}
+    </div>
+    <div class="label-qr" data-url="{{ request.url_root.rstrip('/') + label.url }}"></div>
   </a>
   {% endfor %}
 </div>
@@ -29,4 +32,28 @@
   <p class="muted">No items selected. Open an asset list, pick items, and choose Print labels.</p>
 </div>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='vendor/qrcode.min.js') }}"></script>
+<script>
+/* ── Per-label QR codes (qrcodejs, vendored locally) ─────────────────── */
+(function () {
+  if (typeof QRCode === 'undefined') return; // vendored library did not load
+  document.querySelectorAll('.label-qr').forEach(function (el) {
+    if (el.dataset.qrGenerated) return; // guard against double invocation
+    var url = el.getAttribute('data-url');
+    if (!url) return;
+    el.dataset.qrGenerated = '1';
+    new QRCode(el, {
+      text: url,
+      width: 512,
+      height: 512,
+      colorDark: '#000000',
+      colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.M
+    });
+  });
+})();
+</script>
 {% endblock %}

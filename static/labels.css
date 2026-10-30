@@ -1,16 +1,18 @@
-/* Printable asset labels: compact grid on screen, clean cards on paper. */
+/* Printable asset labels: compact grid on screen, clean 2-column cards
+   with QR codes on paper. */
 .labels-print-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 .labels-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 14px;
   margin-top: 20px;
 }
 .label-card {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: 18px;
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
+  padding: 16px;
   border: 1px solid var(--border-2);
   border-radius: var(--radius);
   background: var(--surface);
@@ -19,6 +21,13 @@
   transition: border-color var(--transition);
 }
 .label-card:hover { border-color: var(--accent); }
+.label-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
 .label-type {
   font-size: 10px;
   letter-spacing: 0.08em;
@@ -34,24 +43,53 @@
 }
 .label-title { font-size: 13px; color: var(--ink); }
 .label-extra { font-size: 11px; color: var(--ink-2); overflow-wrap: anywhere; }
+.label-qr {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+}
+.label-qr canvas, .label-qr img { display: block; width: 96px; height: 96px; }
 
 @media print {
   @page { size: A4 portrait; margin: 10mm; }
   body { background: #fff !important; color: #000 !important; }
-  .sidebar, .topbar, .back-row, .page-footer, .page-header, .labels-print-row { display: none !important; }
+  .sidebar, .topbar, .back-row, .page-footer, .page-header, .labels-print-row,
+  .mobile-overlay, .toast-container, .autologout-overlay, #quick-nav,
+  .skip-link { display: none !important; }
+  .layout { display: block !important; }
   .content-wrap { margin-left: 0 !important; }
   main { max-width: 100% !important; padding: 0 !important; }
-  .labels-grid { grid-template-columns: repeat(2, 1fr); gap: 6mm; }
+  .labels-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 6mm;
+    margin-top: 0 !important;
+  }
   .label-card {
     break-inside: avoid;
+    page-break-inside: avoid;
+    flex-direction: row;
+    align-items: center;
+    gap: 4mm;
+    min-height: 28mm;
+    padding: 3mm;
     border: 1.5px solid #000;
     border-radius: 3mm;
-    color: #000;
-    min-height: 28mm;
-    justify-content: center;
+    background: #fff !important;
+    color: #000 !important;
     text-decoration: none;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
   }
-  .label-type { color: #444; }
-  .label-tag { font-size: 22px; }
-  .label-title, .label-extra { color: #000; }
+  .label-info { gap: 1mm; }
+  .label-type { color: #444 !important; }
+  .label-tag { font-size: 13pt; color: #000 !important; }
+  .label-title { font-size: 9.5pt; color: #000 !important; }
+  .label-extra { font-size: 8.5pt; color: #222 !important; }
+  .label-qr canvas, .label-qr img {
+    width: 22mm !important;
+    height: 22mm !important;
+    max-width: none !important;
+  }
 }

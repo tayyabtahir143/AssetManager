@@ -87,6 +87,7 @@
   const trigger = document.getElementById('quick-nav-open');
   const search = document.getElementById('quick-nav-search');
   const results = document.getElementById('quick-nav-results');
+  const assetList = document.getElementById('quick-nav-assets');
   const status = document.getElementById('quick-nav-status');
   if (!dialog || !trigger || !search || !results) return;
 
@@ -122,6 +123,88 @@
     }
     if (status) status.textContent = `${matches.length} matching pages`;
   };
+
+  /* ── Global asset search (GET /search?q=, session cookie auth) ───────── */
+  const ASSET_SEARCH_DEBOUNCE_MS = 200;
+  const ASSET_SEARCH_MIN_CHARS = 2;
+  let assetTimer = null;
+  let assetController = null;
+
+  const assetSectionLabel = () => {
+    const label = document.createElement('div');
+    label.className = 'quick-nav-assets-label';
+    label.textContent = 'Assets';
+    return label;
+  };
+
+  const showAssetState = (className, message) => {
+    if (!assetList) return;
+    assetList.replaceChildren(assetSectionLabel());
+    const row = document.createElement('p');
+    row.className = className;
+    row.textContent = message;
+    assetList.appendChild(row);
+  };
+
+  const renderAssetResults = assets => {
+    if (!assetList) return;
+    if (!assets.length) {
+      showAssetState('quick-nav-assets-empty', 'No matching assets');
+      return;
+    }
+    assetList.replaceChildren(assetSectionLabel());
+    assets.forEach(item => {
+      const link = document.createElement('a');
+      link.href = item.url;
+      link.className = 'quick-nav-asset-result';
+      const title = document.createElement('span');
+      title.className = 'qna-title';
+      title.textContent = item.title || item.label || 'Asset';
+      const badge = document.createElement('span');
+      badge.className = 'qna-badge';
+      badge.textContent = item.label || 'Asset';
+      const tag = document.createElement('span');
+      tag.className = 'qna-tag';
+      tag.textContent = item.asset_tag || '';
+      const subtitle = document.createElement('span');
+      subtitle.className = 'qna-subtitle';
+      subtitle.textContent = item.subtitle || '';
+      link.append(title, badge, tag, subtitle);
+      assetList.appendChild(link);
+    });
+  };
+
+  const fetchAssets = query => {
+    if (assetController) assetController.abort();
+    assetController = new AbortController();
+    showAssetState('quick-nav-assets-loading', 'Searching assets…');
+    fetch('/search?q=' + encodeURIComponent(query), {
+      headers: { Accept: 'application/json' },
+      signal: assetController.signal,
+    })
+      .then(response => (response.ok ? response.json() : { results: [] }))
+      .then(data => renderAssetResults(Array.isArray(data.results) ? data.results : []))
+      .catch(error => {
+        if (error.name !== 'AbortError') renderAssetResults([]);
+      });
+  };
+
+  const scheduleAssetSearch = value => {
+    if (assetTimer) clearTimeout(assetTimer);
+    if (assetController) assetController.abort();
+    const query = (value || '').trim();
+    if (!query) {
+      assetList?.replaceChildren();
+      return;
+    }
+    if (query.length < ASSET_SEARCH_MIN_CHARS) {
+      showAssetState('quick-nav-assets-hint',
+        `Type ${ASSET_SEARCH_MIN_CHARS} or more characters to search assets.`);
+      return;
+    }
+    assetTimer = setTimeout(() => fetchAssets(query), ASSET_SEARCH_DEBOUNCE_MS);
+  };
+
   let previousFocus;
   const open = () => {
     if (dialog.open) return;
@@ -129,11 +212,15 @@
     setNav(false);
     search.value = '';
     renderResults();
+    assetList?.replaceChildren();
     dialog.showModal();
     search.focus();
   };
   trigger.addEventListener('click', open);
-  search.addEventListener('input', renderResults);
+  search.addEventListener('input', () => {
+    renderResults();
+    scheduleAssetSearch(search.value);
+  });
   document.getElementById('quick-nav-close')?.addEventListener('click', () => dialog.close());
   dialog.addEventListener('close', () => previousFocus?.focus());
   dialog.addEventListener('click', event => {
@@ -142,7 +229,7 @@
     if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) dialog.close();
   });
   dialog.addEventListener('keydown', event => {
-    const links = [...results.querySelectorAll('a')];
+    const links = [...results.querySelectorAll('a'), ...(assetList ? assetList.querySelectorAll('a') : [])];
     const current = links.indexOf(document.activeElement);
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault();
