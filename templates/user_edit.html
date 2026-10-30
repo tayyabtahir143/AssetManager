@@ -12,6 +12,10 @@
         <label for="email">Email (optional)</label>
         <input id="email" name="email" type="text" value="{{ user.email or '' }}">
       </div>
+      <div class="checkbox-row">
+        <input id="require_password_change" name="require_password_change" type="checkbox" {% if user.must_change_password %}checked{% endif %}>
+        <label for="require_password_change">Require password change on next sign-in</label>
+      </div>
       <div>
         <label for="password">New Password (optional)</label>
         <input id="password" name="password" type="password">

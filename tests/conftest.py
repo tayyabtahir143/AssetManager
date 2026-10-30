@@ -31,12 +31,21 @@ def application():
     app_module._FERNET = app_module.Fernet(
         app_module._make_fernet_key("test-secret-key-do-not-use-in-production")
     )
+    # The suite exercises login many times; rate limiting is covered elsewhere
+    # and would otherwise make unrelated tests flaky (HTTP 429).
+    app_module.limiter.enabled = False
     with app_module.app.app_context():
         app_module.db.create_all()
         app_module.ensure_default_roles()
         app_module.ensure_role_assignments()
         app_module.ensure_default_users()
         app_module.ensure_role_permissions()
+        # Default accounts are created with must_change_password=True so a real
+        # first run forces a password change; test fixtures simulate accounts
+        # that already changed it.
+        for _user in app_module.User.query.all():
+            _user.must_change_password = False
+        app_module.db.session.commit()
         yield app_module.app
         app_module.db.session.remove()
         app_module.db.drop_all()

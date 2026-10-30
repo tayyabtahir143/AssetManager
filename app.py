@@ -34,6 +34,7 @@ import jwt
 from ldap3 import Connection, Server, SUBTREE, Tls
 from ldap3.core.exceptions import LDAPExceptionError, LDAPInvalidFilterError
 from ldap3.utils.conv import escape_filter_chars
+import csv
 from sqlalchemy import func, text, cast, String, or_
 from sqlalchemy.exc import SQLAlchemyError
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -260,6 +261,16 @@ def handle_api_preflight():
         return resp
 
 
+@app.before_request
+def enforce_password_change():
+    user = get_current_user()
+    if not user or not getattr(user, "must_change_password", False) or getattr(user, "is_ldap", False):
+        return
+    if request.endpoint in {"change_password", "logout", "static"} or request.path.startswith("/static") or request.path.startswith("/api"):
+        return
+    return redirect(url_for("change_password"))
+
+
 @app.after_request
 def add_api_headers(response):
     if request.path.startswith("/api"):
@@ -370,6 +381,7 @@ class User(db.Model):
     role = db.Column(db.String(50), nullable=False)
     is_ldap = db.Column(db.Boolean, nullable=False, default=False)
     email = db.Column(db.String(255), nullable=True)
+    must_change_password = db.Column(db.Boolean, nullable=False, default=False)
 
 
 class Role(db.Model):
@@ -4060,6 +4072,9 @@ def ensure_default_users():
                 username=username,
                 password_hash=generate_password_hash(password),
                 role=role,
+                # Default accounts ship with well-known passwords; force a
+                # change on first sign-in.
+                must_change_password=True,
             )
         )
     db.session.commit()
@@ -4281,6 +4296,27 @@ def ensure_user_email_column():
     if "email" not in columns:
         db.session.execute(text("ALTER TABLE user ADD COLUMN email TEXT"))
     db.session.commit()
+
+
+def ensure_user_password_change_column():
+    if db.engine.dialect.name == "sqlite":
+        result = db.session.execute(text("PRAGMA table_info(user)")).fetchall()
+        if not result:
+            return
+        columns = {row[1] for row in result}
+        if "must_change_password" not in columns:
+            db.session.execute(
+                text("ALTER TABLE user ADD COLUMN must_change_password BOOLEAN DEFAULT 0")
+            )
+        db.session.commit()
+        return
+    try:
+        db.session.execute(
+            text('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN DEFAULT FALSE')
+        )
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
 
 
 def ensure_user_ldap_column():
@@ -4818,6 +4854,7 @@ def init_db():
         ensure_laptop_generation_column()
         ensure_role_admin_column()
         ensure_user_email_column()
+        ensure_user_password_change_column()
         ensure_user_ldap_column()
         ensure_role_permission_bulk_column()
         ensure_ldap_group_columns()
@@ -5271,6 +5308,8 @@ def login():
             if not get_role_permissions(user).get("can_read", False) and user_has_app_admin(user):
                 return redirect(url_for("list_users"))
             log_audit("login", "auth", details=username)
+            if getattr(user, "must_change_password", False) and not user.is_ldap:
+                return redirect(url_for("change_password"))
             return redirect(url_for("index"))
 
         try:
@@ -5291,6 +5330,8 @@ def login():
             if not get_role_permissions(user).get("can_read", False) and user_has_app_admin(user):
                 return redirect(url_for("list_users"))
             log_audit("login", "auth", details=username)
+            if getattr(user, "must_change_password", False) and not user.is_ldap:
+                return redirect(url_for("change_password"))
             return redirect(url_for("index"))
 
         log_audit("login_failed", "auth", success=False, details=username)
@@ -5377,6 +5418,33 @@ def reset_password(token):
 def logout():
     session.clear()
     return redirect(url_for("login"))
+
+
+@app.route("/change-password", methods=["GET", "POST"])
+@login_required
+def change_password():
+    user = get_current_user()
+    if getattr(user, "is_ldap", False):
+        flash("This account is managed by Active Directory and cannot change its password here.", "error")
+        return redirect(url_for("index"))
+    if request.method == "POST":
+        current = request.form.get("current_password", "")
+        new = request.form.get("password", "")
+        confirm = request.form.get("confirm_password", "")
+        if not check_password_hash(user.password_hash, current):
+            flash("Current password is incorrect.", "error")
+        elif len(new) < 8:
+            flash("New password must be at least 8 characters.", "error")
+        elif new != confirm:
+            flash("New passwords do not match.", "error")
+        else:
+            user.password_hash = generate_password_hash(new)
+            user.must_change_password = False
+            db.session.commit()
+            log_audit("change_password", "user", entity_id=user.id, details=user.username)
+            flash("Password updated.", "success")
+            return redirect(url_for("index"))
+    return render_template("change_password.html")
 
 
 @app.route("/api/auth/login", methods=["POST"])
@@ -9052,6 +9120,7 @@ def edit_user(user_id):
         user.username = username
         user.role = selected_roles[0].name
         user.email = email
+        user.must_change_password = request.form.get("require_password_change") == "on"
         if password:
             user.password_hash = generate_password_hash(password)
         UserRole.query.filter_by(user_id=user.id).delete()
@@ -9565,6 +9634,244 @@ def bulk_delete_roles():
         db.session.commit()
         log_audit("bulk_delete", "role", details=f"Deleted ids: {ids}")
     return redirect(url_for("list_roles"))
+
+
+# ---------------------------------------------------------------------------
+# Feature suite: global search, CSV export, bulk assign/status, printable
+# labels. Read paths and row updates only — no schema changes.
+# ---------------------------------------------------------------------------
+
+@app.route("/api/search", methods=["GET"])
+@api_auth_required(permission="can_read", asset_type=None)
+def api_search():
+    q = (request.args.get("q") or "").strip()
+    if len(q) < 2:
+        return jsonify({"error": "Query must be at least 2 characters."}), 400
+    needle = q.lower()
+    results = []
+    limit = 15
+    for key, definition in ASSET_DEFS.items():
+        if len(results) >= limit:
+            break
+        model = definition["model"]
+        conditions = []
+        for field_name in ("asset_tag", "vendor", "model", "assigned_to"):
+            column = getattr(model, field_name, None)
+            if column is not None:
+                conditions.append(func.lower(column).like(f"%{needle}%"))
+        if not conditions:
+            continue
+        for item in model.query.filter(or_(*conditions)).limit(limit - len(results)).all():
+            tag = getattr(item, "asset_tag", None)
+            model_name = getattr(item, "model", None)
+            vendor = getattr(item, "vendor", None)
+            results.append({
+                "id": item.id,
+                "asset_type": key,
+                "label": definition["label"],
+                "asset_tag": tag or f"{key.upper()}-{item.id}",
+                "title": model_name or tag or f"{definition['label']} #{item.id}",
+                "subtitle": " · ".join(str(x) for x in (vendor, tag) if x) or definition["label"],
+                "url": url_for("view_asset", asset_type=key, item_id=item.id),
+            })
+    if len(results) < limit:
+        for asset_type in AssetType.query.all():
+            if len(results) >= limit:
+                break
+            items = (
+                AssetItem.query.filter(AssetItem.asset_type_id == asset_type.id)
+                .filter(func.lower(cast(AssetItem.data, String)).like(f"%{needle}%"))
+                .limit(limit - len(results))
+                .all()
+            )
+            for item in items:
+                data = item.data or {}
+                tag = data.get("asset_tag")
+                results.append({
+                    "id": item.id,
+                    "asset_type": asset_type.key,
+                    "label": asset_type.label,
+                    "asset_tag": tag or f"{asset_type.key.upper()}-{item.id}",
+                    "title": data.get("model") or tag or f"{asset_type.label} #{item.id}",
+                    "subtitle": " · ".join(str(x) for x in (data.get("vendor"), tag) if x) or asset_type.label,
+                    "url": url_for("view_custom_asset", asset_key=asset_type.key, item_id=item.id),
+                })
+    return jsonify({"results": results})
+
+
+def _csv_response(filename, text):
+    return send_file(
+        io.BytesIO(("\ufeff" + text).encode("utf-8")),
+        as_attachment=True,
+        download_name=filename,
+        mimetype="text/csv",
+    )
+
+
+@app.route("/assets/<asset_type>/export.csv")
+@login_required
+@require_static_permission("can_read")
+def export_assets_csv(asset_type):
+    definition = ASSET_DEFS[asset_type]
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["id"] + [label for _name, label, _field_type in definition["fields"]])
+    for item in definition["model"].query.order_by(definition["model"].id.asc()).all():
+        row = [item.id]
+        for field_name, _label, field_type in definition["fields"]:
+            if field_name == "connection" and definition["model"] in (Mouse, Keyboard):
+                value = get_mouse_connection(item)
+                field_type = "text"
+            else:
+                value = getattr(item, field_name, None)
+            if field_name == "assigned_to" and (not value or normalize_assignee(value) == "free"):
+                value = ""
+            if field_type == "checkbox":
+                row.append("Yes" if value else "No")
+            else:
+                row.append(value if value is not None else "")
+        writer.writerow(row)
+    filename = f"{asset_type}-assets-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}.csv"
+    return _csv_response(filename, output.getvalue())
+
+
+@app.route("/custom/<asset_key>/export.csv")
+@login_required
+@require_custom_permission("can_read")
+def export_custom_assets_csv(asset_key):
+    asset_type = get_custom_asset_by_key(asset_key)
+    if not asset_type:
+        return redirect(url_for("index"))
+    fields = AssetField.query.filter_by(asset_type_id=asset_type.id).all()
+    items = AssetItem.query.filter_by(asset_type_id=asset_type.id).order_by(AssetItem.id.asc()).all()
+    output = io.StringIO()
+    writer = csv.writer(output)
+    headers = ["id"] + (["qty"] if asset_type.has_quantity else []) + [f.label for f in fields]
+    writer.writerow(headers)
+    for item in items:
+        data = item.data or {}
+        row = [item.id]
+        if asset_type.has_quantity:
+            row.append(_parse_int(data.get("total_quantity", 0), 0))
+        for field in fields:
+            value = data.get(field.name)
+            if field.field_type == "checkbox" and field.options:
+                row.append(", ".join(value) if isinstance(value, list) else (value or ""))
+            elif field.field_type == "checkbox":
+                row.append("Yes" if value else "No")
+            else:
+                row.append(value if value is not None else "")
+        writer.writerow(row)
+    filename = f"custom-{asset_key}-assets-{datetime.datetime.now().strftime('%Y%m%d-%H%M%S')}.csv"
+    return _csv_response(filename, output.getvalue())
+
+
+@app.route("/assets/<asset_type>/bulk-update", methods=["POST"])
+@login_required
+@require_static_permission("can_add")
+def bulk_update_assets(asset_type):
+    definition = ASSET_DEFS[asset_type]
+    ids = [int(x) for x in request.form.getlist("selected_ids") if x.isdigit()]
+    field = request.form.get("field", "")
+    value = request.form.get("value", "")
+    if not ids:
+        flash("No items selected.", "error")
+        return redirect(url_for("list_assets", asset_type=asset_type))
+    if field not in {"assigned_to", "status"}:
+        flash("Unsupported bulk update field.", "error")
+        return redirect(url_for("list_assets", asset_type=asset_type))
+    model = definition["model"]
+    if not hasattr(model, field):
+        flash("This asset type does not support that field.", "error")
+        return redirect(url_for("list_assets", asset_type=asset_type))
+    updated = 0
+    for item in model.query.filter(model.id.in_(ids)).all():
+        changed = False
+        if field == "status":
+            norm = normalize_status(value)
+            if norm in {"broken", "write off"}:
+                setattr(item, "status", "Broken" if norm == "broken" else "Write Off")
+                setattr(item, "assigned_to", "free")
+                if hasattr(item, "dept"):
+                    setattr(item, "dept", "")
+                changed = True
+            elif norm in {"in stock", "in_stock"}:
+                setattr(item, "status", "In Stock")
+                setattr(item, "assigned_to", "free")
+                if hasattr(item, "dept"):
+                    setattr(item, "dept", "")
+                changed = True
+            elif norm == "assigned":
+                if normalize_assignee(getattr(item, "assigned_to", "") or "") == "free":
+                    continue
+                setattr(item, "status", "Assigned")
+                changed = True
+        else:  # assigned_to
+            if value and normalize_assignee(value) != "free":
+                setattr(item, "assigned_to", value)
+                setattr(item, "status", "Assigned")
+            else:
+                setattr(item, "assigned_to", "free")
+                setattr(item, "status", "In Stock")
+                if hasattr(item, "dept"):
+                    setattr(item, "dept", "")
+            changed = True
+        if changed:
+            updated += 1
+    db.session.commit()
+    log_audit("bulk_update", "asset", entity_id=asset_type, details=f"field={field} value={value} ids={ids}")
+    flash(f"Updated {updated} items.", "success" if updated else "error")
+    return redirect(url_for("list_assets", asset_type=asset_type))
+
+
+@app.route("/labels/<asset_type>")
+@login_required
+@require_static_permission("can_read")
+def asset_labels(asset_type):
+    definition = ASSET_DEFS[asset_type]
+    ids = [int(x) for x in request.args.get("ids", "").split(",") if x.isdigit()][:200]
+    model = definition["model"]
+    items = model.query.filter(model.id.in_(ids)).all() if ids else []
+    label_items = [
+        {
+            "tag": getattr(item, "asset_tag", None) or f"{asset_type.upper()}-{item.id}",
+            "title": getattr(item, "model", None) or definition["label"],
+            "extra": " · ".join(str(x) for x in (getattr(item, "vendor", None), getattr(item, "processor", None)) if x),
+            "url": url_for("view_asset", asset_type=asset_type, item_id=item.id),
+        }
+        for item in items
+    ]
+    return render_template(
+        "labels.html", type_label=definition["label"], label_items=label_items,
+        asset_type=asset_type, custom=False,
+    )
+
+
+@app.route("/labels/custom/<asset_key>")
+@login_required
+@require_custom_permission("can_read")
+def custom_asset_labels(asset_key):
+    asset_type = get_custom_asset_by_key(asset_key)
+    if not asset_type:
+        return redirect(url_for("index"))
+    ids = [int(x) for x in request.args.get("ids", "").split(",") if x.isdigit()][:200]
+    items = (
+        AssetItem.query.filter(AssetItem.asset_type_id == asset_type.id, AssetItem.id.in_(ids)).all()
+        if ids else []
+    )
+    label_items = [
+        {
+            "tag": (item.data or {}).get("asset_tag") or f"{asset_key.upper()}-{item.id}",
+            "title": (item.data or {}).get("model") or asset_type.label,
+            "extra": " · ".join(str(x) for x in ((item.data or {}).get("vendor"),) if x),
+            "url": url_for("view_custom_asset", asset_key=asset_key, item_id=item.id),
+        }
+        for item in items
+    ]
+    return render_template(
+        "labels.html", type_label=asset_type.label, label_items=label_items,
+        asset_type=asset_key, custom=True,
+    )
 
 
 # ---------------------------------------------------------------------------

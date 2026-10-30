@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+<link rel="stylesheet" href="{{ url_for('static', filename='labels.css', v=app_version) }}">
+<div class="page-header animate-in">
+  <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;">
+    <div>
+      <h1 class="page-title">{{ type_label }} labels</h1>
+      <p class="page-subtitle">{{ label_items|length }} label{{ "s" if label_items|length != 1 else "" }} ready to print. Each label shows the asset tag and links back to the asset.</p>
+    </div>
+    <div class="labels-print-row">
+      <a class="button" href="{{ url_for('index') }}">Back to dashboard</a>
+      <button class="button" type="button" onclick="window.print()">Print labels</button>
+    </div>
+  </div>
+</div>
+{% if label_items %}
+<div class="labels-grid">
+  {% for label in label_items %}
+  <a class="label-card" href="{{ label.url }}">
+    <span class="label-type">{{ type_label }}</span>
+    <span class="label-tag">{{ label.tag }}</span>
+    <span class="label-title">{{ label.title }}</span>
+    {% if label.extra %}<span class="label-extra">{{ label.extra }}</span>{% endif %}
+  </a>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card" style="text-align:center; padding:48px;">
+  <p class="muted">No items selected. Open an asset list, pick items, and choose Print labels.</p>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,57 @@
+/* Printable asset labels: compact grid on screen, clean cards on paper. */
+.labels-print-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.labels-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 14px;
+  margin-top: 20px;
+}
+.label-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 18px;
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--ink);
+  text-decoration: none;
+  transition: border-color var(--transition);
+}
+.label-card:hover { border-color: var(--accent); }
+.label-type {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.label-tag {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+.label-title { font-size: 13px; color: var(--ink); }
+.label-extra { font-size: 11px; color: var(--ink-2); overflow-wrap: anywhere; }
+
+@media print {
+  @page { size: A4 portrait; margin: 10mm; }
+  body { background: #fff !important; color: #000 !important; }
+  .sidebar, .topbar, .back-row, .page-footer, .page-header, .labels-print-row { display: none !important; }
+  .content-wrap { margin-left: 0 !important; }
+  main { max-width: 100% !important; padding: 0 !important; }
+  .labels-grid { grid-template-columns: repeat(2, 1fr); gap: 6mm; }
+  .label-card {
+    break-inside: avoid;
+    border: 1.5px solid #000;
+    border-radius: 3mm;
+    color: #000;
+    min-height: 28mm;
+    justify-content: center;
+    text-decoration: none;
+  }
+  .label-type { color: #444; }
+  .label-tag { font-size: 22px; }
+  .label-title, .label-extra { color: #000; }
+}
