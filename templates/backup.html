@@ -3,19 +3,24 @@
   <style>
     .backup-wrap { max-width: 1080px; display: grid; gap: 18px; }
     .backup-hero {
-      background: linear-gradient(120deg, var(--accent-dim), var(--blue-dim));
+      background: var(--accent-dim);
       border: 1px solid var(--border-2);
-      border-radius: 18px;
-      padding: 18px 20px;
+      border-radius: 10px;
+      padding: 16px 20px;
+      position: relative;
+      background-image: var(--stripe);
+      background-repeat: repeat-x;
+      background-position: top left;
+      background-size: 14px 5px;
     }
-    .backup-hero-title { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+    .backup-hero-title { font-family: var(--font-display); font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 4px; }
     .backup-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
-    .backup-card-title { font-size: 16px; font-weight: 700; margin-bottom: 8px; letter-spacing: -0.01em; }
+    .backup-card-title { font-family: var(--font-display); font-size: 18px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 8px; }
     .backup-card-note { color: var(--ink-2); font-size: 13px; line-height: 1.55; margin-bottom: 14px; }
     .backup-danger {
       background: var(--danger-dim);
-      border: 1px solid rgba(248,113,113,0.25);
-      border-radius: 12px;
+      border: 1px solid var(--danger);
+      border-radius: 8px;
       padding: 10px 12px;
       color: var(--danger);
       font-size: 12px;

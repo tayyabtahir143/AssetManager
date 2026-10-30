@@ -19,7 +19,7 @@
     <link rel="shortcut icon" href="{{ url_for('dynamic_favicon', v=(brand_raw or 'A')) }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='foundation.css', v=app_version) }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='workspace.css', v=app_version) }}">
     <style>
@@ -27,21 +27,23 @@
       /* Extends the .quick-nav-* surface using the shared workspace tokens. */
       #quick-nav-assets { border-top: 1px solid var(--border); padding: 8px; overflow-y: auto; max-height: 24dvh; }
       #quick-nav-assets:empty { display: none; }
-      .quick-nav-assets-label { padding: 4px 12px 6px; color: var(--ink-3); font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-      .quick-nav-asset-result { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center; padding: 9px 12px; border-radius: var(--radius-sm); color: var(--ink); text-decoration: none; font-size: 12px; transition: background var(--transition); }
+      .quick-nav-assets-label { padding: 4px 12px 7px; color: var(--ink-3); font-size: 9.5px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
+      .quick-nav-asset-result { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center; padding: 9px 12px; border-radius: 7px; color: var(--ink); text-decoration: none; font-size: 12.5px; transition: background var(--transition); }
       .quick-nav-asset-result:hover, .quick-nav-asset-result:focus { background: var(--accent-dim); color: var(--ink); }
       .qna-title { font-weight: 600; color: var(--ink); }
       .quick-nav-asset-result:hover .qna-title, .quick-nav-asset-result:focus .qna-title { color: var(--accent); }
-      .qna-badge { justify-self: end; background: var(--accent-dim); color: var(--accent); border-radius: var(--radius-xs); padding: 1px 7px; font-size: 9px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
-      .qna-tag { grid-column: 1 / -1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--ink-2); font-size: 10px; }
-      .qna-subtitle { grid-column: 1 / -1; color: var(--ink-3); font-size: 10px; }
+      .qna-badge { justify-self: end; background: var(--accent-dim); color: var(--accent); border: 1px solid var(--border-2); border-radius: 5px; padding: 1px 7px; font-size: 9.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+      .qna-tag { grid-column: 1 / -1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--ink-2); font-size: 10.5px; letter-spacing: 0.03em; }
+      .qna-subtitle { grid-column: 1 / -1; color: var(--ink-3); font-size: 10.5px; }
       .quick-nav-assets-loading, .quick-nav-assets-empty, .quick-nav-assets-hint { padding: 14px 12px; color: var(--ink-2); font-size: 12px; }
     </style>
     <script>
       try {
+        /* Two shifts: night (default) and day. Legacy theme names from older
+           builds map onto the nearest shift so nobody lands unthemed. */
         const theme = localStorage.getItem('theme');
-        if (['classic', 'light', 'ocean', 'forest', 'sunset'].includes(theme)) {
-          document.documentElement.dataset.theme = theme;
+        if (theme === 'light') {
+          document.documentElement.dataset.theme = 'light';
         }
         if (localStorage.getItem('workspace-density') === 'compact') {
           document.documentElement.dataset.density = 'compact';
@@ -202,19 +204,11 @@
             </div>
             <button type="button" class="theme-btn" id="density-toggle" aria-pressed="false" title="Toggle compact tables">Compact</button>
             <button type="button" class="theme-btn" id="theme-toggle" aria-label="Change colour theme" title="Change colour theme">
-              <!-- dark moon -->
+              <!-- night shift (moon) -->
               <svg id="theme-icon-dark" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
-              <!-- classic spark -->
-              <svg id="theme-icon-classic" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="m12 3 1.9 3.9L18 9l-4.1 2.1L12 15l-1.9-3.9L6 9l4.1-2.1z"/><path d="M5 19h.01"/><path d="M19 19h.01"/></svg>
-              <!-- light sun -->
+              <!-- day shift (sun) -->
               <svg id="theme-icon-light" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
-              <!-- ocean wave -->
-              <svg id="theme-icon-ocean" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2"/><path d="M2 12c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2"/><path d="M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2"/></svg>
-              <!-- forest tree -->
-              <svg id="theme-icon-forest" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M17 14h.01"/><path d="M7 7h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h2.5"/><path d="m8 10 4-6 4 6"/><path d="M12 10v3"/></svg>
-              <!-- sunset horizon -->
-              <svg id="theme-icon-sunset" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M12 10V2"/><path d="m4.93 10.93 1.41 1.41"/><path d="M2 18h2"/><path d="M20 18h2"/><path d="m19.07 10.93-1.41 1.41"/><path d="M22 22H2"/><path d="M16 18a4 4 0 0 0-8 0"/></svg>
-              <span id="theme-label">Light</span>
+              <span id="theme-label">Day</span>
             </button>
             {% if show_sidebar %}
               <a class="button secondary" href="{{ url_for('logout') }}" style="padding: 7px 12px;">
@@ -231,7 +225,13 @@
               {%- for category, message in messages %}
                 <div class="flash {{ category }}" role="status">
                   <span class="flash-icon">
-                    {%- if category == 'success' %}✓{%- elif category == 'error' %}✕{%- else %}ℹ{%- endif %}
+                    {%- if category == 'success' -%}
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                    {%- elif category == 'error' -%}
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg>
+                    {%- else -%}
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="16" y2="12"/><line x1="12" x2="12.01" y1="8" y2="8"/></svg>
+                    {%- endif -%}
                   </span>
                   {{ message }}
                   <button type="button" class="flash-close" aria-label="Dismiss notification" onclick="this.closest('.flash').remove()">×</button>
@@ -263,7 +263,7 @@
     <dialog class="workspace-dialog" id="quick-nav" aria-labelledby="quick-nav-title">
       <div class="quick-nav-header">
         <h2 id="quick-nav-title">Go to a page</h2>
-        <button type="button" class="btn-icon" id="quick-nav-close" aria-label="Close quick navigation">×</button>
+        <button type="button" class="btn-icon" id="quick-nav-close" aria-label="Close quick navigation"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg></button>
       </div>
       <div class="quick-nav-field">
         <input type="search" id="quick-nav-search" placeholder="Search pages and assets…" aria-label="Search pages and actions" autocomplete="off">
@@ -279,7 +279,9 @@
     <!-- Auto-logout warning modal -->
     <div class="autologout-overlay" id="autologout-overlay" role="dialog" aria-modal="true" aria-labelledby="autologout-title">
       <div class="autologout-modal">
-        <div class="autologout-icon">⏱</div>
+        <div class="autologout-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
         <div class="autologout-title" id="autologout-title">Session Expiring</div>
         <div class="autologout-msg">You've been inactive. You'll be signed out in:</div>
         <div class="autologout-countdown" id="autologout-countdown">60</div>
@@ -300,48 +302,24 @@
     {% endif %}
 
     <script>
-      /* Theme */
+      /* Theme — two shifts. The label names what one click gives you. */
       const root = document.documentElement;
-      const themeLbl    = document.getElementById('theme-label');
-      const iconDark    = document.getElementById('theme-icon-dark');
-      const iconClassic = document.getElementById('theme-icon-classic');
-      const iconLight   = document.getElementById('theme-icon-light');
-      const iconOcean   = document.getElementById('theme-icon-ocean');
-      const iconForest  = document.getElementById('theme-icon-forest');
-      const iconSunset  = document.getElementById('theme-icon-sunset');
-      // Themes cycle: dark → classic → light → ocean → forest → sunset → dark
-      const THEMES = ['dark', 'classic', 'light', 'ocean', 'forest', 'sunset'];
-      const THEME_LABELS = {
-        dark: 'Classic',
-        classic: 'Light',
-        light: 'Ocean',
-        ocean: 'Forest',
-        forest: 'Sunset',
-        sunset: 'Dark',
-      };
-      const THEME_ICONS  = {
-        dark: iconDark,
-        classic: iconClassic,
-        light: iconLight,
-        ocean: iconOcean,
-        forest: iconForest,
-        sunset: iconSunset,
-      };
+      const themeLbl  = document.getElementById('theme-label');
+      const iconDark  = document.getElementById('theme-icon-dark');
+      const iconLight = document.getElementById('theme-icon-light');
       const applyTheme = (theme) => {
-        if (theme === 'dark') { root.removeAttribute('data-theme'); }
-        else                  { root.setAttribute('data-theme', theme); }
-        if (themeLbl) themeLbl.textContent = THEME_LABELS[theme] || 'Classic';
-        Object.entries(THEME_ICONS).forEach(([t, el]) => {
-          if (el) el.style.display = t === theme ? '' : 'none';
-        });
+        if (theme === 'light') root.setAttribute('data-theme', 'light');
+        else                    root.removeAttribute('data-theme');
+        if (themeLbl) themeLbl.textContent = theme === 'light' ? 'Night' : 'Day';
+        if (iconDark)  iconDark.style.display  = theme === 'light' ? 'none' : '';
+        if (iconLight) iconLight.style.display = theme === 'light' ? '' : 'none';
       };
       let saved = 'dark';
-      try { saved = localStorage.getItem('theme') || 'dark'; } catch (_) {}
-      applyTheme(THEMES.includes(saved) ? saved : 'dark');
+      try { saved = localStorage.getItem('theme') === 'light' ? 'light' : 'dark'; } catch (_) {}
+      applyTheme(saved);
       document.getElementById('theme-toggle')?.addEventListener('click', () => {
-        const cur = root.getAttribute('data-theme') || 'dark';
-        const idx = THEMES.indexOf(cur);
-        const next = THEMES[(idx + 1) % THEMES.length];
+        const cur = root.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+        const next = cur === 'light' ? 'dark' : 'light';
         try { localStorage.setItem('theme', next); } catch (_) {}
         applyTheme(next);
       });
@@ -474,7 +452,11 @@
       if (!container) return;
       const toast = document.createElement('div');
       toast.className = 'toast ' + (type || 'info');
-      const icon = type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ';
+      const icon = type === 'success'
+        ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
+        : type === 'error'
+          ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg>'
+          : '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="16" y2="12"/><line x1="12" x2="12.01" y1="8" y2="8"/></svg>';
       toast.innerHTML = `<span>${icon}</span><span style="flex:1;">${message}</span><button onclick="dismissToast(this.parentNode)" style="background:none;border:none;color:inherit;cursor:pointer;font-size:16px;padding:0;line-height:1;margin-left:auto;">×</button>`;
       container.appendChild(toast);
       setTimeout(() => dismissToast(toast), 5000);

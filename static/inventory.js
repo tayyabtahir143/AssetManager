@@ -104,6 +104,9 @@
         badge.className = `badge ${colors[value] || ''}`;
         badge.textContent = value || '-';
         cell.appendChild(badge);
+      } else if (name === 'asset_tag') {
+        cell.className = 'col-tag';
+        cell.textContent = value || '-';
       } else cell.textContent = value || '-';
     });
     if (config.canAdd || config.canDelete) {

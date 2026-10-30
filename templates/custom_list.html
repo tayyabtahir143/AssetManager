@@ -52,7 +52,7 @@
 
     {% if app_admin %}
       <div class="card animate-in" style="margin-top: 14px;">
-        <div style="font-size:15px; font-weight:700; margin-bottom:4px;">Import / Export</div>
+        <div class="card-head">Import / Export</div>
         <p class="muted text-sm" style="margin-bottom:12px;">Upload an .xlsx file using this header format: {{ import_headers | join(", ") }}</p>
         <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
           <a class="button secondary" href="{{ url_for('export_custom_assets_excel', asset_key=asset_type.key) }}">Export Excel</a>
@@ -70,7 +70,7 @@
     {# ── STOCK SECTION ─────────────────────── #}
     <div class="card animate-in" style="margin-top: 18px; padding: 0; overflow: visible;">
       <div style="display:flex; align-items:center; justify-content:space-between; padding: 16px 20px 12px;">
-        <div style="font-size:16px; font-weight:700;">Stock</div>
+        <div class="card-head">Stock</div>
         {% if asset_perms.can_add %}
           <a class="button" href="{{ url_for('add_custom_asset', asset_key=asset_type.key, section='stock') }}">Add Stock</a>
         {% endif %}
@@ -124,7 +124,7 @@
     {# ── ASSIGNMENTS SECTION ────────────────── #}
     <div class="card animate-in" style="margin-top: 18px; padding: 0; overflow: visible;">
       <div style="display:flex; align-items:center; justify-content:space-between; padding: 16px 20px 12px;">
-        <div style="font-size:16px; font-weight:700;">Assignments</div>
+        <div class="card-head">Assignments</div>
         {% if asset_perms.can_add %}
           <a class="button" href="{{ url_for('add_custom_asset', asset_key=asset_type.key, section='assign') }}">Assign</a>
         {% endif %}
@@ -183,7 +183,7 @@
 
     {% if app_admin %}
       <div class="card animate-in" style="margin-top: 14px;">
-        <div style="font-size:15px; font-weight:700; margin-bottom:4px;">Import / Export</div>
+        <div class="card-head">Import / Export</div>
         <p class="muted text-sm" style="margin-bottom:12px;">Upload an .xlsx file using this header format: {{ import_headers | join(", ") }}</p>
         <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
           <a class="button secondary" href="{{ url_for('export_custom_assets_excel', asset_key=asset_type.key) }}">Export Excel</a>
@@ -300,7 +300,7 @@
   {# In-app delete confirmation modal (used by both sections) #}
   <div id="delete-confirm-overlay" style="display: none; position: fixed; inset: 0; background: rgba(3, 6, 12, 0.75); z-index: 1001; align-items: center; justify-content: center;">
     <div class="card" style="min-width: 320px; text-align: center;">
-      <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Delete item?</div>
+      <div class="card-head">Delete item?</div>
       <p class="muted">This action cannot be undone.</p>
       <div style="display: flex; gap: 10px; justify-content: center; margin-top: 14px;">
         <button class="button secondary" id="delete-confirm-cancel" type="button">Cancel</button>
@@ -315,13 +315,13 @@
   {% if not asset_type.has_quantity %}
     <div id="bulk-delete-overlay" style="display: none; position: fixed; inset: 0; background: rgba(3, 6, 12, 0.7); z-index: 999; align-items: center; justify-content: center;">
       <div class="card" style="min-width: 280px; text-align: center;">
-        <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Deleting…</div>
+        <div class="card-head">Deleting…</div>
         <p class="muted">Please wait while we process your request.</p>
       </div>
     </div>
     <div id="bulk-confirm-overlay" style="display: none; position: fixed; inset: 0; background: rgba(3, 6, 12, 0.75); z-index: 1000; align-items: center; justify-content: center;">
       <div class="card" style="min-width: 320px; text-align: center;">
-        <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Confirm deletion</div>
+        <div class="card-head">Confirm deletion</div>
         <p class="muted" id="bulk-confirm-message">Are you sure?</p>
         <div style="display: flex; gap: 10px; justify-content: center; margin-top: 14px;">
           <button class="button secondary" id="bulk-confirm-cancel" type="button">Cancel</button>

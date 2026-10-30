@@ -52,7 +52,7 @@
 
   {% if app_admin %}
     <div class="card animate-in" style="margin-top: 18px;">
-      <div style="font-size:15px; font-weight:700; margin-bottom:4px;">Import / Export</div>
+      <div class="card-head">Import / Export</div>
       <p class="muted text-sm" style="margin-bottom:12px;">Upload an .xlsx file using this header format: {{ import_headers | join(", ") }}</p>
       <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
         <a class="button secondary" href="{{ url_for('export_assets_excel', asset_type=asset_type) }}">Export Excel</a>
@@ -178,7 +178,7 @@
                     {% endif %}
                   </td>
                 {% else %}
-                  <td title="{{ value or '' }}">{{ value or "-" }}</td>
+                  <td title="{{ value or '' }}" {% if field_name == "asset_tag" %}class="col-tag"{% endif %}>{{ value or "-" }}</td>
                 {% endif %}
               {% endif %}
             {% endfor %}

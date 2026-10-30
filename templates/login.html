@@ -19,13 +19,13 @@
   <link rel="shortcut icon" href="{{ url_for('dynamic_favicon', v=(brand_raw or 'A')) }}">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
   <script>
     (function () {
       try {
-        const savedTheme = localStorage.getItem("theme") || "dark";
+        const savedTheme = localStorage.getItem("theme");
         const root = document.documentElement;
-        if (savedTheme && savedTheme !== "dark") root.setAttribute("data-theme", savedTheme);
+        if (savedTheme === "light") root.setAttribute("data-theme", "light");
         else root.removeAttribute("data-theme");
       } catch (_) {}
     })();
@@ -48,13 +48,12 @@
         <div><div class="brand-name">{{ brand_display }}</div><div class="brand-sub">Inventory Platform</div></div>
       </div>
       <div class="brand-context">
-        <p class="eyebrow">Clarity across your inventory</p>
         <h1>Every asset.<br>One clear view.</h1>
         <p>Keep your equipment, people, and assignments connected in one workspace.</p>
         <ul class="brand-features">
-          <li><span aria-hidden="true">01</span><div><strong>Know what you have</strong><p>A central home for equipment and custom assets.</p></div></li>
-          <li><span aria-hidden="true">02</span><div><strong>See where it belongs</strong><p>Track ownership, availability, and asset history.</p></div></li>
-          <li><span aria-hidden="true">03</span><div><strong>Keep work moving</strong><p>Make informed decisions with reports and audit trails.</p></div></li>
+          <li><span aria-hidden="true"></span><div><strong>Know what you have</strong><p>A central home for equipment and custom assets.</p></div></li>
+          <li><span class="diamond" aria-hidden="true"></span><div><strong>See where it belongs</strong><p>Track ownership, availability, and asset history.</p></div></li>
+          <li><span aria-hidden="true"></span><div><strong>Keep work moving</strong><p>Make informed decisions with reports and audit trails.</p></div></li>
         </ul>
       </div>
       <p class="brand-note">Built for the people who keep operations running.</p>
@@ -63,7 +62,6 @@
       <div class="auth-card">
         {% block auth_theme_control %}{% endblock %}
         <header class="auth-header">
-          <p class="eyebrow">Your workspace</p>
           <h2 id="auth-heading">{% block auth_heading %}Sign in{% endblock %}</h2>
           <p>{% block auth_description %}Welcome back. Enter your details to continue.{% endblock %}</p>
         </header>
@@ -126,17 +124,14 @@
     (function () {
       const button = document.getElementById('theme-toggle');
       if (!button) return;
-      const themes = ['dark', 'classic', 'light', 'ocean', 'forest', 'sunset'];
       const root = document.documentElement;
-      const labels = {dark: 'Classic', classic: 'Light', light: 'Ocean', ocean: 'Forest', forest: 'Sunset', sunset: 'Dark'};
-      function label() { button.textContent = labels[root.getAttribute('data-theme') || 'dark'] + ' theme'; }
+      const isLight = () => root.getAttribute('data-theme') === 'light';
+      function label() { button.textContent = (isLight() ? 'Night' : 'Day') + ' shift'; }
       label();
       button.addEventListener('click', () => {
-        const current = root.getAttribute('data-theme') || 'dark';
-        const next = themes[(themes.indexOf(current) + 1) % themes.length];
-        if (next === 'dark') root.removeAttribute('data-theme');
-        else root.setAttribute('data-theme', next);
-        try { localStorage.setItem('theme', next); } catch (_) {}
+        if (isLight()) root.removeAttribute('data-theme');
+        else root.setAttribute('data-theme', 'light');
+        try { localStorage.setItem('theme', isLight() ? 'light' : 'dark'); } catch (_) {}
         label();
       });
     })();

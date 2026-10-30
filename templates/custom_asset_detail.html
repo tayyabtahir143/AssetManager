@@ -26,7 +26,7 @@
   </div>
 
   <div class="card animate-in" style="margin-top: 16px;">
-    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Asset Overview</div>
+    <div class="card-head">Asset Overview</div>
     <div class="table-wrap">
       <table>
         <thead>
@@ -57,7 +57,7 @@
   </div>
 
   <div class="card animate-in" style="margin-top: 16px;">
-    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Assignment History</div>
+    <div class="card-head">Assignment History</div>
     {% if history %}
       <div class="table-wrap">
         <table>
@@ -88,7 +88,7 @@
 
   <div class="card animate-in" style="margin-top: 16px;">
     <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-      <div style="font-size:15px; font-weight:700;">Edit History</div>
+      <div class="card-head">Edit History</div>
       {% if edit_history %}
         <span style="font-size:12px; color:var(--muted); background:var(--surface-2); padding:3px 10px; border-radius:12px;">{{ edit_history|length }} edit{{ 's' if edit_history|length != 1 }}</span>
       {% endif %}
@@ -97,7 +97,7 @@
       <div style="display:grid; gap:14px;">
         {% for entry in edit_history %}
           {% set parsed = entry.details | parse_audit_details %}
-          <div style="border-left:3px solid var(--accent); padding-left:16px; padding-top:4px; padding-bottom:4px;">
+          <div style="border-left:1px solid var(--accent); padding-left:16px; padding-top:4px; padding-bottom:4px;">
             <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin-bottom:6px;">
               <span style="font-size:13px; font-weight:600;">{{ entry.created_at.strftime("%d %b %Y, %H:%M:%S") }}</span>
               <span style="font-size:12px; color:var(--muted);">by <strong style="color:var(--text);">{{ entry.username or "System" }}</strong></span>
@@ -117,9 +117,9 @@
                 <table style="width:100%; border-collapse:collapse; font-size:12.5px;">
                   <thead>
                     <tr style="border-bottom:1px solid var(--border);">
-                      <th style="text-align:left; padding:7px 12px; font-size:10.5px; text-transform:uppercase; letter-spacing:0.6px; color:var(--muted); font-weight:600; width:28%;">Field</th>
-                      <th style="text-align:left; padding:7px 12px; font-size:10.5px; text-transform:uppercase; letter-spacing:0.6px; color:var(--muted); font-weight:600; width:36%;">Before</th>
-                      <th style="text-align:left; padding:7px 12px; font-size:10.5px; text-transform:uppercase; letter-spacing:0.6px; color:var(--muted); font-weight:600; width:36%;">After</th>
+                      <th style="text-align:left; padding:7px 12px; font-size:11px; text-transform:uppercase; letter-spacing:0.6px; color:var(--muted); font-weight:600; width:28%;">Field</th>
+                      <th style="text-align:left; padding:7px 12px; font-size:11px; text-transform:uppercase; letter-spacing:0.6px; color:var(--muted); font-weight:600; width:36%;">Before</th>
+                      <th style="text-align:left; padding:7px 12px; font-size:11px; text-transform:uppercase; letter-spacing:0.6px; color:var(--muted); font-weight:600; width:36%;">After</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -145,7 +145,7 @@
   </div>
 
   <div class="card animate-in" style="margin-top: 16px;">
-    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Comments</div>
+    <div class="card-head">Comments</div>
     <form method="post" action="{{ url_for('add_custom_asset_comment', asset_key=asset_type.key, item_id=item.id) }}" style="display: grid; gap: 10px;">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <textarea name="comment" rows="3" placeholder="Add a comment..." required></textarea>

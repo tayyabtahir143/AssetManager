@@ -2,7 +2,7 @@
 {% block content %}
   <!-- ── Server & Auth ─────────────────────────────── -->
   <div class="card animate-in" style="max-width: 1100px; width: 100%;">
-    <div style="font-size:18px; font-weight:700; letter-spacing:-0.02em; margin-bottom:2px;">SMTP Settings</div>
+    <div class="card-head">SMTP Settings</div>
     <p class="muted" style="margin-bottom:20px;">Configure your outgoing mail server for notifications and reports.</p>
     <form method="post" id="smtp-form">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -151,7 +151,7 @@
 
   <!-- ── Recipients ────────────────────────────────── -->
   <div class="card animate-in" style="max-width: 1100px; width: 100%; margin-top: 18px;">
-    <div style="font-size:16px; font-weight:700; margin-bottom:4px;">Recipients</div>
+    <div class="card-head">Recipients</div>
     <p class="muted" style="margin-bottom:16px;">Add email addresses and choose which events each address should receive.</p>
 
     <form method="post" action="{{ url_for('smtp_add_recipient') }}" class="smtp-recipient-grid">

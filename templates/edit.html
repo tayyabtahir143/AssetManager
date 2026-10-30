@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
   <div class="card asset-editor animate-in">
-    <div style="font-size:20px; font-weight:700; letter-spacing:-0.02em; margin-bottom:4px;">Edit {{ definition.label }}</div>
+    <div class="card-head">Edit {{ definition.label }}</div>
     <form method="post" class="form-grid editor-grid" data-unsaved-form enctype="multipart/form-data">
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       {% for field_name, label, field_type in definition.fields %}
@@ -151,7 +151,7 @@
       display: none;
       margin-top: 6px;
       font-size: 12px;
-      color: #9fb1c9;
+      color: var(--ink-3);
     }
   </style>
   <script>
