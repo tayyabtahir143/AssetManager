@@ -59,6 +59,8 @@ app.config["LOG_DIR"] = os.environ.get("LOG_DIR", "/data/logs")
 app.config["LOG_FILE"] = os.environ.get("LOG_FILE", "app.log")
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=14)
 app.config["MAX_CONTENT_LENGTH"] = int(os.environ.get("MAX_UPLOAD_MB", "16")) * 1024 * 1024
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["SESSION_COOKIE_HTTPONLY"] = True
 
 # Derive a stable Fernet key from SECRET_KEY for encrypting credentials at rest
 def _make_fernet_key(secret: str) -> bytes:
@@ -111,6 +113,7 @@ UPDATE_CHECK_CACHE = {
     "current_digest": None,
     "current_tag": APP_VERSION or None,
     "error": None,
+    "next_check": 0.0,
 }
 
 SECTION_ENDPOINTS = {
@@ -263,6 +266,51 @@ def add_api_headers(response):
         response.headers["Access-Control-Allow-Origin"] = "*"
         response.headers["Access-Control-Allow-Headers"] = "Authorization, Content-Type"
         response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    return response
+
+
+# Security headers applied to every response. ``'unsafe-inline'`` for scripts
+# and styles is required by the existing inline theme/autologout/chart code and
+# per-element style attributes; the policy still blocks third-party scripts,
+# framing, and non-self form/object targets.
+_CSP = (
+    "default-src 'self'; "
+    "script-src 'self' 'unsafe-inline'; "
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+    "font-src 'self' https://fonts.gstatic.com data:; "
+    "img-src 'self' data:; "
+    "connect-src 'self'; "
+    "object-src 'none'; "
+    "base-uri 'self'; "
+    "form-action 'self'; "
+    "frame-ancestors 'none'"
+)
+
+
+@app.after_request
+def add_security_headers(response):
+    response.headers["Content-Security-Policy"] = _CSP
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "same-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    return response
+
+
+def static_cache_control(development: bool) -> str:
+    """Cache policy for /static assets. Short in development so template/CSS
+    edits appear without hard refreshes; long-lived in built releases where
+    APP_VERSION changes per release."""
+    if development:
+        return "public, max-age=60"
+    return "public, max-age=86400"
+
+
+@app.after_request
+def add_static_cache_headers(response):
+    if request.path.startswith("/static/"):
+        development = APP_VERSION in (None, "dev") or app.debug or app.testing
+        response.headers["Cache-Control"] = static_cache_control(development)
     return response
 
 
@@ -2841,7 +2889,7 @@ def get_update_status():
     if APP_VERSION and APP_VERSION.endswith("-edge"):
         return UPDATE_CHECK_CACHE  # available stays False forever for edge builds
     now = time.time()
-    if now - UPDATE_CHECK_CACHE["timestamp"] < 300:
+    if now < UPDATE_CHECK_CACHE.get("next_check", 0):
         return UPDATE_CHECK_CACHE
     UPDATE_CHECK_CACHE["timestamp"] = now
     UPDATE_CHECK_CACHE["available"] = False
@@ -2875,12 +2923,19 @@ def get_update_status():
         if not UPDATE_CHECK_CACHE["available"] and last_updated:
             ts = last_updated.replace("Z", "+00:00")
             updated_at = datetime.datetime.fromisoformat(ts)
+            # APP_START_TIME is naive UTC; keep both sides comparable.
+            updated_at = updated_at.replace(tzinfo=None)
             UPDATE_CHECK_CACHE["last_updated"] = updated_at
             if not APP_VERSION:
                 app.logger.info("Update check: APP_VERSION not set; falling back to last_updated.")
                 UPDATE_CHECK_CACHE["available"] = updated_at > (APP_START_TIME + timedelta(minutes=2))
+        # Success: check again after a short window.
+        UPDATE_CHECK_CACHE["next_check"] = now + 300
     except Exception as exc:
+        # Failure: back off to hourly checks so an unreachable registry does
+        # not retry (and warn) on every five-minute window.
         UPDATE_CHECK_CACHE["error"] = str(exc)
+        UPDATE_CHECK_CACHE["next_check"] = now + 3600
         app.logger.warning("Update check failed: %s", exc)
     return UPDATE_CHECK_CACHE
 

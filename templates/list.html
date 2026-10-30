@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static', filename='inventory.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='inventory.css', v=app_version) }}">
 <section class="inventory-page" data-asset-type="{{ asset_type }}" aria-label="{{ asset_title }} inventory">
 <div class="page-header animate-in">
   <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;">
@@ -332,6 +332,6 @@
     'pageUrl': url_for('list_assets_page', asset_type=asset_type),
     'assetBase': url_for('list_assets', asset_type=asset_type)
   } | tojson }}</script>
-  <script src="{{ url_for('static', filename='inventory.js') }}"></script>
+  <script src="{{ url_for('static', filename='inventory.js', v=app_version) }}"></script>
 </section>
 {% endblock %}
