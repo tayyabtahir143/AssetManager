@@ -40,6 +40,10 @@ docker compose -p assetmanager-design -f compose.design.yml stop
 - Two-column asset editors on wide screens, a single column on phones, explicit save actions, and a browser warning when leaving unsaved changes. Form contents are not cached or autosaved.
 - Clean sign-in and password recovery pages; existing authentication, CSRF and password rules remain in place.
 - Theme preferences retained; keyboard focus, skip navigation, mobile drawer handling and reduced-motion support improved.
+- Security response headers on every page (CSP scoped to local assets, nosniff, frame denial, same-origin referrer, restricted permissions) and a SameSite=Lax HttpOnly session cookie.
+- Versioned static assets with Cache-Control: short-lived during development, one day in built releases.
+- Update check backs off to hourly retries when the registry is unreachable instead of retrying every five minutes.
+- Pull-request CI runs the full test suite, including Chromium interaction tests.
 
 The database models, API contracts, database initialization routines, migrations and encryption logic are unchanged. Existing import/export, backups, permissions and integration forms remain in use.
 

@@ -20,8 +20,8 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="{{ url_for('static', filename='foundation.css') }}">
-    <link rel="stylesheet" href="{{ url_for('static', filename='workspace.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='foundation.css', v=app_version) }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='workspace.css', v=app_version) }}">
     <script>
       try {
         const theme = localStorage.getItem('theme');
@@ -257,7 +257,7 @@
       <div id="quick-nav-status" class="sr-only" aria-live="polite"></div>
       <div class="quick-nav-footer"><kbd>↑</kbd> <kbd>↓</kbd> to move &nbsp; <kbd>Enter</kbd> to open &nbsp; <kbd>Esc</kbd> to close</div>
     </dialog>
-    <script src="{{ url_for('static', filename='workspace.js') }}" defer></script>
+    <script src="{{ url_for('static', filename='workspace.js', v=app_version) }}" defer></script>
 
     {% if show_sidebar %}
     <!-- Auto-logout warning modal -->

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-<link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css', v=app_version) }}">
 <div class="dashboard">
   <header class="dashboard-header">
     <div>
@@ -225,7 +225,7 @@
 })();
 </script>
 {% if total_assets > 0 %}
-<script src="{{ url_for('static', filename='vendor/chart.umd.min.js') }}"></script>
+<script src="{{ url_for('static', filename='vendor/chart.umd.min.js', v=app_version) }}"></script>
 <script>
 (function () {
   function tok(name) {
