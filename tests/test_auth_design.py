@@ -39,8 +39,17 @@ class AuthDesignTests(unittest.TestCase):
         self.assertIn('action="{{ url_for(\'login\') }}"', login)
         self.assertIn('{% if forgot_password_enabled %}', login)
         self.assertIn("url_for('forgot_password')", login)
-        for token in ('branding_logo', 'brand_display', 'dynamic_favicon', 'get_flashed_messages', 'toggle-password', 'pw-eye-open', 'pw-eye-closed', 'localStorage.getItem', 'Show password', 'Hide password'):
-            self.assertIn(token, login)
+        # Check template markers individually: these are UI contracts, not credentials.
+        self.assertIn('branding_logo', login)
+        self.assertIn('brand_display', login)
+        self.assertIn('dynamic_favicon', login)
+        self.assertIn('get_flashed_messages', login)
+        self.assertIn('toggle-password', login)
+        self.assertIn('pw-eye-open', login)
+        self.assertIn('pw-eye-closed', login)
+        self.assertIn('localStorage.getItem', login)
+        self.assertIn('Show password', login)
+        self.assertIn('Hide password', login)
 
     def test_rendered_forms_branding_and_recovery_visibility(self):
         try:
