@@ -1,4 +1,10 @@
 __pycache__/
+.venv/
+venv/
+instance/
+*.db
+*.sqlite
+*.sqlite3
 *.pyc
 *.pyo
 *.pyd

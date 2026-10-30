@@ -1,0 +1,56 @@
+# Isolated local preview. Never mounts ./data or another installation's database.
+# Start: docker compose -p assetmanager-design -f compose.design.yml up -d --build
+# Uses the existing .env for SECRET_KEY and DB_PASSWORD without changing either.
+services:
+  init-perms:
+    image: busybox:1.36
+    command: ["sh", "-c", "mkdir -p /data/logs && chown -R 65532:65532 /data"]
+    volumes:
+      - design-app-data:/data
+    restart: "no"
+
+  web:
+    build: .
+    image: assetmanager-design:local
+    ports:
+      - "127.0.0.1:5000:5000"
+    environment:
+      DATABASE_URL: postgresql+psycopg://inventory:${DB_PASSWORD:?DB_PASSWORD must be set in .env}@db:5432/inventory
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set in .env}
+      TZ: ${TZ:-UTC}
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-16}
+      LOG_DIR: /data/logs
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      init-perms:
+        condition: service_completed_successfully
+    volumes:
+      - design-app-data:/data
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/login', timeout=5)"]
+      interval: 10s
+      timeout: 6s
+      retries: 6
+      start_period: 20s
+
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: inventory
+      POSTGRES_USER: inventory
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
+    restart: unless-stopped
+    volumes:
+      - design-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U inventory -d inventory"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  design-app-data:
+  design-db-data:

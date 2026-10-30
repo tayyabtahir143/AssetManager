@@ -1,4 +1,6 @@
-FROM python:3.14-slim AS builder
+FROM python:3.14-slim AS python-base
+
+FROM python-base AS builder
 
 WORKDIR /app
 
@@ -10,7 +12,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip setuptools \
     && pip install --no-cache-dir --prefix=/install -r requirements.txt
 
-FROM cgr.dev/chainguard/python:latest
+FROM python-base AS runtime
 
 WORKDIR /app
 
@@ -18,10 +20,14 @@ ARG APP_VERSION=1.0.0
 ENV APP_VERSION=${APP_VERSION}
 ENV PYTHONPATH=/usr/local/lib/python3.14/site-packages
 ENV TZ=UTC
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
 COPY --from=builder /install /usr/local
 COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
 COPY . .
+
+USER 65532:65532
 
 EXPOSE 5000
 
