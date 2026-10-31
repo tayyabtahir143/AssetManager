@@ -3,7 +3,7 @@
 <div class="page-header">
   <div class="page-heading">
     <h1 class="page-title">MCP Server</h1>
-    <p class="page-subtitle">Let LLM clients (Claude Desktop, Codex, Hermes, Cursor) query this inventory through the MCP gateway. Every request is authenticated by an API token with a read-only or full-access scope.</p>
+    <p class="page-subtitle">Let LLM clients (Claude Desktop, Claude Code, Codex, Hermes, Cursor) query this inventory through the built-in MCP gateway. Every request is authenticated by an API token with a read-only or full-access scope.</p>
   </div>
 </div>
 
@@ -12,7 +12,7 @@
     <div class="card-head">
       <div>
         <h2 class="card-title">Gateway</h2>
-        <p class="card-sub">Enable or disable token-based MCP access. Username/password JWT API access is not affected by this switch.</p>
+        <p class="card-sub">Enable or disable the built-in MCP endpoint. Username/password JWT API access is not affected by this switch.</p>
       </div>
       <form method="post" action="{{ url_for('mcp_settings_toggle') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -26,7 +26,15 @@
       <span class="badge {{ 'badge-green' if config.enabled else 'badge-muted' }}">
         {{ 'Enabled' if config.enabled else 'Disabled' }}
       </span>
+      <span class="badge {{ 'badge-green' if gateway_running else 'badge-muted' }}" style="margin-left:8px;">
+        Gateway: {{ 'Running' if gateway_running else 'Stopped' }}
+      </span>
     </p>
+    <div class="group">
+      <label for="mcp-url">MCP endpoint (streamable HTTP)</label>
+      <input id="mcp-url" type="text" readonly value="http://127.0.0.1:{{ gateway_port }}/mcp"
+             onclick="this.select()">
+    </div>
   </section>
 
   {% if new_token %}
@@ -55,6 +63,16 @@
           <option value="full">Full access — includes create, update and delete through the API</option>
         </select>
       </div>
+      <div class="group">
+        <label for="expiry">Auto-revoke after</label>
+        <select id="expiry" name="expiry">
+          <option value="never">Never</option>
+          <option value="7">7 days</option>
+          <option value="30">30 days</option>
+          <option value="90">90 days</option>
+          <option value="365">1 year</option>
+        </select>
+      </div>
       <button class="button button-primary" type="submit">Create token</button>
     </form>
   </section>
@@ -68,6 +86,7 @@
           <tr>
             <th>Name</th>
             <th>Access</th>
+            <th>Expires</th>
             <th>Created</th>
             <th>Last used</th>
             <th>Status</th>
@@ -82,6 +101,17 @@
               <span class="badge {{ 'badge-blue' if token.scope == 'full' else 'badge-muted' }}">
                 {{ 'Full access' if token.scope == 'full' else 'Read only' }}
               </span>
+            </td>
+            <td>
+              {% if token.expires_at %}
+                {% if not token.enabled and token.expires_at < now %}
+                  <span class="badge badge-muted">Revoked (expired)</span>
+                {% else %}
+                  {{ token.expires_at.strftime('%Y-%m-%d') }}
+                {% endif %}
+              {% else %}
+                Never
+              {% endif %}
             </td>
             <td>{{ token.created_at.strftime('%Y-%m-%d %H:%M') if token.created_at else '—' }}</td>
             <td>{{ token.last_used_at.strftime('%Y-%m-%d %H:%M') if token.last_used_at else 'never' }}</td>
@@ -113,30 +143,47 @@
   </section>
 
   <section class="card">
-    <div class="card-head">
-      <div>
-        <h2 class="card-title">Endpoint</h2>
-        <p class="card-sub">
-          The gateway runs inside this application — there is nothing to install or run.
-          The Enable button above starts it, and your MCP client connects straight to it.
-        </p>
-      </div>
-    </div>
-    <p class="status-line">
-      Gateway:
-      <span class="badge {{ 'badge-green' if gateway_running else 'badge-muted' }}">
-        {{ 'Running' if gateway_running else 'Stopped' }}
-      </span>
-    </p>
-    <div class="group">
-      <label for="mcp-url">MCP endpoint (streamable HTTP)</label>
-      <input id="mcp-url" type="text" readonly value="http://127.0.0.1:{{ gateway_port }}/mcp"
-             onclick="this.select()">
-    </div>
+    <h2 class="card-title">Add to your LLM</h2>
     <p class="card-sub">
-      Point your client (Claude Desktop, Codex, Hermes, Cursor) at that URL and send the token
-      you created above as a <code>Bearer</code> header. For remote connections, replace
-      <code>127.0.0.1</code> with this server's address — port {{ gateway_port }} must be reachable.
+      Use the endpoint above and the token you created. Replace <code>amcp_...</code> with your
+      actual token, and <code>127.0.0.1</code> with this server's address for remote clients.
+    </p>
+
+    <div class="group">
+      <label>Claude Code (CLI)</label>
+      <pre class="code-block">claude mcp add --transport http assetmanager http://127.0.0.1:{{ gateway_port }}/mcp --header "Authorization: Bearer amcp_..."</pre>
+    </div>
+
+    <div class="group">
+      <label>Codex (CLI)</label>
+      <pre class="code-block">codex mcp add-json assetmanager '{"type":"http","url":"http://127.0.0.1:{{ gateway_port }}/mcp","headers":{"Authorization":"Bearer amcp_..."}}'</pre>
+    </div>
+
+    <div class="group">
+      <label>Hermes Agent</label>
+      <pre class="code-block">hermes mcp add assetmanager --url http://127.0.0.1:{{ gateway_port }}/mcp --auth header
+# then add the header to ~/.hermes/config.yaml under mcp.servers.assetmanager:
+#   headers:
+#     Authorization: "Bearer amcp_..."</pre>
+    </div>
+
+    <div class="group">
+      <label>Claude Desktop</label>
+      <pre class="code-block">// claude_desktop_config.json
+{
+  "mcpServers": {
+    "assetmanager": {
+      "url": "http://127.0.0.1:{{ gateway_port }}/mcp",
+      "headers": { "Authorization": "Bearer amcp_..." }
+    }
+  }
+}</pre>
+    </div>
+
+    <p class="card-sub">
+      Any other client (Cursor, VS Code, etc.): add an MCP server of type <strong>HTTP</strong>,
+      point it at <code>http://127.0.0.1:{{ gateway_port }}/mcp</code>, and set the header
+      <code>Authorization: Bearer amcp_...</code>.
     </p>
   </section>
 </div>

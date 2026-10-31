@@ -612,7 +612,8 @@ curl -X POST http://localhost:5000/api/v1/auth/refresh \
 The MCP gateway is built into the app — it runs inside the same process/container, no separate script to start. Manage everything from **Settings → MCP** in the web UI:
 
 - **Gateway toggle** — Enable starts the embedded MCP endpoint, Disable stops it (username/password JWT API access is unaffected).
-- **API tokens** — create named tokens with a scope: **Read only** (query-only) or **Full access** (includes create/update/delete through the API). Tokens are stored as SHA-256 hashes, shown once at creation, and can be revoked or deleted at any time; the UI shows last-used timestamps.
+- **API tokens** — create named tokens with a scope: **Read only** (query-only) or **Full access** (includes create/update/delete through the API). Tokens are stored as SHA-256 hashes, shown once at creation, support **auto-revoke** after 7/30/90/365 days (or never), and can be revoked or deleted at any time; the UI shows expiry and last-used timestamps.
+- **Add-to-client commands** — the page shows ready-made commands to register the server permanently in Claude Code, Codex, Hermes Agent and Claude Desktop.
 - **Endpoint** — the page shows the MCP URL (default `http://<host>:8766/mcp`). Port 8766 is published by the Compose files and configurable via `MCP_GATEWAY_PORT`
 
 ```bash

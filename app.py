@@ -488,6 +488,7 @@ class McpToken(db.Model):
     enabled = db.Column(db.Boolean, nullable=False, default=True)
     created_at = db.Column(db.DateTime, nullable=False, server_default=func.now())
     last_used_at = db.Column(db.DateTime, nullable=True)
+    expires_at = db.Column(db.DateTime, nullable=True)  # None = never
 
 
 class SMTPConfig(db.Model):
@@ -662,6 +663,11 @@ def _resolve_mcp_token(token):
         return None, None
     row = McpToken.query.filter_by(token_hash=hash_mcp_token(token)).first()
     if row is None or not row.enabled:
+        return None, None
+    if row.expires_at is not None and datetime.datetime.now() > row.expires_at:
+        # Auto-revoke on expiry.
+        row.enabled = False
+        db.session.commit()
         return None, None
     user = User.query.get(row.user_id)
     if not user:
@@ -4411,6 +4417,25 @@ def ensure_asset_type_icon_column():
         db.session.rollback()
 
 
+def ensure_mcp_token_expires_column():
+    if db.engine.dialect.name == "sqlite":
+        result = db.session.execute(text("PRAGMA table_info(mcp_token)")).fetchall()
+        if not result:
+            return
+        columns = {row[1] for row in result}
+        if "expires_at" not in columns:
+            db.session.execute(text("ALTER TABLE mcp_token ADD COLUMN expires_at DATETIME"))
+        db.session.commit()
+        return
+    try:
+        db.session.execute(
+            text('ALTER TABLE mcp_token ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP')
+        )
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+
 def ensure_user_ldap_column():
     if db.engine.dialect.name == "sqlite":
         result = db.session.execute(text("PRAGMA table_info(user)")).fetchall()
@@ -4948,6 +4973,7 @@ def init_db():
         ensure_user_email_column()
         ensure_user_password_change_column()
         ensure_asset_type_icon_column()
+        ensure_mcp_token_expires_column()
         ensure_user_ldap_column()
         ensure_role_permission_bulk_column()
         ensure_ldap_group_columns()
@@ -10364,6 +10390,10 @@ def mcp_token_create():
     if not name:
         flash("Token name is required.", "error")
         return redirect(url_for("mcp_settings"))
+    expiry = request.form.get("expiry", "never").strip()
+    expires_at = None
+    if expiry.isdigit() and int(expiry) > 0:
+        expires_at = datetime.datetime.now() + datetime.timedelta(days=int(expiry))
     token = generate_mcp_token()
     db.session.add(
         McpToken(
@@ -10371,11 +10401,12 @@ def mcp_token_create():
             token_hash=hash_mcp_token(token),
             scope=scope,
             user_id=get_current_user().id,
+            expires_at=expires_at,
         )
     )
     db.session.commit()
     session["mcp_new_token"] = token
-    log_audit("create", "mcp_token", details=f"{name} scope={scope}")
+    log_audit("create", "mcp_token", details=f"{name} scope={scope} expiry={expiry}")
     flash("Token created. Copy it now — it will not be shown again.", "success")
     return redirect(url_for("mcp_settings"))
 

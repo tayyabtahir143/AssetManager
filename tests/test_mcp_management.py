@@ -1,4 +1,5 @@
 """MCP management: scoped API tokens, gateway enable/disable, settings page."""
+import datetime
 import os
 
 import pytest
@@ -101,6 +102,10 @@ class TestMcpSettingsPage:
         html = admin_client.get("/settings/mcp").data.decode("utf-8")
         assert "Claude Desktop" in html
         assert "Create token" in html
+        assert "Auto-revoke after" in html
+        assert "claude mcp add" in html
+        assert "codex mcp add-json" in html
+        assert "hermes mcp add" in html
 
     def test_create_token_flow_shows_once(self, admin_client, application):
         resp = admin_client.post(
@@ -121,6 +126,37 @@ class TestMcpSettingsPage:
         admin_client.post("/settings/mcp/tokens", data={"name": "X", "scope": "nope"})
         with application.app_context():
             assert McpToken.query.filter_by(name="X").first().scope == "read_only"
+
+    def test_create_token_with_expiry(self, admin_client, application):
+        admin_client.post(
+            "/settings/mcp/tokens", data={"name": "TTL", "scope": "read_only", "expiry": "30"}
+        )
+        with application.app_context():
+            token = McpToken.query.filter_by(name="TTL").first()
+            assert token.expires_at is not None
+            assert (token.expires_at - datetime.datetime.now()).days >= 29
+
+    def test_expired_token_is_auto_revoked(self, client, application):
+        _enable_gateway(application)
+        token = _make_token(application, name="Expiring", scope="read_only")
+        with application.app_context():
+            row = McpToken.query.filter_by(name="Expiring").first()
+            row.expires_at = datetime.datetime.now() - datetime.timedelta(days=1)
+            db.session.commit()
+        resp = client.get("/api/v1/users", headers={"Authorization": f"Bearer {token}"})
+        assert resp.status_code == 401
+        with application.app_context():
+            assert McpToken.query.filter_by(name="Expiring").first().enabled is False
+
+    def test_unexpired_token_still_works(self, client, application):
+        _enable_gateway(application)
+        token = _make_token(application, name="Valid TTL", scope="read_only")
+        with application.app_context():
+            row = McpToken.query.filter_by(name="Valid TTL").first()
+            row.expires_at = datetime.datetime.now() + datetime.timedelta(days=1)
+            db.session.commit()
+        resp = client.get("/api/v1/users", headers={"Authorization": f"Bearer {token}"})
+        assert resp.status_code == 200
 
     def test_toggle_enables_gateway(self, admin_client, application):
         admin_client.post("/settings/mcp/toggle", data={"enabled": "on"})
