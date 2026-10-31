@@ -10,12 +10,13 @@ services:
     image: tayyabtahir/assetmanager:latest
     ports:
       - "5000:5000"
-      - "8765:8765"
+      - "8766:8766"
     restart: always
     env_file:
       - .env
     environment:
       DATABASE_URL: postgresql+psycopg://inventory:${DB_PASSWORD}@db:5432/inventory
+      MCP_GATEWAY_PORT: "8766"
     depends_on:
       db:
         condition: service_healthy

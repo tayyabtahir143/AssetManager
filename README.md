@@ -613,14 +613,14 @@ The MCP gateway is built into the app — it runs inside the same process/contai
 
 - **Gateway toggle** — Enable starts the embedded MCP endpoint, Disable stops it (username/password JWT API access is unaffected).
 - **API tokens** — create named tokens with a scope: **Read only** (query-only) or **Full access** (includes create/update/delete through the API). Tokens are stored as SHA-256 hashes, shown once at creation, and can be revoked or deleted at any time; the UI shows last-used timestamps.
-- **Endpoint** — the page shows the MCP URL (default `http://<host>:8765/mcp`). Port 8765 is published by the Compose files and configurable via `MCP_GATEWAY_PORT`
+- **Endpoint** — the page shows the MCP URL (default `http://<host>:8766/mcp`). Port 8766 is published by the Compose files and configurable via `MCP_GATEWAY_PORT`
 
 ```bash
 # 1. In the app: Settings → MCP → Enable MCP, then create a token
 #    (read-only or full access) and copy it once.
 
 # 2. Point your MCP client at the embedded endpoint:
-#    http://<your-host>:8765/mcp   (127.0.0.1:8765/mcp when local)
+#    http://<your-host>:8766/mcp   (127.0.0.1:8766/mcp when local)
 #    and send the token as an Authorization: Bearer amcp_... header.
 ```
 
@@ -638,7 +638,7 @@ Claude Desktop config example (`claude_desktop_config.json`) pointing at the emb
 {
   "mcpServers": {
     "assetmanager": {
-      "url": "http://127.0.0.1:8765/mcp",
+      "url": "http://127.0.0.1:8766/mcp",
       "headers": {
         "Authorization": "Bearer amcp_your-token-from-settings"
       }
