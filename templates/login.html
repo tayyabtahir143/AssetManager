@@ -33,7 +33,19 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='auth.css', v=app_version) }}">
 </head>
 <body class="auth-page">
+  <div class="auth-backdrop" aria-hidden="true">
+    <div class="auth-poster">
+      <p class="auth-poster-word">Every asset.</p>
+      <p class="auth-poster-word">One clear view.</p>
+      <ul class="brand-features">
+        <li><span aria-hidden="true"></span><div><strong>Know what you have</strong><p>A central home for equipment and custom assets.</p></div></li>
+        <li><span class="diamond" aria-hidden="true"></span><div><strong>See where it belongs</strong><p>Track ownership, availability, and asset history.</p></div></li>
+        <li><span aria-hidden="true"></span><div><strong>Keep work moving</strong><p>Make informed decisions with reports and audit trails.</p></div></li>
+      </ul>
+    </div>
+  </div>
   <main class="auth-layout">
+    {% block auth_theme_control %}{% endblock %}
     <section class="auth-brand" aria-label="About {{ brand_display }}">
       <div class="brand">
         <div class="brand-logo">
@@ -47,20 +59,9 @@
         </div>
         <div><div class="brand-name">{{ brand_display }}</div><div class="brand-sub">Inventory Platform</div></div>
       </div>
-      <div class="brand-context">
-        <h1>Every asset.<br>One clear view.</h1>
-        <p>Keep your equipment, people, and assignments connected in one workspace.</p>
-        <ul class="brand-features">
-          <li><span aria-hidden="true"></span><div><strong>Know what you have</strong><p>A central home for equipment and custom assets.</p></div></li>
-          <li><span class="diamond" aria-hidden="true"></span><div><strong>See where it belongs</strong><p>Track ownership, availability, and asset history.</p></div></li>
-          <li><span aria-hidden="true"></span><div><strong>Keep work moving</strong><p>Make informed decisions with reports and audit trails.</p></div></li>
-        </ul>
-      </div>
-      <p class="brand-note">Built for the people who keep operations running.</p>
     </section>
     <section class="auth-panel" aria-labelledby="auth-heading">
       <div class="auth-card">
-        {% block auth_theme_control %}{% endblock %}
         <header class="auth-header">
           <h2 id="auth-heading">{% block auth_heading %}Sign in{% endblock %}</h2>
           <p>{% block auth_description %}Welcome back. Enter your details to continue.{% endblock %}</p>

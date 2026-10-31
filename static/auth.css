@@ -1,15 +1,16 @@
 /* ─────────────────────────────────────────────────────────────────────────
-   The stockroom door: standalone sign-in surfaces.
+   The stockroom door: a poster backdrop and one centred glass card.
    No keyframes, no animation property on these pages — the sign hangs still.
    ───────────────────────────────────────────────────────────────────────── */
 :root {
   color-scheme: dark;
   --auth-bg: #121418;
-  --auth-brand: #16191d;
-  --auth-surface: #1a1f25;
+  --auth-brand: rgba(22, 25, 29, 0.6);
+  --auth-surface: rgba(26, 31, 37, 0.72);
   --auth-input: #232930;
   --auth-ink: #ece7d8;
   --auth-muted: #b5ae9c;
+  --auth-faint: #98917d;
   --auth-line: #2b333c;
   --auth-line-strong: #3d4854;
   --auth-accent: #ffb02e;
@@ -26,11 +27,12 @@
 [data-theme="light"] {
   color-scheme: light;
   --auth-bg: #efe9db;
-  --auth-brand: #e6dfcd;
-  --auth-surface: #f8f5ec;
+  --auth-brand: rgba(230, 223, 205, 0.72);
+  --auth-surface: rgba(248, 245, 236, 0.85);
   --auth-input: #fdfbf4;
   --auth-ink: #241f13;
   --auth-muted: #57503c;
+  --auth-faint: #6f6752;
   --auth-line: #d3cbb5;
   --auth-line-strong: #b0a68c;
   --auth-accent: #7d4a00;
@@ -55,42 +57,101 @@ body.auth-page {
   font: 14px/1.55 'Barlow', 'Segoe UI', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   caret-color: var(--auth-accent);
-}
-::selection { background: rgba(255, 176, 46, 0.32); color: var(--auth-ink); }
-[data-theme="light"] ::selection { background: rgba(143, 86, 0, 0.22); }
-.auth-layout {
-  display: grid;
-  grid-template-columns: 1.08fr 1fr;
-  width: min(1080px, 100%);
-  min-height: 660px;
-  border: 1px solid var(--auth-line);
-  border-radius: 12px;
-  overflow: hidden;
-  background: var(--auth-surface);
-  box-shadow: var(--auth-shadow);
+  overflow-x: hidden;
   position: relative;
 }
-.auth-layout::before {
+body.auth-page::before {
   content: "";
-  position: absolute;
+  position: fixed;
   top: 0; left: 0; right: 0;
   height: 6px;
-  border-radius: 11px 11px 0 0;
+  z-index: 3;
   background-color: #14120e;
   background-image: var(--auth-stripe);
   background-size: 14px 14px;
-  pointer-events: none;
-  z-index: 2;
 }
-.auth-brand {
-  min-width: 0;
-  padding: 44px 46px;
-  background: var(--auth-brand);
-  border-right: 1px solid var(--auth-line);
+::selection { background: rgba(255, 176, 46, 0.32); color: var(--auth-ink); }
+[data-theme="light"] ::selection { background: rgba(143, 86, 0, 0.22); }
+
+/* The poster behind the card: giant shelf-sign lettering on the left. */
+.auth-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  padding: 0 0 0 clamp(24px, 5vw, 72px);
+  overflow: hidden;
+}
+.auth-poster {
+  max-width: 560px;
+  width: 100%;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  gap: 40px;
+  gap: 8px;
+}
+.auth-poster-word {
+  margin: 0;
+  font-family: var(--auth-font-display);
+  font-size: clamp(52px, 6.2vw, 100px);
+  font-weight: 700;
+  line-height: 0.95;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  color: var(--auth-ink);
+  opacity: 0.4;
+  overflow-wrap: anywhere;
+}
+.auth-poster-word:last-of-type { color: var(--auth-accent); opacity: 0.5; }
+.auth-poster .brand-features { margin: 26px 0 0; }
+.brand-features { padding: 0; list-style: none; display: grid; gap: 12px; }
+.brand-features li {
+  display: flex; align-items: flex-start; gap: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--auth-line);
+  border-radius: 8px;
+  background: var(--auth-brand);
+}
+.brand-features li > span {
+  flex: none;
+  width: 9px; height: 9px;
+  margin-top: 5px;
+  background: var(--auth-accent);
+}
+.brand-features li > span.diamond { transform: rotate(45deg); }
+.brand-features strong { font-size: 13px; font-weight: 700; }
+.brand-features p { margin: 2px 0 0; font-size: 12px; color: var(--auth-muted); }
+
+/* The glass card: one centred panel, brand masthead above the form.
+   On wide screens it rides right of centre, overlapping the poster edge
+   so the lettering reads through the glass. */
+.auth-layout {
+  position: relative;
+  z-index: 1;
+  width: min(430px, 100%);
+  border: 1px solid var(--auth-line);
+  border-radius: 14px;
+  background: var(--auth-surface);
+  box-shadow: var(--auth-shadow);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  overflow: hidden;
+}
+@media (min-width: 801px) {
+  .auth-layout { transform: translateX(clamp(0px, 12vw, 190px)); }
+}
+.auth-layout::before {
+  content: "";
+  display: block;
+  height: 6px;
+  background-color: #14120e;
+  background-image: var(--auth-stripe);
+  background-size: 14px 14px;
+}
+.auth-brand {
+  padding: 26px 32px 18px;
+  border-bottom: 1px solid var(--auth-line);
 }
 .brand { display: flex; align-items: center; gap: 12px; }
 .brand-logo {
@@ -113,46 +174,18 @@ body.auth-page {
   overflow-wrap: anywhere;
 }
 .brand-sub { color: var(--auth-muted); font-size: 10px; font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; margin-top: 2px; }
-.brand-context h1 {
-  margin: 0;
-  font-family: var(--auth-font-display);
-  font-size: clamp(40px, 4vw, 58px);
-  font-weight: 600;
-  letter-spacing: 0.01em;
-  line-height: 0.98;
-  text-transform: uppercase;
-}
-.brand-context > p:not(:first-child) { margin: 18px 0 0; color: var(--auth-muted); max-width: 380px; font-size: 14.5px; }
-.brand-features { margin: 30px 0 0; padding: 0; list-style: none; display: grid; gap: 12px; }
-.brand-features li {
-  display: flex; align-items: flex-start; gap: 14px;
-  padding: 12px 14px;
-  border: 1px solid var(--auth-line);
-  border-radius: 8px;
-  background: var(--auth-surface);
-}
-.brand-features li > span {
-  flex: none;
-  width: 9px; height: 9px;
-  margin-top: 5px;
-  background: var(--auth-accent);
-}
-.brand-features li > span.diamond { transform: rotate(45deg); }
-.brand-features strong { font-size: 13px; font-weight: 700; }
-.brand-features p { margin: 2px 0 0; font-size: 12px; color: var(--auth-muted); }
-.brand-note { margin: 0; color: var(--auth-muted); font-size: 11px; }
-.auth-panel { display: flex; align-items: center; justify-content: center; padding: 48px; min-width: 0; }
-.auth-card { width: 100%; max-width: 360px; }
+.auth-panel { padding: 30px 32px 34px; min-width: 0; }
+.auth-card { width: 100%; }
 .auth-header h2 {
   margin: 0;
   font-family: var(--auth-font-display);
-  font-size: 34px; line-height: 1.1;
+  font-size: 30px; line-height: 1.1;
   font-weight: 600;
   letter-spacing: 0.015em;
   text-transform: uppercase;
 }
-.auth-header > p:last-child { margin: 10px 0 0; color: var(--auth-muted); }
-.form { margin-top: 28px; }
+.auth-header > p:last-child { margin: 8px 0 0; color: var(--auth-muted); }
+.form { margin-top: 24px; }
 .group { margin-bottom: 18px; }
 .group label { display: block; font-size: 12.5px; font-weight: 700; letter-spacing: 0.03em; margin-bottom: 7px; }
 .group input {
@@ -193,7 +226,7 @@ a:hover { text-decoration: underline; }
 .submit:hover { filter: brightness(0.95); }
 .submit:active { transform: translateY(1px); box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3); }
 .divider { margin: 22px 0 0; text-align: center; font-size: 13px; }
-.foot { margin-top: 40px; border-top: 1px solid var(--auth-line); padding-top: 18px; text-align: center; font-size: 11px; }
+.foot { margin-top: 34px; border-top: 1px solid var(--auth-line); padding-top: 16px; text-align: center; font-size: 11px; }
 .foot a { color: var(--auth-muted); }
 .alert {
   padding: 12px 14px; margin-top: 20px;
@@ -204,7 +237,8 @@ a:hover { text-decoration: underline; }
 .alert-error { background: var(--auth-error-bg); color: var(--auth-error); border-color: var(--auth-error); }
 .alert-success { color: var(--auth-ok); border-color: var(--auth-ok); }
 .theme-control {
-  display: block; margin: 0 0 24px auto;
+  position: absolute; top: 14px; right: 18px;
+  z-index: 2;
   border: 1px solid var(--auth-line-strong); border-radius: 7px;
   padding: 7px 12px;
   color: var(--auth-muted);
@@ -215,12 +249,12 @@ a:hover { text-decoration: underline; }
 .theme-control:hover { color: var(--auth-ink); border-color: var(--auth-accent); }
 @media (max-width: 800px) {
   body.auth-page { padding: 24px 16px; }
-  .auth-layout { max-width: 480px; grid-template-columns: minmax(0, 1fr); min-height: 0; }
-  .auth-brand { padding: 22px 28px; border-right: 0; border-bottom: 1px solid var(--auth-line); gap: 0; }
-  .brand-context, .brand-note { display: none; }
-  .auth-panel { padding: 36px 28px; }
+  .auth-backdrop { display: none; }
+  .auth-layout { max-width: 480px; }
+  .auth-brand { padding: 20px 24px 14px; }
+  .auth-panel { padding: 26px 24px 28px; }
 }
 @media (max-width: 380px) {
   body.auth-page { padding: 12px; }
-  .auth-brand, .auth-panel { padding: 22px 18px; }
+  .auth-brand, .auth-panel { padding-left: 18px; padding-right: 18px; }
 }
