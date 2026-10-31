@@ -479,6 +479,45 @@ class McpConfig(db.Model):
     enabled = db.Column(db.Boolean, nullable=False, default=False)
 
 
+class McpAccessRequest(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=False)
+    scope = db.Column(db.String(16), nullable=False, default="read_only")
+    expiry_days = db.Column(db.Integer, nullable=False, default=0)  # 0 = never
+    reason = db.Column(db.String(255), nullable=True)
+    status = db.Column(db.String(16), nullable=False, default="pending")  # pending/approved/declined
+    created_at = db.Column(db.DateTime, nullable=False, server_default=func.now())
+    decided_by = db.Column(db.Integer, nullable=True)
+    decided_at = db.Column(db.DateTime, nullable=True)
+    admin_note = db.Column(db.String(255), nullable=True)
+
+
+class McpAccess(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=False)
+    scope = db.Column(db.String(16), nullable=False, default="read_only")
+    expires_at = db.Column(db.DateTime, nullable=True)
+    status = db.Column(db.String(16), nullable=False, default="active")  # active/revoked
+    granted_by = db.Column(db.Integer, nullable=True)
+    granted_at = db.Column(db.DateTime, nullable=False, server_default=func.now())
+    revoked_by = db.Column(db.Integer, nullable=True)
+    revoked_at = db.Column(db.DateTime, nullable=True)
+
+
+class McpUsageLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=True)
+    username = db.Column(db.String(80), nullable=True)
+    token_id = db.Column(db.Integer, nullable=True)
+    tool_name = db.Column(db.String(80), nullable=False)
+    success = db.Column(db.Boolean, nullable=False, default=True)
+    error = db.Column(db.String(255), nullable=True)
+    arguments = db.Column(db.Text, nullable=True)
+    duration_ms = db.Column(db.Integer, nullable=True)
+    ip_address = db.Column(db.String(45), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=func.now())
+
+
 class McpToken(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(80), nullable=False)
@@ -489,8 +528,7 @@ class McpToken(db.Model):
     created_at = db.Column(db.DateTime, nullable=False, server_default=func.now())
     last_used_at = db.Column(db.DateTime, nullable=True)
     expires_at = db.Column(db.DateTime, nullable=True)  # None = never
-
-
+    access_id = db.Column(db.Integer, nullable=True)  # FK to McpAccess (legacy rows: NULL)
 class SMTPConfig(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     host = db.Column(db.String(255))
@@ -669,6 +707,18 @@ def _resolve_mcp_token(token):
         row.enabled = False
         db.session.commit()
         return None, None
+    if row.access_id is not None:
+        access = McpAccess.query.get(row.access_id)
+        if access is None or access.status != "active":
+            return None, None
+        if access.expires_at is not None and datetime.datetime.now() > access.expires_at:
+            row.enabled = False
+            db.session.commit()
+            return None, None
+        if access.scope != row.scope:
+            # Access-level scope is authoritative for granted tokens.
+            row.scope = access.scope
+            db.session.commit()
     user = User.query.get(row.user_id)
     if not user:
         return None, None
@@ -4417,6 +4467,25 @@ def ensure_asset_type_icon_column():
         db.session.rollback()
 
 
+def ensure_mcp_token_access_column():
+    if db.engine.dialect.name == "sqlite":
+        result = db.session.execute(text("PRAGMA table_info(mcp_token)")).fetchall()
+        if not result:
+            return
+        columns = {row[1] for row in result}
+        if "access_id" not in columns:
+            db.session.execute(text("ALTER TABLE mcp_token ADD COLUMN access_id INTEGER"))
+        db.session.commit()
+        return
+    try:
+        db.session.execute(
+            text('ALTER TABLE mcp_token ADD COLUMN IF NOT EXISTS access_id INTEGER')
+        )
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+
 def ensure_mcp_token_expires_column():
     if db.engine.dialect.name == "sqlite":
         result = db.session.execute(text("PRAGMA table_info(mcp_token)")).fetchall()
@@ -4974,6 +5043,7 @@ def init_db():
         ensure_user_password_change_column()
         ensure_asset_type_icon_column()
         ensure_mcp_token_expires_column()
+        ensure_mcp_token_access_column()
         ensure_user_ldap_column()
         ensure_role_permission_bulk_column()
         ensure_ldap_group_columns()
@@ -10309,19 +10379,67 @@ def api_v1_custom_assets_get(asset_key, item_id):
 
 @app.route("/settings/mcp")
 @login_required
-@require_app_admin
 def mcp_settings():
+    user = get_current_user()
+    is_admin = user_has_app_admin(user)
     config = get_mcp_config()
-    tokens = McpToken.query.order_by(McpToken.created_at.desc()).all()
     new_token = session.pop("mcp_new_token", None)
-    return render_template(
-        "settings_mcp.html",
-        config=config,
-        tokens=tokens,
-        new_token=new_token,
-        gateway_running=mcp_gateway_running(),
-        gateway_port=MCP_GATEWAY_PORT,
-    )
+    context = {
+        "config": config,
+        "new_token": new_token,
+        "gateway_running": mcp_gateway_running(),
+        "gateway_port": MCP_GATEWAY_PORT,
+        "is_admin": is_admin,
+        "now": datetime.datetime.now(),
+    }
+    if is_admin:
+        context["pending_requests"] = (
+            McpAccessRequest.query.filter_by(status="pending")
+            .order_by(McpAccessRequest.created_at.asc())
+            .all()
+        )
+        for req in context["pending_requests"]:
+            req.requester = User.query.get(req.user_id)
+        context["accesses"] = (
+            McpAccess.query.order_by(McpAccess.granted_at.desc()).all()
+        )
+        for access in context["accesses"]:
+            access.owner = User.query.get(access.user_id)
+            access.current_token = (
+                McpToken.query.filter_by(access_id=access.id)
+                .order_by(McpToken.id.desc())
+                .first()
+            )
+        context["legacy_tokens"] = (
+            McpToken.query.filter(McpToken.access_id.is_(None))
+            .order_by(McpToken.created_at.desc())
+            .all()
+        )
+        context["usage_page"] = max(
+            _parse_int(request.args.get("usage_page", ""), 1), 1
+        )
+        usage_query = McpUsageLog.query
+        context["usage_total"] = usage_query.count()
+        context["usage_logs"] = (
+            usage_query.order_by(McpUsageLog.id.desc())
+            .offset((context["usage_page"] - 1) * 50)
+            .limit(50)
+            .all()
+        )
+    else:
+        context["own_access"] = McpAccess.query.filter_by(user_id=user.id).first()
+        context["own_request"] = (
+            McpAccessRequest.query.filter_by(user_id=user.id, status="pending")
+            .order_by(McpAccessRequest.id.desc())
+            .first()
+        )
+        if context["own_access"]:
+            context["own_token"] = (
+                McpToken.query.filter_by(access_id=context["own_access"].id)
+                .order_by(McpToken.id.desc())
+                .first()
+            )
+    return render_template("settings_mcp.html", **context)
 
 
 MCP_GATEWAY_PORT = int(os.environ.get("MCP_GATEWAY_PORT", "8765"))
@@ -10333,6 +10451,39 @@ def mcp_gateway_running():
     return bool(thread and thread.is_alive())
 
 
+def _mcp_usage_logger(token, tool_name, arguments, success, error, duration_ms, ip_address):
+    """Called from the gateway thread after every MCP tool call."""
+    with app.app_context():
+        try:
+            user = None
+            token_row = None
+            if token:
+                try:
+                    user, _scope = _resolve_mcp_token(token)
+                    token_row = McpToken.query.filter_by(
+                        token_hash=hash_mcp_token(token)
+                    ).first()
+                except Exception:
+                    user = None
+            db.session.add(
+                McpUsageLog(
+                    user_id=user.id if user else None,
+                    username=user.username if user else None,
+                    token_id=token_row.id if token_row else None,
+                    tool_name=tool_name,
+                    success=bool(success),
+                    error=(error or "")[:255] or None,
+                    arguments=arguments,
+                    duration_ms=duration_ms,
+                    ip_address=ip_address,
+                )
+            )
+            db.session.commit()
+        except Exception as exc:
+            app.logger.warning("MCP usage logging failed: %s", exc)
+            db.session.rollback()
+
+
 def start_mcp_gateway():
     if mcp_gateway_running():
         return
@@ -10340,6 +10491,7 @@ def start_mcp_gateway():
 
     import mcp_server
 
+    mcp_server.set_usage_logger(_mcp_usage_logger)
     fastmcp = mcp_server.build_fastmcp(embedded_app=app)
     asgi_app = fastmcp.streamable_http_app()
     config = uvicorn.Config(
@@ -10361,6 +10513,307 @@ def stop_mcp_gateway():
         thread.join(timeout=5)
     _MCP_GATEWAY["thread"] = None
     _MCP_GATEWAY["server"] = None
+
+
+
+
+def get_mcp_admin_users():
+    """Users with an app-admin role (MCP request/notice recipients)."""
+    return [user for user in User.query.all() if user_has_app_admin(user)]
+
+
+def _mcp_scope_label(scope):
+    return "Full access" if scope == "full" else "Read only"
+
+
+def _mcp_setup_commands(base_url):
+    return (
+        "Claude Code:\n"
+        f"  claude mcp add --transport http assetmanager {base_url}/mcp --header \"Authorization: Bearer amcp_...\"\n"
+        "Codex:\n"
+        f"  codex mcp add-json assetmanager '{{\"type\":\"http\",\"url\":\"{base_url}/mcp\",\"headers\":{{\"Authorization\":\"Bearer amcp_...\"}}}}'\n"
+        "Hermes Agent:\n"
+        f"  hermes mcp add assetmanager --url {base_url}/mcp --auth header\n"
+        f"  (then set headers: {{Authorization: Bearer amcp_...}} in ~/.hermes/config.yaml under mcp.servers.assetmanager)\n"
+        f"Claude Desktop: add an HTTP MCP server with URL {base_url}/mcp "
+        "and header Authorization: Bearer amcp_...\n"
+    )
+
+
+def _mcp_endpoint_base():
+    host = request.host.split(":")[0] if request.host else "127.0.0.1"
+    return f"http://{host}:{MCP_GATEWAY_PORT}"
+
+
+def _mcp_email_token(user, token, subject):
+    """Email the one-time token + setup commands to the user. Returns True if
+    sent, False if SMTP is not configured/enabled."""
+    base = _mcp_endpoint_base()
+    body = (
+        f"Hello {user.username},\n\n"
+        f"Your AssetManager MCP access is ready. Token (copy it now, shown only once):\n\n"
+        f"  {token}\n\n"
+        f"Endpoint: {base}/mcp\n\n"
+        f"Add the server to your LLM client:\n{_mcp_setup_commands(base)}\n"
+        f"Keep this token secret — it acts as your credential. "
+        f"If it leaks, rotate it from Settings → MCP.\n"
+    )
+    html_body = (
+        "<div style='font-family:sans-serif;max-width:640px;'>"
+        "<h2>AssetManager MCP access</h2>"
+        f"<p>Hello {user.username}, your MCP access is ready.</p>"
+        f"<p><b>Token</b> (copy now, shown only once):</p>"
+        f"<pre style='background:#f4f4f4;padding:10px;border-radius:6px;'>{token}</pre>"
+        f"<p><b>Endpoint:</b> <code>{base}/mcp</code></p>"
+        "<pre style='background:#f4f4f4;padding:10px;border-radius:6px;'>"
+        f"{_mcp_setup_commands(base)}</pre>"
+        "<p>Keep this token secret. Rotate it from Settings → MCP if it leaks.</p>"
+        "</div>"
+    )
+    recipients = [user.email] if user.email else []
+    if not recipients:
+        return False
+    return send_email(subject, body, recipients, html_body=html_body)
+
+
+def _create_mcp_access_token(access):
+    """Create the active token row for an access grant. Returns the plaintext."""
+    plain = generate_mcp_token()
+    db.session.add(
+        McpToken(
+            name=f"access-{access.user_id}",
+            token_hash=hash_mcp_token(plain),
+            scope=access.scope,
+            user_id=access.user_id,
+            access_id=access.id,
+            expires_at=access.expires_at,
+        )
+    )
+    db.session.flush()
+    return plain
+
+
+@app.route("/settings/mcp/request", methods=["POST"])
+@login_required
+def mcp_access_request():
+    user = get_current_user()
+    existing = McpAccessRequest.query.filter_by(
+        user_id=user.id, status="pending"
+    ).first()
+    if existing:
+        flash("You already have a pending MCP access request.", "error")
+        return redirect(url_for("mcp_settings"))
+    scope = request.form.get("scope", "read_only").strip()
+    if scope not in {"read_only", "full"}:
+        scope = "read_only"
+    expiry_days = int(_parse_int(request.form.get("expiry", "0"), 0))
+    expiry_days = expiry_days if expiry_days in {0, 7, 30, 90, 365} else 0
+    reason = request.form.get("reason", "").strip()[:255] or None
+    db.session.add(
+        McpAccessRequest(
+            user_id=user.id, scope=scope, expiry_days=expiry_days,
+            reason=reason, status="pending",
+        )
+    )
+    db.session.commit()
+    log_audit("create", "mcp_access_request", details=f"{user.username} scope={scope} expiry={expiry_days}")
+    sent = False
+    for admin in get_mcp_admin_users():
+        if admin.email:
+            sent = send_email(
+                "MCP access request",
+                f"{user.username} requested MCP access (scope: {_mcp_scope_label(scope)}"
+                f", expiry: {expiry_days or 'never'}). Review it under Settings → MCP.",
+                [admin.email],
+            ) or sent
+    flash(
+        "Access requested. An administrator has been notified"
+        + ("" if sent else " (email skipped — SMTP not configured)") + ".",
+        "success",
+    )
+    return redirect(url_for("mcp_settings"))
+
+
+@app.route("/settings/mcp/requests/<int:req_id>/approve", methods=["POST"])
+@login_required
+@require_app_admin
+def mcp_access_approve(req_id):
+    req = McpAccessRequest.query.get_or_404(req_id)
+    if req.status != "pending":
+        flash("This request has already been decided.", "error")
+        return redirect(url_for("mcp_settings"))
+    scope = request.form.get("scope", req.scope).strip()
+    if scope not in {"read_only", "full"}:
+        scope = req.scope
+    expiry_days = int(_parse_int(request.form.get("expiry", str(req.expiry_days)), req.expiry_days))
+    expiry_days = expiry_days if expiry_days in {0, 7, 30, 90, 365} else 0
+    admin = get_current_user()
+    beneficiary = User.query.get(req.user_id)
+    if not beneficiary:
+        flash("Requesting user no longer exists.", "error")
+        return redirect(url_for("mcp_settings"))
+    plain, access = _grant_mcp_access(
+        beneficiary, scope, expiry_days, granted_by=admin.id, email_subject="MCP access approved"
+    )
+    req.status = "approved"
+    req.decided_by = admin.id
+    req.decided_at = datetime.datetime.now()
+    db.session.commit()
+    if plain:
+        session["mcp_new_token"] = plain
+    log_audit("approve", "mcp_access_request", entity_id=req_id, details=f"{beneficiary.username} scope={scope}")
+    return redirect(url_for("mcp_settings"))
+
+
+@app.route("/settings/mcp/requests/<int:req_id>/decline", methods=["POST"])
+@login_required
+@require_app_admin
+def mcp_access_decline(req_id):
+    req = McpAccessRequest.query.get_or_404(req_id)
+    if req.status != "pending":
+        flash("This request has already been decided.", "error")
+        return redirect(url_for("mcp_settings"))
+    note = request.form.get("note", "").strip()[:255] or None
+    req.status = "declined"
+    req.decided_by = get_current_user().id
+    req.decided_at = datetime.datetime.now()
+    req.admin_note = note
+    db.session.commit()
+    beneficiary = User.query.get(req.user_id)
+    sent = False
+    if beneficiary and beneficiary.email:
+        sent = send_email(
+            "MCP access declined",
+            f"Your request for MCP access was declined."
+            + (f" Note: {note}" if note else ""),
+            [beneficiary.email],
+        )
+    log_audit("decline", "mcp_access_request", entity_id=req_id, details=beneficiary.username if beneficiary else "")
+    flash("Request declined." + ("" if sent else " (email skipped — SMTP not configured)"), "success")
+    return redirect(url_for("mcp_settings"))
+
+
+@app.route("/settings/mcp/accesses", methods=["POST"])
+@login_required
+@require_app_admin
+def mcp_access_grant():
+    username = normalize_username(request.form.get("username", "").strip())
+    beneficiary = User.query.filter_by(username=username).first()
+    if not beneficiary:
+        flash("User not found.", "error")
+        return redirect(url_for("mcp_settings"))
+    scope = request.form.get("scope", "read_only").strip()
+    if scope not in {"read_only", "full"}:
+        scope = "read_only"
+    expiry_days = int(_parse_int(request.form.get("expiry", "0"), 0))
+    expiry_days = expiry_days if expiry_days in {0, 7, 30, 90, 365} else 0
+    admin = get_current_user()
+    plain, access = _grant_mcp_access(
+        beneficiary, scope, expiry_days, granted_by=admin.id, email_subject="MCP access granted"
+    )
+    if plain:
+        session["mcp_new_token"] = plain
+    log_audit("grant", "mcp_access", entity_id=access.id, details=f"{beneficiary.username} scope={scope}")
+    return redirect(url_for("mcp_settings"))
+
+
+@app.route("/settings/mcp/accesses/<int:access_id>/revoke", methods=["POST"])
+@login_required
+@require_app_admin
+def mcp_access_revoke(access_id):
+    access = McpAccess.query.get_or_404(access_id)
+    if access.status == "revoked":
+        flash("Access already revoked.", "error")
+        return redirect(url_for("mcp_settings"))
+    access.status = "revoked"
+    access.revoked_by = get_current_user().id
+    access.revoked_at = datetime.datetime.now()
+    for token in McpToken.query.filter_by(access_id=access.id).all():
+        token.enabled = False
+    db.session.commit()
+    owner = User.query.get(access.user_id)
+    sent = False
+    if owner and owner.email:
+        sent = send_email(
+            "MCP access revoked",
+            "Your AssetManager MCP access has been revoked. Contact an administrator if this was unexpected.",
+            [owner.email],
+        )
+    log_audit("revoke", "mcp_access", entity_id=access_id, details=owner.username if owner else "")
+    flash("Access revoked." + ("" if sent else " (email skipped — SMTP not configured)"), "success")
+    return redirect(url_for("mcp_settings"))
+
+
+@app.route("/settings/mcp/accesses/<int:access_id>/rotate", methods=["POST"])
+@login_required
+@require_app_admin
+def mcp_access_rotate(access_id):
+    access = McpAccess.query.get_or_404(access_id)
+    if access.status != "active":
+        flash("Cannot rotate a revoked access.", "error")
+        return redirect(url_for("mcp_settings"))
+    owner = User.query.get(access.user_id)
+    if not owner:
+        flash("Access owner no longer exists.", "error")
+        return redirect(url_for("mcp_settings"))
+    for old in McpToken.query.filter_by(access_id=access.id).all():
+        old.enabled = False
+    plain = _create_mcp_access_token(access)
+    db.session.commit()
+    session["mcp_new_token"] = plain
+    sent = _mcp_email_token(owner, plain, "MCP token rotated")
+    log_audit("rotate", "mcp_access", entity_id=access_id, details=owner.username)
+    flash("Token rotated." + ("" if sent else " (email skipped — SMTP not configured)"), "success")
+    return redirect(url_for("mcp_settings"))
+
+
+@app.route("/settings/mcp/self/rotate", methods=["POST"])
+@login_required
+def mcp_self_rotate():
+    user = get_current_user()
+    access = McpAccess.query.filter_by(user_id=user.id, status="active").first()
+    if not access:
+        flash("No active MCP access.", "error")
+        return redirect(url_for("mcp_settings"))
+    for old in McpToken.query.filter_by(access_id=access.id).all():
+        old.enabled = False
+    plain = _create_mcp_access_token(access)
+    db.session.commit()
+    session["mcp_new_token"] = plain
+    sent = _mcp_email_token(user, plain, "MCP token rotated")
+    log_audit("rotate", "mcp_access", entity_id=access.id, details=f"self {user.username}")
+    flash("Token rotated." + ("" if sent else " (email skipped — SMTP not configured)"), "success")
+    return redirect(url_for("mcp_settings"))
+
+
+def _grant_mcp_access(beneficiary, scope, expiry_days, granted_by, email_subject):
+    """Create/refresh the user's active access + token. Returns (plain, access)."""
+    expires_at = (
+        datetime.datetime.now() + datetime.timedelta(days=expiry_days)
+        if expiry_days else None
+    )
+    access = McpAccess.query.filter_by(user_id=beneficiary.id).first()
+    if access is None:
+        access = McpAccess(user_id=beneficiary.id, granted_by=granted_by)
+        db.session.add(access)
+    else:
+        for old in McpToken.query.filter_by(access_id=access.id).all():
+            old.enabled = False
+    access.scope = scope
+    access.expires_at = expires_at
+    access.status = "active"
+    access.granted_by = granted_by
+    access.granted_at = datetime.datetime.now()
+    access.revoked_by = None
+    access.revoked_at = None
+    db.session.flush()
+    plain = _create_mcp_access_token(access)
+    db.session.commit()
+    sent = _mcp_email_token(beneficiary, plain, email_subject)
+    if not sent:
+        # SMTP off: still fine — token is revealed once in the panel.
+        pass
+    return plain, access
 
 
 @app.route("/settings/mcp/toggle", methods=["POST"])

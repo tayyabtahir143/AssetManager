@@ -97,11 +97,14 @@ class TestMcpSettingsPage:
         assert anonymous.get("/settings/mcp").status_code == 302
         assert admin_client.get("/settings/mcp").status_code == 200
 
-    def test_page_lists_tokens(self, admin_client, application):
-        _make_token(application, name="Claude Desktop")
+    def test_page_lists_access_and_commands(self, admin_client, application):
+        admin_client.post(
+            "/settings/mcp/accesses",
+            data={"username": "admin", "scope": "read_only", "expiry": "0"},
+        )
         html = admin_client.get("/settings/mcp").data.decode("utf-8")
-        assert "Claude Desktop" in html
-        assert "Create token" in html
+        assert "admin" in html
+        assert "Grant access" in html
         assert "Auto-revoke after" in html
         assert "claude mcp add" in html
         assert "codex mcp add-json" in html
@@ -284,6 +287,14 @@ class TestEmbeddedGateway:
         assert result["isError"] is False
         text = result["content"][0]["text"]
         assert "results" in text
+        # The embedded gateway writes a usage-audit row for every tool call.
+        with application.app_context():
+            from app import McpUsageLog
+
+            logs = McpUsageLog.query.filter_by(tool_name="search_assets").all()
+            assert logs, "no usage-audit row written for the tool call"
+            assert logs[0].username == "admin"
+            assert logs[0].success is True
 
     def test_gateway_tool_call_without_token_errors(self, admin_client, application):
         _enable_gateway(application)

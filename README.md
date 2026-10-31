@@ -92,7 +92,7 @@ This release adds global search, printable QR labels, bulk assign/status updates
 - **CSV export** — Excel-friendly CSV download for every built-in and custom asset list
 - **Custom asset-type icons** — pick a stencil icon per custom asset type when creating or editing it; the dashboard catalog and pickers render it (whitelisted keys only)
 - **Colour schemes** — six modern schemes (Amber, Indigo, Emerald, Rose, Ocean, Slate) across the Night/Day themes, switchable from the workspace shell
-- **MCP server** — expose the inventory to any LLM client (Claude Desktop, Codex, Hermes, Cursor) as MCP tools: search assets, browse built-in and custom asset types, users, departments, roles, groups, audit log, dashboard KPIs
+- **MCP server** — expose the inventory to any LLM client (Claude Desktop, Codex, Hermes, Cursor) as MCP tools: search assets, browse built-in and custom asset types, users, departments, roles, groups, audit log, dashboard KPIs. Self-service access requests with admin approval, per-user tokens (hashed, auto-revoking), email notifications, least-privilege permission inheritance, and a full usage audit of every tool call
 - **Global search** — search all asset types at once (tag / vendor / model / assignee) from the quick-nav dialog or the REST API
 - **Printable QR labels** — select rows in any list and print asset-tag labels with QR codes
 - **Bulk assign / status update** — reassign or change status for many assets at once
@@ -609,20 +609,24 @@ curl -X POST http://localhost:5000/api/v1/auth/refresh \
 
 ### MCP Server (LLM integration)
 
-The MCP gateway is built into the app — it runs inside the same process/container, no separate script to start. Manage everything from **Settings → MCP** in the web UI:
+The MCP gateway is built into the app — it runs inside the same process/container, no separate script to start. Manage everything from **Settings → MCP** in the web UI (the page is available to every signed-in user):
 
 - **Gateway toggle** — Enable starts the embedded MCP endpoint, Disable stops it (username/password JWT API access is unaffected).
-- **API tokens** — create named tokens with a scope: **Read only** (query-only) or **Full access** (includes create/update/delete through the API). Tokens are stored as SHA-256 hashes, shown once at creation, support **auto-revoke** after 7/30/90/365 days (or never), and can be revoked or deleted at any time; the UI shows expiry and last-used timestamps.
+- **Self-service access** — any user can request MCP access from the page (pick read-only or full, an auto-expiry and a reason). Administrators are notified by email.
+- **Admin approval** — Settings → MCP shows pending requests; the admin approves (choosing scope + auto-revoke period) or declines with a note. Approved users receive their token and add-to-client commands by email. Admins can also grant access directly to any user, rotate tokens and revoke access at any time.
+- **Least privilege** — an MCP token acts as the user it was issued to: every request runs with that user's actual in-app role permissions. `read_only` scope additionally blocks all writes; `full` means "whatever the user's roles allow".
+- **Usage audit** — every MCP tool call is logged (user, tool, arguments, result, duration, client IP), and governance events (requests, approvals, declines, grants, rotations, revocations) are written to the app's audit log. Both are visible on the MCP settings page.
+- **Tokens** — stored as SHA-256 hashes, shown once at creation (also emailed), support **auto-revoke** after 7/30/90/365 days (or never); the UI shows expiry and last-used timestamps.
 - **Add-to-client commands** — the page shows ready-made commands to register the server permanently in Claude Code, Codex, Hermes Agent and Claude Desktop.
 - **Endpoint** — the page shows the MCP URL (default `http://<host>:8766/mcp`). Port 8766 is published by the Compose files and configurable via `MCP_GATEWAY_PORT`
 
 ```bash
-# 1. In the app: Settings → MCP → Enable MCP, then create a token
-#    (read-only or full access) and copy it once.
+# 1. In the app: Settings → MCP → Request access (admins approve in the same
+#    page). Your token and setup commands arrive by email.
 
 # 2. Point your MCP client at the embedded endpoint:
 #    http://<your-host>:8766/mcp   (127.0.0.1:8766/mcp when local)
-#    and send the token as an Authorization: Bearer amcp_... header.
+#    and send the token as an Authorization: Bearer *** header.
 ```
 
 Standalone mode (optional — only if you want the gateway on a different host than the app):
@@ -648,7 +652,7 @@ Claude Desktop config example (`claude_desktop_config.json`) pointing at the emb
 }
 ```
 
-Tools: `search_assets`, `list_asset_types`, `list_assets`, `get_asset`, `dashboard_summary`, `list_users`, `list_departments`, `list_roles`, `list_groups`, `list_audit_log`. The server authenticates against the app's own user database (JWT login + auto-refresh), and permissions follow the configured role's `can_read`.
+Tools: `search_assets`, `list_asset_types`, `list_assets`, `get_asset`, `dashboard_summary`, `list_users`, `list_departments`, `list_roles`, `list_groups`, `list_audit_log`. Requests authenticate with an `amcp_` Bearer token and run with the token owner's own role permissions; `read_only` tokens are capped at queries. Every tool call is recorded in the MCP usage audit.
 
 ### Global Search
 

@@ -155,6 +155,12 @@ class AssetManagerClient:
 
 _client: AssetManagerClient | None = None
 _embedded_app: object | None = None  # Flask app for embedded mode
+_usage_logger = None  # set by the embedded app: fn(token, tool, args, ok, err, ms, ip)
+
+
+def set_usage_logger(fn):
+    global _usage_logger
+    _usage_logger = fn
 
 
 def _token_from_ctx(ctx: Context) -> str | None:
@@ -198,12 +204,60 @@ def get_client_for(token: str | None):
     return _client
 
 
-def _call(ctx: Context, path, params=None):
+def _client_ip(ctx: Context):
+    try:
+        req = ctx.request_context.request
+        headers = getattr(req, "headers", None)
+        if headers is not None and hasattr(headers, "get"):
+            xff = headers.get("x-forwarded-for")
+            if xff:
+                return str(xff).split(",")[0].strip()[:45]
+        client = getattr(req, "client", None)
+        if isinstance(client, (tuple, list)) and client:
+            return str(client[0])[:45]
+    except Exception:
+        pass
+    return None
+
+
+def _record_usage(ctx: Context, tool_name, args, result, started):
+    if _usage_logger is None:
+        return
+    error = None
+    success = True
+    if isinstance(result, dict) and result.get("error"):
+        success, error = False, str(result["error"])
+    elif (
+        isinstance(result, list)
+        and result
+        and isinstance(result[0], dict)
+        and result[0].get("error")
+    ):
+        success, error = False, str(result[0]["error"])
+    duration_ms = int((time.monotonic() - started) * 1000)
+    try:
+        _usage_logger(
+            _token_from_ctx(ctx),
+            tool_name,
+            (str(args)[:500] or None),
+            success,
+            error,
+            duration_ms,
+            _client_ip(ctx),
+        )
+    except Exception:
+        pass
+
+
+def _call(ctx: Context, tool_name, path, params=None):
+    started = time.monotonic()
     try:
         token = _token_from_ctx(ctx)
-        return get_client_for(token).get(path, params=params, token=token)
+        result = get_client_for(token).get(path, params=params, token=token)
     except Exception as exc:
-        return {"error": f"{exc}"}
+        result = {"error": f"{exc}"}
+    _record_usage(ctx, tool_name, params, result, started)
+    return result
 
 
 def build_fastmcp(embedded_app=None) -> FastMCP:
@@ -214,13 +268,13 @@ def build_fastmcp(embedded_app=None) -> FastMCP:
     @mcp.tool()
     def search_assets(ctx: Context, query: str) -> dict:
         """Search every asset type at once by asset tag, vendor, model, or assignee."""
-        return _call(ctx, "/api/v1/search", params={"q": query})
+        return _call(ctx, "search_assets", "/api/v1/search", params={"q": query})
 
     @mcp.tool()
     def list_asset_types(ctx: Context) -> list:
         """List all asset types (built-in and custom) with key, label and icon."""
         try:
-            return _call(ctx, "/api/v1/asset-types")
+            return _call(ctx, "list_asset_types", "/api/v1/asset-types")
         except Exception as exc:
             return [{"error": f"{exc}"}]
 
@@ -232,6 +286,7 @@ def build_fastmcp(embedded_app=None) -> FastMCP:
         """List assets of a given type. Filters: status (In Stock, Assigned,
         Broken, Write Off, all), free-text q."""
         params = {"status": status, "q": q, "page": page, "per_page": per_page}
+        started = time.monotonic()
         token = _token_from_ctx(ctx)
         client = get_client_for(token)
         try:
@@ -240,19 +295,23 @@ def build_fastmcp(embedded_app=None) -> FastMCP:
                 if entry.get("key") == asset_type:
                     custom = bool(entry.get("custom"))
             if custom is None:
-                return {"error": f"Unknown asset type: {asset_type}"}
-            path = (
-                f"/api/v1/custom/{asset_type}/assets"
-                if custom
-                else f"/api/v1/assets/{asset_type}"
-            )
-            return client.get(path, params=params, token=token)
+                result = {"error": f"Unknown asset type: {asset_type}"}
+            else:
+                path = (
+                    f"/api/v1/custom/{asset_type}/assets"
+                    if custom
+                    else f"/api/v1/assets/{asset_type}"
+                )
+                result = client.get(path, params=params, token=token)
         except Exception as exc:
-            return {"error": f"{exc}"}
+            result = {"error": f"{exc}"}
+        _record_usage(ctx, "list_assets", params, result, started)
+        return result
 
     @mcp.tool()
     def get_asset(ctx: Context, asset_type: str, asset_id: int) -> dict:
         """Get a single asset by its type key and numeric id."""
+        started = time.monotonic()
         token = _token_from_ctx(ctx)
         client = get_client_for(token)
         try:
@@ -261,47 +320,50 @@ def build_fastmcp(embedded_app=None) -> FastMCP:
                 if entry.get("key") == asset_type:
                     custom = bool(entry.get("custom"))
             if custom is None:
-                return {"error": f"Unknown asset type: {asset_type}"}
-            path = (
-                f"/api/v1/custom/{asset_type}/assets/{asset_id}"
-                if custom
-                else f"/api/v1/assets/{asset_type}/{asset_id}"
-            )
-            return client.get(path, token=token)
+                result = {"error": f"Unknown asset type: {asset_type}"}
+            else:
+                path = (
+                    f"/api/v1/custom/{asset_type}/assets/{asset_id}"
+                    if custom
+                    else f"/api/v1/assets/{asset_type}/{asset_id}"
+                )
+                result = client.get(path, token=token)
         except Exception as exc:
-            return {"error": f"{exc}"}
+            result = {"error": f"{exc}"}
+        _record_usage(ctx, "get_asset", {"asset_type": asset_type, "asset_id": asset_id}, result, started)
+        return result
 
     @mcp.tool()
     def dashboard_summary(ctx: Context) -> dict:
         """Current inventory KPIs: total assets, assigned, available, broken,
         and per-category counts."""
-        return _call(ctx, "/api/v1/dashboard-summary")
+        return _call(ctx, "dashboard_summary", "/api/v1/dashboard-summary")
 
     @mcp.tool()
     def list_users(ctx: Context) -> list:
         """List all usernames (local and LDAP)."""
-        return _call(ctx, "/api/v1/users")
+        return _call(ctx, "list_users", "/api/v1/users")
 
     @mcp.tool()
     def list_departments(ctx: Context) -> list:
         """List all department names."""
-        return _call(ctx, "/api/v1/departments")
+        return _call(ctx, "list_departments", "/api/v1/departments")
 
     @mcp.tool()
     def list_roles(ctx: Context) -> list:
         """List roles with their capabilities and per-asset-type permissions."""
-        return _call(ctx, "/api/v1/roles")
+        return _call(ctx, "list_roles", "/api/v1/roles")
 
     @mcp.tool()
     def list_groups(ctx: Context) -> list:
         """List user groups with their assigned role and member user ids."""
-        return _call(ctx, "/api/v1/groups")
+        return _call(ctx, "list_groups", "/api/v1/groups")
 
     @mcp.tool()
     def list_audit_log(ctx: Context, page: int = 1, per_page: int = 50) -> dict:
         """Recent audit-log entries (creates, updates, deletes, logins) with
         actor, IP address, entity and details."""
-        return _call(ctx, "/api/v1/audit-log", params={"page": page, "per_page": per_page})
+        return _call(ctx, "list_audit_log", "/api/v1/audit-log", params={"page": page, "per_page": per_page})
 
     return mcp
 
