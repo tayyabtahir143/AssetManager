@@ -3985,6 +3985,7 @@ def build_dept_summary():
                 bump(dept, asset_type.label, 1, 0, 1)
                 continue
             is_assigned = status == "assigned"
+            dept = (item.data or {}).get("dept") if is_assigned else None
             bump(dept, asset_type.label, 1, 1 if is_assigned else 0, 0 if is_assigned else 1)
 
     summary = list(dept_map.values())

@@ -73,3 +73,15 @@ class TestExtendedReadOnlyApi:
 
     def test_custom_assets_unknown_type_404(self, client, auth_headers):
         assert client.get("/api/custom/nope/assets", headers=auth_headers).status_code == 404
+
+    def test_dashboard_summary_survives_minimal_custom_item(self, client, auth_headers, application):
+        # Regression: build_dept_summary raised UnboundLocalError on custom
+        # assets whose data has no dept/status keys.
+        with application.app_context():
+            asset_type = AssetType(key="minimal_mcp", label="Minimal MCP", has_quantity=False)
+            db.session.add(asset_type)
+            db.session.commit()
+            db.session.add(AssetItem(asset_type_id=asset_type.id, data={"asset_tag": "MIN-1"}))
+            db.session.commit()
+        resp = client.get("/api/dashboard-summary", headers=auth_headers)
+        assert resp.status_code == 200
