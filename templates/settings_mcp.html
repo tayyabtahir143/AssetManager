@@ -113,18 +113,31 @@
   </section>
 
   <section class="card">
-    <h2 class="card-title">Connect an LLM client (optional)</h2>
-    <p class="card-sub">
-      Only needed if you want an AI assistant (Claude Desktop, Codex, Hermes, Cursor) to query this
-      app. Regular users of AssetManager don't need to run anything here — the app works fully
-      without it. <code>mcp_server.py</code> ships with the app (repo root, and inside the Docker
-      image). Run it once on the machine where your LLM client lives, using the token you created
-      above:
+    <div class="card-head">
+      <div>
+        <h2 class="card-title">Endpoint</h2>
+        <p class="card-sub">
+          The gateway runs inside this application — there is nothing to install or run.
+          The Enable button above starts it, and your MCP client connects straight to it.
+        </p>
+      </div>
+    </div>
+    <p class="status-line">
+      Gateway:
+      <span class="badge {{ 'badge-green' if gateway_running else 'badge-muted' }}">
+        {{ 'Running' if gateway_running else 'Stopped' }}
+      </span>
     </p>
-    <pre class="code-block">export ASSET_MANAGER_URL=http://127.0.0.1:5000
-export ASSET_MANAGER_TOKEN=amcp_...
-python mcp_server.py                                  # stdio
-python mcp_server.py --transport streamable-http --port 8765   # HTTP: /mcp</pre>
+    <div class="group">
+      <label for="mcp-url">MCP endpoint (streamable HTTP)</label>
+      <input id="mcp-url" type="text" readonly value="http://127.0.0.1:{{ gateway_port }}/mcp"
+             onclick="this.select()">
+    </div>
+    <p class="card-sub">
+      Point your client (Claude Desktop, Codex, Hermes, Cursor) at that URL and send the token
+      you created above as a <code>Bearer</code> header. For remote connections, replace
+      <code>127.0.0.1</code> with this server's address — port {{ gateway_port }} must be reachable.
+    </p>
   </section>
 </div>
 {% endblock %}

@@ -1,42 +1,74 @@
-"""AssetManager MCP server — expose the AssetManager read-only REST API as
-Model Context Protocol tools so LLM clients (Claude Desktop, Codex, Hermes,
-Cursor, ...) can query assets, users, departments, roles, groups and the
-audit log.
+"""AssetManager MCP gateway.
 
-Configuration (environment variables):
-    ASSET_MANAGER_URL        Base URL of the AssetManager instance
-                             (default http://127.0.0.1:5000)
-    ASSET_MANAGER_USERNAME   Local or LDAP username
-    ASSET_MANAGER_PASSWORD   Password for that username
-    ASSET_MANAGER_TOKEN      Optional: skip login and use this JWT access
-                             token directly (takes precedence)
+Two run modes:
+1. EMBEDDED (default in production): the Flask app hosts the MCP streamable
+   HTTP endpoint at /mcp on port 8765, started and stopped by the
+   Settings → MCP Enable/Disable toggle. No separate process to run.
+2. STANDALONE (optional, for remote hosts): `python mcp_server.py` runs the
+   gateway as its own process against a remote AssetManager, configured via
+   ASSET_MANAGER_URL + ASSET_MANAGER_TOKEN (amcp_* token from Settings → MCP)
+   or ASSET_MANAGER_USERNAME/PASSWORD.
 
-Transports:
-    stdio (default)          python mcp_server.py
-                             (Claude Desktop / Codex style local MCP config)
-    streamable HTTP          python mcp_server.py --transport streamable-http --port 8765
-                             then connect clients to http://<host>:8765/mcp
-
-All tools are read-only: they map to GET endpoints of the REST API.
+Every tool call is authenticated by the amcp_* token sent by the MCP client
+in the Authorization header; scope enforcement (read_only vs full) and role
+permissions are applied by the app's own API layer.
 """
 import argparse
 import os
 import time
 
 import httpx
-from mcp.server.fastmcp import FastMCP
+from mcp.server.fastmcp import Context, FastMCP
 
 DEFAULT_URL = "http://127.0.0.1:5000"
-
-mcp = FastMCP("assetmanager")
 
 
 class AssetManagerError(Exception):
     pass
 
 
+class LocalClient:
+    """In-process client: replays each call through the Flask app's WSGI
+    stack with the caller's Authorization header, so authentication, scope
+    and permission checks run exactly as they do for external API calls."""
+
+    def __init__(self, app):
+        from werkzeug.test import EnvironBuilder
+
+        self._app = app
+        self._builder = EnvironBuilder
+
+    def get(self, path, params=None, token=None):
+        from urllib.parse import urlencode
+
+        query = ("?" + urlencode(params)) if params else ""
+        headers = {}
+        if token:
+            headers["Authorization"] = f"Bearer {token}"
+        builder = self._builder(method="GET", path=path + query, headers=headers)
+        environ = builder.get_environ()
+        response = self._app.wsgi_app(environ, self._start_response)
+        return self._parse(response)
+
+    @staticmethod
+    def _start_response(status, headers, exc_info=None):
+        pass
+
+    @staticmethod
+    def _parse(response):
+        import json
+
+        if not response:
+            raise AssetManagerError("Empty response from embedded API")
+        body = b"".join(response)
+        try:
+            return json.loads(body.decode("utf-8"))
+        except Exception:
+            raise AssetManagerError(f"Non-JSON response: {body[:200]!r}")
+
+
 class AssetManagerClient:
-    """Thin, authenticated HTTP client over the AssetManager REST API."""
+    """Standalone HTTP client over the AssetManager REST API."""
 
     def __init__(self, base_url, username=None, password=None, token=None, http=None):
         self.base_url = base_url.rstrip("/")
@@ -98,12 +130,13 @@ class AssetManagerClient:
         expires_in = int(data.get("expires_in", 900))
         self._expires_at = time.time() + expires_in
 
-    def get(self, path, params=None):
+    def get(self, path, params=None, token=None):
         self._ensure_token()
+        headers = {"Authorization": f"Bearer {token}"} if token else self._headers()
         resp = self._http.get(
-            f"{self.base_url}{path}", params=params, headers=self._headers(), timeout=60
+            f"{self.base_url}{path}", params=params, headers=headers, timeout=60
         )
-        if resp.status_code == 401:
+        if resp.status_code == 401 and not token:
             # Token may have expired mid-flight; force a refresh once.
             self._access_token = None
             self._ensure_token()
@@ -121,143 +154,156 @@ class AssetManagerClient:
 
 
 _client: AssetManagerClient | None = None
+_embedded_app: object | None = None  # Flask app for embedded mode
 
 
-def get_client() -> AssetManagerClient:
+def _token_from_ctx(ctx: Context) -> str | None:
+    """Extract the Authorization bearer token from the MCP request context."""
+    try:
+        request_ctx = ctx.request_context
+        headers = request_ctx.request.headers
+        auth = ""
+        if headers is None:
+            return None
+        if hasattr(headers, "get"):
+            # Starlette Headers / dict — .get is case-insensitive on Starlette.
+            auth = headers.get("authorization") or headers.get("Authorization") or ""
+        else:
+            for key, value in headers:
+                key_s = key.decode() if isinstance(key, bytes) else str(key)
+                if key_s.lower() == "authorization":
+                    auth = value.decode() if isinstance(value, bytes) else str(value)
+        if auth.startswith("Bearer "):
+            return auth.split(" ", 1)[1].strip()
+    except Exception:
+        pass
+    return None
+
+
+def get_client_for(token: str | None):
+    """Right client for the current run mode. Embedded mode calls the app
+    in-process with the caller's token; standalone mode uses the
+    environment-configured HTTP client."""
+    if _embedded_app is not None:
+        return LocalClient(_embedded_app)
     global _client
     if _client is None:
         url = os.environ.get("ASSET_MANAGER_URL", DEFAULT_URL)
-        token = os.environ.get("ASSET_MANAGER_TOKEN", "").strip() or None
+        env_token = os.environ.get("ASSET_MANAGER_TOKEN", "").strip() or None
         username = os.environ.get("ASSET_MANAGER_USERNAME", "").strip() or None
         password = os.environ.get("ASSET_MANAGER_PASSWORD", "") or None
         _client = AssetManagerClient(
-            base_url=url, username=username, password=password, token=token
+            base_url=url, username=username, password=password, token=env_token
         )
     return _client
 
 
-def _tool_error(exc: Exception) -> str:
-    return f"Error: {exc}"
-
-
-@mcp.tool()
-def search_assets(query: str) -> dict:
-    """Search every asset type at once by asset tag, vendor, model, or assignee.
-    Returns up to 15 matching assets with their type, tag and detail URL."""
+def _call(ctx: Context, path, params=None):
     try:
-        return get_client().get("/api/v1/search", params={"q": query})
-    except Exception as exc:  # pragma: no cover - defensive
-        return {"error": _tool_error(exc)}
+        token = _token_from_ctx(ctx)
+        return get_client_for(token).get(path, params=params, token=token)
+    except Exception as exc:
+        return {"error": f"{exc}"}
 
 
-@mcp.tool()
-def list_asset_types() -> list:
-    """List all asset types (built-in and custom) with key, label and icon."""
-    try:
-        return get_client().get("/api/v1/asset-types")
-    except Exception as exc:  # pragma: no cover - defensive
-        return [{"error": _tool_error(exc)}]
+def build_fastmcp(embedded_app=None) -> FastMCP:
+    global _embedded_app
+    _embedded_app = embedded_app
+    mcp = FastMCP("assetmanager")
 
+    @mcp.tool()
+    def search_assets(ctx: Context, query: str) -> dict:
+        """Search every asset type at once by asset tag, vendor, model, or assignee."""
+        return _call(ctx, "/api/v1/search", params={"q": query})
 
-def _is_custom_type(client, asset_type):
-    for entry in client.get("/api/v1/asset-types"):
-        if entry.get("key") == asset_type:
-            return bool(entry.get("custom"))
-    return None
+    @mcp.tool()
+    def list_asset_types(ctx: Context) -> list:
+        """List all asset types (built-in and custom) with key, label and icon."""
+        try:
+            return _call(ctx, "/api/v1/asset-types")
+        except Exception as exc:
+            return [{"error": f"{exc}"}]
 
-
-@mcp.tool()
-def list_assets(
-    asset_type: str, status: str = "all", q: str = "", page: int = 1, per_page: int = 25
-) -> dict:
-    """List assets of a given type (use list_asset_types for valid keys).
-    Filters: status (In Stock, Assigned, Broken, Write Off, all), free-text q."""
-    try:
+    @mcp.tool()
+    def list_assets(
+        ctx: Context, asset_type: str, status: str = "all", q: str = "",
+        page: int = 1, per_page: int = 25,
+    ) -> dict:
+        """List assets of a given type. Filters: status (In Stock, Assigned,
+        Broken, Write Off, all), free-text q."""
         params = {"status": status, "q": q, "page": page, "per_page": per_page}
-        client = get_client()
-        custom = _is_custom_type(client, asset_type)
-        if custom is None:
-            return {"error": f"Unknown asset type: {asset_type}"}
-        path = f"/api/v1/custom/{asset_type}/assets" if custom else f"/api/v1/assets/{asset_type}"
-        return client.get(path, params=params)
-    except Exception as exc:  # pragma: no cover - defensive
-        return {"error": _tool_error(exc)}
+        token = _token_from_ctx(ctx)
+        client = get_client_for(token)
+        try:
+            custom = None
+            for entry in client.get("/api/v1/asset-types", token=token):
+                if entry.get("key") == asset_type:
+                    custom = bool(entry.get("custom"))
+            if custom is None:
+                return {"error": f"Unknown asset type: {asset_type}"}
+            path = (
+                f"/api/v1/custom/{asset_type}/assets"
+                if custom
+                else f"/api/v1/assets/{asset_type}"
+            )
+            return client.get(path, params=params, token=token)
+        except Exception as exc:
+            return {"error": f"{exc}"}
 
+    @mcp.tool()
+    def get_asset(ctx: Context, asset_type: str, asset_id: int) -> dict:
+        """Get a single asset by its type key and numeric id."""
+        token = _token_from_ctx(ctx)
+        client = get_client_for(token)
+        try:
+            custom = None
+            for entry in client.get("/api/v1/asset-types", token=token):
+                if entry.get("key") == asset_type:
+                    custom = bool(entry.get("custom"))
+            if custom is None:
+                return {"error": f"Unknown asset type: {asset_type}"}
+            path = (
+                f"/api/v1/custom/{asset_type}/assets/{asset_id}"
+                if custom
+                else f"/api/v1/assets/{asset_type}/{asset_id}"
+            )
+            return client.get(path, token=token)
+        except Exception as exc:
+            return {"error": f"{exc}"}
 
-@mcp.tool()
-def get_asset(asset_type: str, asset_id: int) -> dict:
-    """Get a single asset by its type key and numeric id."""
-    try:
-        client = get_client()
-        custom = _is_custom_type(client, asset_type)
-        if custom is None:
-            return {"error": f"Unknown asset type: {asset_type}"}
-        path = (
-            f"/api/v1/custom/{asset_type}/assets/{asset_id}"
-            if custom
-            else f"/api/v1/assets/{asset_type}/{asset_id}"
-        )
-        return client.get(path)
-    except Exception as exc:  # pragma: no cover - defensive
-        return {"error": _tool_error(exc)}
+    @mcp.tool()
+    def dashboard_summary(ctx: Context) -> dict:
+        """Current inventory KPIs: total assets, assigned, available, broken,
+        and per-category counts."""
+        return _call(ctx, "/api/v1/dashboard-summary")
 
+    @mcp.tool()
+    def list_users(ctx: Context) -> list:
+        """List all usernames (local and LDAP)."""
+        return _call(ctx, "/api/v1/users")
 
-@mcp.tool()
-def dashboard_summary() -> dict:
-    """Current inventory KPIs: total assets, assigned, available, broken, and
-    per-category counts."""
-    try:
-        return get_client().get("/api/v1/dashboard-summary")
-    except Exception as exc:  # pragma: no cover - defensive
-        return {"error": _tool_error(exc)}
+    @mcp.tool()
+    def list_departments(ctx: Context) -> list:
+        """List all department names."""
+        return _call(ctx, "/api/v1/departments")
 
+    @mcp.tool()
+    def list_roles(ctx: Context) -> list:
+        """List roles with their capabilities and per-asset-type permissions."""
+        return _call(ctx, "/api/v1/roles")
 
-@mcp.tool()
-def list_users() -> list:
-    """List all usernames (local and LDAP)."""
-    try:
-        return get_client().get("/api/v1/users")
-    except Exception as exc:  # pragma: no cover - defensive
-        return [{"error": _tool_error(exc)}]
+    @mcp.tool()
+    def list_groups(ctx: Context) -> list:
+        """List user groups with their assigned role and member user ids."""
+        return _call(ctx, "/api/v1/groups")
 
+    @mcp.tool()
+    def list_audit_log(ctx: Context, page: int = 1, per_page: int = 50) -> dict:
+        """Recent audit-log entries (creates, updates, deletes, logins) with
+        actor, IP address, entity and details."""
+        return _call(ctx, "/api/v1/audit-log", params={"page": page, "per_page": per_page})
 
-@mcp.tool()
-def list_departments() -> list:
-    """List all department names."""
-    try:
-        return get_client().get("/api/v1/departments")
-    except Exception as exc:  # pragma: no cover - defensive
-        return [{"error": _tool_error(exc)}]
-
-
-@mcp.tool()
-def list_roles() -> list:
-    """List roles with their capabilities and per-asset-type permissions."""
-    try:
-        return get_client().get("/api/v1/roles")
-    except Exception as exc:  # pragma: no cover - defensive
-        return [{"error": _tool_error(exc)}]
-
-
-@mcp.tool()
-def list_groups() -> list:
-    """List user groups with their assigned role and member user ids."""
-    try:
-        return get_client().get("/api/v1/groups")
-    except Exception as exc:  # pragma: no cover - defensive
-        return [{"error": _tool_error(exc)}]
-
-
-@mcp.tool()
-def list_audit_log(page: int = 1, per_page: int = 50) -> dict:
-    """Recent audit-log entries (creates, updates, deletes, logins) with
-    actor, IP address, entity and details."""
-    try:
-        return get_client().get(
-            "/api/v1/audit-log", params={"page": page, "per_page": per_page}
-        )
-    except Exception as exc:  # pragma: no cover - defensive
-        return {"error": _tool_error(exc)}
+    return mcp
 
 
 def main():
@@ -271,6 +317,7 @@ def main():
     parser.add_argument("--port", type=int, default=8765, help="HTTP port (default 8765)")
     args = parser.parse_args()
 
+    mcp = build_fastmcp(embedded_app=None)
     if args.transport == "streamable-http":
         mcp.run(transport="streamable-http", host="0.0.0.0", port=args.port)
     else:

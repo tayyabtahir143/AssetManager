@@ -1,4 +1,8 @@
 """MCP management: scoped API tokens, gateway enable/disable, settings page."""
+import os
+
+import pytest
+
 import app as app_module
 from app import McpConfig, McpToken, User, db
 
@@ -136,3 +140,145 @@ class TestMcpSettingsPage:
         admin_client.post(f"/settings/mcp/tokens/{token_id}/delete")
         with application.app_context():
             assert McpToken.query.get(token_id) is None
+
+class TestEmbeddedGateway:
+    """The MCP gateway runs inside the Flask process, started by the settings
+    toggle; verify the protocol end-to-end over a real socket."""
+
+    @pytest.fixture(autouse=True)
+    def _gateway_cleanup(self):
+        yield
+        with app_module.app.app_context():
+            config = app_module.get_mcp_config()
+            if config.enabled:
+                config.enabled = False
+                app_module.db.session.commit()
+        app_module.stop_mcp_gateway()
+
+    def _wait_ready(self, timeout=10.0):
+        import socket, time as _time
+
+        port = int(os.environ.get("MCP_GATEWAY_PORT", "18765"))
+        deadline = _time.time() + timeout
+        while _time.time() < deadline:
+            try:
+                with socket.create_connection(("127.0.0.1", port), timeout=1):
+                    return True
+            except OSError:
+                _time.sleep(0.25)
+        return False
+
+    def _rpc(self, payload, headers=None):
+        import httpx
+
+        port = int(os.environ.get("MCP_GATEWAY_PORT", "18765"))
+        return httpx.post(
+            f"http://127.0.0.1:{port}/mcp",
+            json=payload,
+            headers={
+                "Content-Type": "application/json",
+                "Accept": "application/json, text/event-stream",
+                **(headers or {}),
+            },
+            timeout=10,
+        )
+
+    def _result(self, resp):
+        import json as _json
+
+        text = resp.text
+        if "event-stream" in resp.headers.get("content-type", ""):
+            messages = [
+                _json.loads(line[6:])
+                for line in text.splitlines()
+                if line.startswith("data: ")
+            ]
+            for msg in messages:
+                if "result" in msg:
+                    return msg["result"]
+            raise AssertionError(f"No SSE result: {text[:300]}")
+        return resp.json()["result"]
+
+    def test_gateway_serves_mcp_after_enable(self, admin_client, application):
+        admin_client.post("/settings/mcp/toggle", data={"enabled": "on"})
+        assert app_module.mcp_gateway_running()
+        assert self._wait_ready(), "gateway socket never became ready"
+        resp = self._rpc({
+            "jsonrpc": "2.0", "id": 1, "method": "initialize",
+            "params": {
+                "protocolVersion": "2024-11-05",
+                "capabilities": {},
+                "clientInfo": {"name": "pytest", "version": "1.0"},
+            },
+        })
+        assert resp.status_code == 200, resp.text[:300]
+        result = self._result(resp)
+        assert result["protocolVersion"] == "2024-11-05"
+        assert "tools" in result["capabilities"]
+
+    def test_gateway_tool_call_with_token(self, admin_client, application):
+        _enable_gateway(application)
+        token = _make_token(application, name="Gateway token", scope="read_only")
+        admin_client.post("/settings/mcp/toggle", data={"enabled": "on"})
+        assert self._wait_ready()
+        auth = {"Authorization": f"Bearer {token}"}
+        init = self._rpc(
+            {
+                "jsonrpc": "2.0", "id": 1, "method": "initialize",
+                "params": {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {},
+                    "clientInfo": {"name": "pytest", "version": "1.0"},
+                },
+            },
+            headers=auth,
+        )
+        assert init.status_code == 200, init.text[:300]
+        session_id = init.headers.get("mcp-session-id")
+        assert session_id, "initialize did not return mcp-session-id"
+        resp = self._rpc(
+            {
+                "jsonrpc": "2.0", "id": 2, "method": "tools/call",
+                "params": {"name": "search_assets", "arguments": {"query": "zzz"}},
+            },
+            headers={**auth, "mcp-session-id": session_id},
+        )
+        assert resp.status_code == 200, resp.text[:300]
+        result = self._result(resp)
+        assert result["isError"] is False
+        text = result["content"][0]["text"]
+        assert "results" in text
+
+    def test_gateway_tool_call_without_token_errors(self, admin_client, application):
+        _enable_gateway(application)
+        admin_client.post("/settings/mcp/toggle", data={"enabled": "on"})
+        assert self._wait_ready()
+        init = self._rpc(
+            {
+                "jsonrpc": "2.0", "id": 1, "method": "initialize",
+                "params": {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {},
+                    "clientInfo": {"name": "pytest", "version": "1.0"},
+                },
+            },
+        )
+        session_id = init.headers.get("mcp-session-id")
+        resp = self._rpc(
+            {
+                "jsonrpc": "2.0", "id": 3, "method": "tools/call",
+                "params": {"name": "list_users", "arguments": {}},
+            },
+            headers={"mcp-session-id": session_id} if session_id else None,
+        )
+        assert resp.status_code == 200
+        text = self._result(resp)["content"][0]["text"]
+        assert "Missing token" in text or "Invalid token" in text
+
+    def test_disable_stops_gateway(self, admin_client, application):
+        admin_client.post("/settings/mcp/toggle", data={"enabled": "on"})
+        assert self._wait_ready()
+        admin_client.post("/settings/mcp/toggle")
+        assert not app_module.mcp_gateway_running()
+        assert not self._wait_ready(timeout=2.0)
+

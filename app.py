@@ -10289,8 +10289,52 @@ def mcp_settings():
     tokens = McpToken.query.order_by(McpToken.created_at.desc()).all()
     new_token = session.pop("mcp_new_token", None)
     return render_template(
-        "settings_mcp.html", config=config, tokens=tokens, new_token=new_token
+        "settings_mcp.html",
+        config=config,
+        tokens=tokens,
+        new_token=new_token,
+        gateway_running=mcp_gateway_running(),
+        gateway_port=MCP_GATEWAY_PORT,
     )
+
+
+MCP_GATEWAY_PORT = int(os.environ.get("MCP_GATEWAY_PORT", "8765"))
+_MCP_GATEWAY = {"thread": None, "server": None}
+
+
+def mcp_gateway_running():
+    thread = _MCP_GATEWAY["thread"]
+    return bool(thread and thread.is_alive())
+
+
+def start_mcp_gateway():
+    if mcp_gateway_running():
+        return
+    import uvicorn
+
+    import mcp_server
+
+    fastmcp = mcp_server.build_fastmcp(embedded_app=app)
+    asgi_app = fastmcp.streamable_http_app()
+    config = uvicorn.Config(
+        asgi_app, host="0.0.0.0", port=MCP_GATEWAY_PORT, log_level="error"
+    )
+    server = uvicorn.Server(config)
+    thread = threading.Thread(target=server.run, daemon=True, name="mcp-gateway")
+    thread.start()
+    _MCP_GATEWAY["thread"] = thread
+    _MCP_GATEWAY["server"] = server
+
+
+def stop_mcp_gateway():
+    server = _MCP_GATEWAY["server"]
+    thread = _MCP_GATEWAY["thread"]
+    if server is not None:
+        server.should_exit = True
+    if thread is not None:
+        thread.join(timeout=5)
+    _MCP_GATEWAY["thread"] = None
+    _MCP_GATEWAY["server"] = None
 
 
 @app.route("/settings/mcp/toggle", methods=["POST"])
@@ -10300,6 +10344,10 @@ def mcp_settings_toggle():
     config = get_mcp_config()
     config.enabled = "enabled" in request.form
     db.session.commit()
+    if config.enabled:
+        start_mcp_gateway()
+    else:
+        stop_mcp_gateway()
     log_audit("update", "mcp_config", entity_id="global", details=f"enabled={config.enabled}")
     flash("MCP gateway " + ("enabled." if config.enabled else "disabled."), "success")
     return redirect(url_for("mcp_settings"))

@@ -609,38 +609,38 @@ curl -X POST http://localhost:5000/api/v1/auth/refresh \
 
 ### MCP Server (LLM integration)
 
-`mcp_server.py` exposes the REST API as MCP tools so LLM clients can query assets, users, departments, roles, groups, the audit log and dashboard KPIs. Manage everything from **Settings → MCP** in the web UI:
+The MCP gateway is built into the app — it runs inside the same process/container, no separate script to start. Manage everything from **Settings → MCP** in the web UI:
 
-- **Gateway toggle** — enable or disable token-based MCP access (username/password JWT API access is unaffected).
+- **Gateway toggle** — Enable starts the embedded MCP endpoint, Disable stops it (username/password JWT API access is unaffected).
 - **API tokens** — create named tokens with a scope: **Read only** (query-only) or **Full access** (includes create/update/delete through the API). Tokens are stored as SHA-256 hashes, shown once at creation, and can be revoked or deleted at any time; the UI shows last-used timestamps.
+- **Endpoint** — the page shows the MCP URL (default `http://<host>:8765/mcp`). Port 8765 is published by the Compose files and configurable via `MCP_GATEWAY_PORT`
 
 ```bash
-# 1. Install dependencies
-pip install -r requirements.txt   # adds mcp + httpx
+# 1. In the app: Settings → MCP → Enable MCP, then create a token
+#    (read-only or full access) and copy it once.
 
-# 2. Create a token in the app: Settings → MCP → Create token
-#    (read-only or full access), then point the server at it
-export ASSET_MANAGER_URL=http://localhost:5000
-export ASSET_MANAGER_TOKEN=amcp_...   # or ASSET_MANAGER_USERNAME + ASSET_MANAGER_PASSWORD
+# 2. Point your MCP client at the embedded endpoint:
+#    http://<your-host>:8765/mcp   (127.0.0.1:8765/mcp when local)
+#    and send the token as an Authorization: Bearer amcp_... header.
+```
 
-# 3a. stdio (local clients — Claude Desktop, Codex CLI)
-python mcp_server.py
+Standalone mode (optional — only if you want the gateway on a different host than the app):
 
-# 3b. streamable HTTP (remote clients — connect to http://<host>:8765/mcp)
+```bash
+export ASSET_MANAGER_URL=http://your-assetmanager:5000
+export ASSET_MANAGER_TOKEN=amcp_...
 python mcp_server.py --transport streamable-http --port 8765
 ```
 
-Claude Desktop config example (`claude_desktop_config.json`):
+Claude Desktop config example (`claude_desktop_config.json`) pointing at the embedded endpoint:
 
 ```json
 {
   "mcpServers": {
     "assetmanager": {
-      "command": "python",
-      "args": ["/path/to/AssetManager/mcp_server.py"],
-      "env": {
-        "ASSET_MANAGER_URL": "http://localhost:5000",
-        "ASSET_MANAGER_TOKEN": "amcp_your-token-from-settings"
+      "url": "http://127.0.0.1:8765/mcp",
+      "headers": {
+        "Authorization": "Bearer amcp_your-token-from-settings"
       }
     }
   }

@@ -51,17 +51,24 @@ class FakeHttp:
         return self._dispatch("POST", url, **kwargs)
 
 
+@pytest.fixture(autouse=True)
+def _reset_module_state():
+    mcp_server._embedded_app = None
+    mcp_server._client = None
+    yield
+    mcp_server._embedded_app = None
+    mcp_server._client = None
+
+
 @pytest.fixture
 def mcp_client(application):
     transport = FlaskTransport(application.test_client())
-    client = mcp_server.AssetManagerClient(
+    return mcp_server.AssetManagerClient(
         base_url="http://localhost",
         username="admin",
         password="admin",
         http=FakeHttp(transport),
     )
-    mcp_server._client = client
-    return client
 
 
 class TestMcpClient:
@@ -105,7 +112,7 @@ class TestMcpClient:
         data = mcp_client.get("/api/v1/audit-log")
         assert "items" in data and "total" in data
 
-    def test_custom_asset_fallback(self, mcp_client, application):
+    def test_custom_asset_endpoint(self, mcp_client, application):
         with application.app_context():
             from app import AssetItem, AssetType, Role, RolePermission, db
 
@@ -122,11 +129,11 @@ class TestMcpClient:
             item = AssetItem(asset_type_id=asset_type.id, data={"asset_tag": "MCP-CBL-9"})
             db.session.add(item)
             db.session.commit()
-        data = mcp_server.list_assets("cables_mcp3")
+        data = mcp_client.get("/api/v1/custom/cables_mcp3/assets")
         assert data["total"] == 1
         assert data["items"][0]["asset_tag"] == "MCP-CBL-9"
-        assert mcp_server.get_asset("cables_mcp3", data["items"][0]["id"])["asset_tag"] == "MCP-CBL-9"
-        assert "Unknown asset type" in mcp_server.list_assets("nope")["error"]
+        with pytest.raises(mcp_server.AssetManagerError):
+            mcp_client.get("/api/v1/assets/cables_mcp3")
 
     def test_bad_credentials_raise(self, application):
         transport = FlaskTransport(application.test_client())
@@ -143,10 +150,14 @@ class TestMcpClient:
 
 
 class TestMcpToolFunctions:
+    EXPECTED_TOOLS = {
+        "search_assets", "list_asset_types", "list_assets", "get_asset",
+        "dashboard_summary", "list_users", "list_departments",
+        "list_roles", "list_groups", "list_audit_log",
+    }
+
     def test_tools_are_registered(self):
-        tool_names = {fn for fn in dir(mcp_server) if fn in {
-            "search_assets", "list_asset_types", "list_assets", "get_asset",
-            "dashboard_summary", "list_users", "list_departments",
-            "list_roles", "list_groups", "list_audit_log",
-        }}
-        assert len(tool_names) == 10
+        fastmcp = mcp_server.build_fastmcp(embedded_app=None)
+        manager = fastmcp._tool_manager
+        names = set(getattr(manager, "_tools", {}).keys())
+        assert self.EXPECTED_TOOLS <= names
