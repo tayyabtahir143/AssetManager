@@ -87,7 +87,10 @@
       <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
       <div class="group">
         <label for="grant-username">User</label>
-        <input id="grant-username" name="username" type="text" placeholder="username" required>
+        <input id="grant-username" name="username" type="text" list="mcp-user-options" placeholder="Click to pick, or type to search…" required>
+        <datalist id="mcp-user-options">
+          {% for u in all_usernames %}<option value="{{ u }}"></option>{% endfor %}
+        </datalist>
       </div>
       <div class="group">
         <label for="grant-scope">Access</label>
@@ -239,26 +242,44 @@
   <section class="card">
     <h2 class="card-title">Add to your LLM</h2>
     <p class="card-sub">
-      Use the endpoint above and your token. Replace <code>amcp_...</code> with your actual
-      token, and <code>127.0.0.1</code> with this server's address for remote clients.
+      Your token is like a password that lets the AI into this inventory — it was sent to you by
+      email when access was granted (admins also see it once, above, when they create it).
+      Below, <code>amcp_...</code> stands for your token: replace it with the real one.
+      If your AI app runs on another computer, also replace <code>127.0.0.1</code> with this
+      server's address.
     </p>
+
     <div class="group">
-      <label>Claude Code (CLI)</label>
+      <label>Claude Code (the terminal app for Claude)</label>
+      <p class="card-sub">Open a terminal, run this one command, then restart Claude Code:</p>
       <pre class="code-block">claude mcp add --transport http assetmanager http://127.0.0.1:{{ gateway_port }}/mcp --header "Authorization: Bearer amcp_..."</pre>
     </div>
+
     <div class="group">
-      <label>Codex (CLI)</label>
+      <label>Codex (OpenAI's terminal app)</label>
+      <p class="card-sub">Open a terminal, run this one command, then restart Codex:</p>
       <pre class="code-block">codex mcp add-json assetmanager '{"type":"http","url":"http://127.0.0.1:{{ gateway_port }}/mcp","headers":{"Authorization":"Bearer amcp_..."}}'</pre>
     </div>
+
     <div class="group">
       <label>Hermes Agent</label>
-      <pre class="code-block">hermes mcp add assetmanager --url http://127.0.0.1:{{ gateway_port }}/mcp --auth header
-# then add the header to ~/.hermes/config.yaml under mcp.servers.assetmanager:
-#   headers:
-#     Authorization: "Bearer amcp_..."</pre>
+      <p class="card-sub">Step 1 — open a terminal and run this one command:</p>
+      <pre class="code-block">hermes mcp add assetmanager --url http://127.0.0.1:{{ gateway_port }}/mcp --auth header</pre>
+      <p class="card-sub">Step 2 — open Hermes's settings file, <code>~/.hermes/config.yaml</code>,
+        in any text editor. The command above created an <code>assetmanager</code> entry under the
+        <code>mcp_servers:</code> section. Add your token under it so it looks like this:</p>
+      <pre class="code-block">assetmanager:
+  url: http://127.0.0.1:{{ gateway_port }}/mcp
+  headers:
+    Authorization: "Bearer amcp_..."</pre>
+      <p class="card-sub">Step 3 — save the file and start a new Hermes chat.
+        To check it connected, run: <code>hermes mcp test assetmanager</code></p>
     </div>
+
     <div class="group">
       <label>Claude Desktop</label>
+      <p class="card-sub">Open Claude Desktop → Settings → Developer → Edit Config, paste this
+        block into the file, then restart Claude Desktop:</p>
       <pre class="code-block">// claude_desktop_config.json
 {
   "mcpServers": {
@@ -269,10 +290,11 @@
   }
 }</pre>
     </div>
+
     <p class="card-sub">
       Any other client (Cursor, VS Code, etc.): add an MCP server of type <strong>HTTP</strong>,
-      point it at <code>http://127.0.0.1:{{ gateway_port }}/mcp</code>, and set the header
-      <code>Authorization: Bearer amcp_...</code>.
+      point it at <code>http://127.0.0.1:{{ gateway_port }}/mcp</code>, and give it the header
+      <code>Authorization: Bearer amcp_...</code> (your token).
     </p>
   </section>
 </div>

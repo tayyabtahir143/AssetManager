@@ -10415,6 +10415,12 @@ def mcp_settings():
             .order_by(McpToken.created_at.desc())
             .all()
         )
+        context["all_usernames"] = [
+            row.username
+            for row in User.query.with_entities(User.username)
+            .order_by(User.username)
+            .all()
+        ]
         context["usage_page"] = max(
             _parse_int(request.args.get("usage_page", ""), 1), 1
         )
@@ -10527,16 +10533,45 @@ def _mcp_scope_label(scope):
 
 
 def _mcp_setup_commands(base_url):
+    """Plain-language connection steps, emailed to users with their token."""
     return (
-        "Claude Code:\n"
-        f"  claude mcp add --transport http assetmanager {base_url}/mcp --header \"Authorization: Bearer amcp_...\"\n"
-        "Codex:\n"
-        f"  codex mcp add-json assetmanager '{{\"type\":\"http\",\"url\":\"{base_url}/mcp\",\"headers\":{{\"Authorization\":\"Bearer amcp_...\"}}}}'\n"
-        "Hermes Agent:\n"
-        f"  hermes mcp add assetmanager --url {base_url}/mcp --auth header\n"
-        f"  (then set headers: {{Authorization: Bearer amcp_...}} in ~/.hermes/config.yaml under mcp.servers.assetmanager)\n"
-        f"Claude Desktop: add an HTTP MCP server with URL {base_url}/mcp "
-        "and header Authorization: Bearer amcp_...\n"
+        "Pick ONE of the apps below and follow its steps.\n"
+        "Wherever you see <YOUR TOKEN>, paste the token from above instead.\n\n"
+        "--- Claude Code (terminal app for Claude) ---\n"
+        "1. Open a terminal and run this one command:\n"
+        f"   claude mcp add --transport http assetmanager {base_url}/mcp --header \"Authorization: Bearer <YOUR TOKEN>\"\n"
+        "2. Restart Claude Code. Done.\n\n"
+        "--- Codex (OpenAI's terminal app) ---\n"
+        "1. Open a terminal and run this one command:\n"
+        f"   codex mcp add-json assetmanager '{{\"type\":\"http\",\"url\":\"{base_url}/mcp\",\"headers\":{{\"Authorization\":\"Bearer <YOUR TOKEN>\"}}}}'\n"
+        "2. Restart Codex. Done.\n\n"
+        "--- Hermes Agent ---\n"
+        "1. Open a terminal and run this one command:\n"
+        f"   hermes mcp add assetmanager --url {base_url}/mcp --auth header\n"
+        "2. Open Hermes's settings file (the file ~/.hermes/config.yaml on your computer)\n"
+        "   in any text editor. Under the section called mcp_servers: you will find an\n"
+        "   \"assetmanager\" entry that the command just created. Add your token under it\n"
+        "   so it looks like this:\n"
+        "     assetmanager:\n"
+        f"       url: {base_url}/mcp\n"
+        "       headers:\n"
+        "         Authorization: \"Bearer <YOUR TOKEN>\"\n"
+        "3. Save the file and start a new Hermes chat.\n"
+        "   (Check it works with: hermes mcp test assetmanager)\n\n"
+        "--- Claude Desktop ---\n"
+        "1. Open Claude Desktop, go to Settings -> Developer -> Edit Config.\n"
+        "2. Paste this into the file, replacing <YOUR TOKEN> with your token:\n"
+        "{\n"
+        "  \"mcpServers\": {\n"
+        "    \"assetmanager\": {\n"
+        f"      \"url\": \"{base_url}/mcp\",\n"
+        "      \"headers\": { \"Authorization\": \"Bearer <YOUR TOKEN>\" }\n"
+        "    }\n"
+        "  }\n"
+        "}\n"
+        "3. Save and restart Claude Desktop.\n\n"
+        "Your token is like a password that lets the AI into the inventory — keep it\n"
+        "private. If you lose it, go to Settings -> MCP and rotate it for a new one.\n"
     )
 
 
