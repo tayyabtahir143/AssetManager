@@ -113,8 +113,14 @@
   </section>
 
   <section class="card">
-    <h2 class="card-title">Connect a client</h2>
-    <p class="card-sub">Run the bundled server and export your token:</p>
+    <h2 class="card-title">Connect an LLM client (optional)</h2>
+    <p class="card-sub">
+      Only needed if you want an AI assistant (Claude Desktop, Codex, Hermes, Cursor) to query this
+      app. Regular users of AssetManager don't need to run anything here — the app works fully
+      without it. <code>mcp_server.py</code> ships with the app (repo root, and inside the Docker
+      image). Run it once on the machine where your LLM client lives, using the token you created
+      above:
+    </p>
     <pre class="code-block">export ASSET_MANAGER_URL=http://127.0.0.1:5000
 export ASSET_MANAGER_TOKEN=amcp_...
 python mcp_server.py                                  # stdio
