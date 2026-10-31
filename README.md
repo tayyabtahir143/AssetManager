@@ -90,6 +90,8 @@ This release adds global search, printable QR labels, bulk assign/status updates
 - **Email notifications** — SMTP with TLS/SSL, per-event per-recipient subscriptions, monthly reports, low-stock alerts
 - **Excel import/export** — bulk import with header validation; export any view
 - **CSV export** — Excel-friendly CSV download for every built-in and custom asset list
+- **Custom asset-type icons** — pick a stencil icon per custom asset type when creating or editing it; the dashboard catalog and pickers render it (whitelisted keys only)
+- **Colour schemes** — six modern schemes (Amber, Indigo, Emerald, Rose, Ocean, Slate) across the Night/Day themes, switchable from the workspace shell
 - **Global search** — search all asset types at once (tag / vendor / model / assignee) from the quick-nav dialog or the REST API
 - **Printable QR labels** — select rows in any list and print asset-tag labels with QR codes
 - **Bulk assign / status update** — reassign or change status for many assets at once
@@ -271,6 +273,7 @@ docker compose logs web -f
 |---|---|
 | `ensure_laptop_generation_column` | Adds the `generation` column to the `laptop` table if missing |
 | `ensure_user_password_change_column` | Adds the `must_change_password` column to the `user` table if missing (PostgreSQL: `ADD COLUMN IF NOT EXISTS`) |
+| `ensure_asset_type_icon_column` | Adds the `icon` column to the `asset_type` table if missing (PostgreSQL: `ADD COLUMN IF NOT EXISTS`) |
 | `migrate_plaintext_credentials` | Re-encrypts any plaintext LDAP/SMTP passwords stored by older versions |
 | `init_db` | Creates any missing tables for new models |
 

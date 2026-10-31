@@ -586,6 +586,8 @@ class AssetType(db.Model):
     key = db.Column(db.String(50), unique=True, nullable=False)
     label = db.Column(db.String(80), nullable=False)
     has_quantity = db.Column(db.Boolean, nullable=False, default=False)
+    # Whitelisted icon key rendered through templates/_icons.html (never raw HTML).
+    icon = db.Column(db.String(50), nullable=True)
     fields = db.relationship("AssetField", backref="asset_type", cascade="all, delete-orphan")
     items = db.relationship("AssetItem", backref="asset_type", cascade="all, delete-orphan")
 
@@ -597,6 +599,23 @@ class BuiltinAssetTypeSetting(db.Model):
     fields = db.relationship(
         "BuiltinAssetFieldSetting", backref="asset_type", cascade="all, delete-orphan"
     )
+
+
+# Whitelisted icon keys for custom asset types. Each key maps to SVG snippets
+# in templates/_icons.html; values are never rendered directly.
+ASSET_ICONS = [
+    "laptop", "desktop", "monitor", "keyboard", "mouse", "headset", "ram",
+    "network", "phone", "cable", "server", "printer", "camera", "tool",
+    "desk", "vehicle", "tag", "box",
+]
+
+ICON_CHOICES = [
+    {"key": key, "label": key.replace("_", " ").title()} for key in ASSET_ICONS
+]
+
+
+def is_valid_asset_icon(icon):
+    return bool(icon) and icon in ASSET_ICONS
 
 
 class BuiltinAssetFieldSetting(db.Model):
@@ -4319,6 +4338,25 @@ def ensure_user_password_change_column():
         db.session.rollback()
 
 
+def ensure_asset_type_icon_column():
+    if db.engine.dialect.name == "sqlite":
+        result = db.session.execute(text("PRAGMA table_info(asset_type)")).fetchall()
+        if not result:
+            return
+        columns = {row[1] for row in result}
+        if "icon" not in columns:
+            db.session.execute(text("ALTER TABLE asset_type ADD COLUMN icon VARCHAR(50)"))
+        db.session.commit()
+        return
+    try:
+        db.session.execute(
+            text('ALTER TABLE asset_type ADD COLUMN IF NOT EXISTS icon VARCHAR(50)')
+        )
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+
 def ensure_user_ldap_column():
     if db.engine.dialect.name == "sqlite":
         result = db.session.execute(text("PRAGMA table_info(user)")).fetchall()
@@ -4855,6 +4893,7 @@ def init_db():
         ensure_role_admin_column()
         ensure_user_email_column()
         ensure_user_password_change_column()
+        ensure_asset_type_icon_column()
         ensure_user_ldap_column()
         ensure_role_permission_bulk_column()
         ensure_ldap_group_columns()
@@ -5817,6 +5856,7 @@ def index():
                     "label": definition["label"],
                     "count": definition["model"].query.count(),
                     "url": url_for("list_assets", asset_type=key),
+                    "icon": None,
                 }
             )
         if definition.get("consumable"):
@@ -5860,6 +5900,7 @@ def index():
                     "label": asset_type.label,
                     "count": AssetItem.query.filter_by(asset_type_id=asset_type.id).count(),
                     "url": url_for("list_custom_assets", asset_key=asset_type.key),
+                    "icon": asset_type.icon,
                 }
             )
         total_assets += AssetItem.query.filter_by(asset_type_id=asset_type.id).count()
@@ -7633,7 +7674,11 @@ def add_asset_type():
             flash("At least one field is required.", "error")
             return redirect(url_for("add_asset_type"))
         has_quantity = "has_quantity" in request.form
-        asset_type = AssetType(key=key, label=label, has_quantity=has_quantity)
+        icon = request.form.get("icon", "").strip() or None
+        if icon and not is_valid_asset_icon(icon):
+            flash("Selected icon is not supported.", "error")
+            return redirect(url_for("add_asset_type"))
+        asset_type = AssetType(key=key, label=label, has_quantity=has_quantity, icon=icon)
         db.session.add(asset_type)
         db.session.flush()
         for name, label_field, field_type, options in field_rows:
@@ -7650,7 +7695,7 @@ def add_asset_type():
         ensure_role_permissions()
         log_audit("create", "asset_type", entity_id=asset_type.id, details=key)
         return redirect(url_for("list_asset_types"))
-    return render_template("asset_type_add.html")
+    return render_template("asset_type_add.html", icon_choices=ICON_CHOICES)
 
 
 @app.route("/asset-types/edit/<int:asset_type_id>", methods=["GET", "POST"])
@@ -7667,6 +7712,11 @@ def edit_asset_type(asset_type_id):
             return redirect(url_for("edit_asset_type", asset_type_id=asset_type.id))
         asset_type.label = label
         asset_type.has_quantity = "has_quantity" in request.form
+        icon = request.form.get("icon", "").strip() or None
+        if icon and not is_valid_asset_icon(icon):
+            flash("Selected icon is not supported.", "error")
+            return redirect(url_for("edit_asset_type", asset_type_id=asset_type.id))
+        asset_type.icon = icon
         for field in fields:
             field.label = request.form.get(f"field_label_{field.id}", field.label).strip()
             field_type = request.form.get(f"field_type_{field.id}", field.field_type)
@@ -7725,7 +7775,8 @@ def edit_asset_type(asset_type_id):
         log_audit("update", "asset_type", entity_id=asset_type.id, details=details)
         return redirect(url_for("list_asset_types"))
     return render_template(
-        "asset_type_edit.html", asset_type=asset_type, fields=fields
+        "asset_type_edit.html", asset_type=asset_type, fields=fields,
+        icon_choices=ICON_CHOICES,
     )
 
 
