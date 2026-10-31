@@ -118,10 +118,10 @@ class TestMcpSettingsPage:
         assert resp.status_code == 302
         html = admin_client.get("/settings/mcp").data.decode("utf-8")
         # The one-time reveal section appears exactly on the next render.
-        assert "token-reveal" in html
+        assert 'class="card token-reveal"' in html
         assert "Copy it now" in html
         html2 = admin_client.get("/settings/mcp").data.decode("utf-8")
-        assert "token-reveal" not in html2
+        assert 'class="card token-reveal"' not in html2
         with application.app_context():
             assert McpToken.query.filter_by(name="Hermes").first() is not None
 

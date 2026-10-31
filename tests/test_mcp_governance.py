@@ -536,6 +536,148 @@ class TestPermissionInheritance:
         assert resp.status_code == 401
 
 
+class TestEditAccess:
+    """Admin-only editing of an already-granted access (scope + expiry)."""
+
+    def _grant(self, admin_client, application, username, scope="read_only", expiry="0"):
+        admin_client.post(
+            "/settings/mcp/accesses",
+            data={"username": username, "scope": scope, "expiry": expiry},
+        )
+        with application.app_context():
+            user = User.query.filter_by(username=username).first()
+            access = McpAccess.query.filter_by(user_id=user.id).first()
+            return access.id
+
+    def test_admin_can_change_scope(self, admin_client, application, client):
+        with application.app_context():
+            user = User(
+                username="mcedit1",
+                email="mcedit1@example.com",
+                password_hash="x", role="reader",
+            )
+            db.session.add(user)
+            db.session.commit()
+            app_module.ensure_role_assignments()
+        access_id = self._grant(admin_client, application, "mcedit1", scope="read_only", expiry="0")
+        resp = admin_client.post(
+            f"/settings/mcp/accesses/{access_id}/edit",
+            data={"scope": "full", "expiry": "0"},
+        )
+        assert resp.status_code == 302
+        with application.app_context():
+            access = McpAccess.query.get(access_id)
+            assert access.scope == "full"
+            assert access.expires_at is None
+            token = McpToken.query.filter_by(access_id=access_id).first()
+            assert token.scope == "full"
+
+    def test_admin_can_change_expiry(self, admin_client, application, client):
+        with application.app_context():
+            user = User(
+                username="mcedit2",
+                email="mcedit2@example.com",
+                password_hash="x", role="reader",
+            )
+            db.session.add(user)
+            db.session.commit()
+            app_module.ensure_role_assignments()
+        access_id = self._grant(admin_client, application, "mcedit2", scope="read_only", expiry="0")
+        admin_client.post(
+            f"/settings/mcp/accesses/{access_id}/edit",
+            data={"scope": "read_only", "expiry": "30"},
+        )
+        with application.app_context():
+            access = McpAccess.query.get(access_id)
+            assert access.expires_at is not None
+            assert (access.expires_at - datetime.datetime.now()).days >= 29
+            token = McpToken.query.filter_by(access_id=access_id).first()
+            assert token.expires_at is not None
+
+    def test_keep_current_expiry_when_unchanged(self, admin_client, application, client):
+        with application.app_context():
+            user = User(
+                username="mcedit3",
+                email="mcedit3@example.com",
+                password_hash="x", role="reader",
+            )
+            db.session.add(user)
+            db.session.commit()
+            app_module.ensure_role_assignments()
+        access_id = self._grant(admin_client, application, "mcedit3", scope="read_only", expiry="0")
+        custom = datetime.datetime.now() + datetime.timedelta(days=5)
+        with application.app_context():
+            access = McpAccess.query.get(access_id)
+            access.expires_at = custom
+            db.session.commit()
+        admin_client.post(
+            f"/settings/mcp/accesses/{access_id}/edit",
+            data={"scope": "read_only", "expiry": "5"},
+        )
+        with application.app_context():
+            access = McpAccess.query.get(access_id)
+            delta = (access.expires_at - custom).total_seconds()
+            assert abs(delta) < 5, "expiry changed even though 'keep current' was chosen"
+
+    def test_invalid_values_keep_current_settings(self, admin_client, application, client):
+        with application.app_context():
+            user = User(
+                username="mcedit4",
+                email="mcedit4@example.com",
+                password_hash="x", role="reader",
+            )
+            db.session.add(user)
+            db.session.commit()
+            app_module.ensure_role_assignments()
+        access_id = self._grant(admin_client, application, "mcedit4", scope="read_only", expiry="0")
+        admin_client.post(
+            f"/settings/mcp/accesses/{access_id}/edit",
+            data={"scope": "bogus", "expiry": "bogus"},
+        )
+        with application.app_context():
+            access = McpAccess.query.get(access_id)
+            assert access.scope == "read_only"
+            assert access.expires_at is None
+
+    def test_non_admin_cannot_edit(self, admin_client, client, application):
+        with application.app_context():
+            user = User(
+                username="mcedit5",
+                email="mcedit5@example.com",
+                password_hash="x", role="reader",
+            )
+            db.session.add(user)
+            db.session.commit()
+            app_module.ensure_role_assignments()
+            user_id = user.id
+        access_id = self._grant(admin_client, application, "mcedit5", scope="read_only", expiry="0")
+        _login_as(client, user_id)
+        resp = client.post(
+            f"/settings/mcp/accesses/{access_id}/edit",
+            data={"scope": "full", "expiry": "0"},
+        )
+        # require_app_admin redirects non-admins (403 or 302 both mean denied)
+        assert resp.status_code in (302, 403)
+        with application.app_context():
+            assert McpAccess.query.get(access_id).scope == "read_only"
+
+    def test_page_shows_edit_button(self, admin_client, application):
+        with application.app_context():
+            user = User(
+                username="mcedit6",
+                email="mcedit6@example.com",
+                password_hash="x", role="reader",
+            )
+            db.session.add(user)
+            db.session.commit()
+            app_module.ensure_role_assignments()
+        self._grant(admin_client, application, "mcedit6", scope="read_only", expiry="0")
+        html = admin_client.get("/settings/mcp").data.decode("utf-8")
+        assert "toggleAccessEdit" in html
+        assert ">Edit</button>" in html
+        assert "Save changes" in html
+
+
 class TestUsageAudit:
     def test_usage_logger_records_success(self, application):
         with application.app_context():

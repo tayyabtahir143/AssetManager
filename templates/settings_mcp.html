@@ -1,5 +1,70 @@
 {% extends "base.html" %}
-{% block content %}
+{% block content %}<style>
+  /* ── MCP settings page ─────────────────────────────────────────────── */
+  .settings-stack { display: grid; gap: 16px; }
+
+  /* one-time token reveal */
+  .token-reveal { border-left: 3px solid var(--accent); background: linear-gradient(180deg, var(--accent-dim), var(--surface)); }
+  .token-row { display: flex; gap: 10px; align-items: center; }
+  .token-value {
+    flex: 1; min-width: 0; padding: 10px 12px; border: 1px solid var(--border-2);
+    border-radius: var(--radius-sm); background: var(--bg-2);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 13px; overflow-x: auto; white-space: nowrap;
+  }
+
+  /* client instruction boxes */
+  .client-card {
+    border: 1px solid var(--border); border-radius: var(--radius);
+    background: var(--surface-2); padding: 16px 18px; margin-bottom: 14px;
+  }
+  .client-card:last-child { margin-bottom: 0; }
+  .client-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .client-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .client-name { font-family: var(--font-display); font-size: 16px; font-weight: 600; letter-spacing: 0.02em; color: var(--ink); }
+  .client-tag { margin-left: auto; font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+  .step-list { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 7px; }
+  .step-list li { display: flex; gap: 10px; font-size: 13px; color: var(--ink-2); line-height: 1.5; }
+  .step-num {
+    flex: none; width: 22px; height: 22px; margin-top: 1px; border-radius: 50%;
+    background: var(--accent-dim); color: var(--accent);
+    font-size: 11.5px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+  }
+
+  /* command / config boxes */
+  .code-box {
+    border: 1px solid var(--border-2); border-radius: var(--radius-sm);
+    background: var(--bg-2); overflow: hidden; margin: 2px 0 12px;
+  }
+  .code-box-head {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 6px 10px 6px 12px; border-bottom: 1px solid var(--border); background: var(--surface);
+  }
+  .code-box-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-3); }
+  .code-copy { font-size: 11px; padding: 3px 12px; min-height: 26px; }
+  .code-box pre {
+    margin: 0; padding: 12px 14px; overflow-x: auto;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12.5px; line-height: 1.65; color: var(--ink); white-space: pre;
+  }
+  .code-box code { background: transparent; padding: 0; color: inherit; }
+
+  /* access table edit form */
+  .access-edit-row.hidden { display: none; }
+  .access-edit-row td { padding-top: 0; }
+  .access-edit-box {
+    display: grid; grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) auto auto;
+    gap: 12px; align-items: end; margin-top: 6px;
+    border: 1px dashed var(--border-2); border-radius: var(--radius-sm);
+    background: var(--surface-2); padding: 14px 16px;
+  }
+  .access-edit-box .group { margin: 0; }
+  .access-edit-box label { display: block; font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 6px; }
+  @media (max-width: 760px) {
+    .access-edit-box { grid-template-columns: 1fr; }
+  }
+</style>
+
 <div class="page-header">
   <div class="page-heading">
     <h1 class="page-title">MCP Server</h1>
@@ -137,6 +202,7 @@
             <td><span class="badge {{ 'badge-green' if access.status == 'active' else 'badge-muted' }}">{{ 'Active' if access.status == 'active' else 'Revoked' }}</span></td>
             <td class="row-actions">
               {% if access.status == 'active' %}
+              <button class="button button-sm" type="button" onclick="toggleAccessEdit({{ access.id }})">Edit</button>
               <form method="post" action="{{ url_for('mcp_access_rotate', access_id=access.id) }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="button button-sm" type="submit">Rotate token</button>
@@ -148,6 +214,37 @@
               {% endif %}
             </td>
           </tr>
+          {% if access.status == 'active' %}
+          <tr class="access-edit-row hidden" id="access-edit-{{ access.id }}">
+            <td colspan="6">
+              <form method="post" action="{{ url_for('mcp_access_edit', access_id=access.id) }}" class="access-edit-box">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="group">
+                  <label for="edit-scope-{{ access.id }}">Access level</label>
+                  <select id="edit-scope-{{ access.id }}" name="scope">
+                    <option value="read_only" {{ 'selected' if access.scope == 'read_only' }}>Read only — queries only</option>
+                    <option value="full" {{ 'selected' if access.scope == 'full' }}>Full — whatever their role allows</option>
+                  </select>
+                </div>
+                <div class="group">
+                  <label for="edit-expiry-{{ access.id }}">Auto-revoke after</label>
+                  <select id="edit-expiry-{{ access.id }}" name="expiry">
+                    <option value="0" {{ 'selected' if not access.days_left }}>Never</option>
+                    <option value="7" {{ 'selected' if access.days_left == 7 }}>7 days</option>
+                    <option value="30" {{ 'selected' if access.days_left == 30 }}>30 days</option>
+                    <option value="90" {{ 'selected' if access.days_left == 90 }}>90 days</option>
+                    <option value="365" {{ 'selected' if access.days_left == 365 }}>1 year</option>
+                    {% if access.days_left and access.days_left not in [7, 30, 90, 365] %}
+                    <option value="{{ access.days_left }}" selected>Keep current ({{ access.days_left }} days)</option>
+                    {% endif %}
+                  </select>
+                </div>
+                <button class="button button-primary" type="submit">Save changes</button>
+                <button class="button" type="button" onclick="toggleAccessEdit({{ access.id }})">Cancel</button>
+              </form>
+            </td>
+          </tr>
+          {% endif %}
           {% endfor %}
         </tbody>
       </table>
@@ -244,51 +341,102 @@
     <p class="card-sub">
       Your token is like a password that lets the AI into this inventory — it was sent to you by
       email when access was granted (admins also see it once, above, when they create it).
-      Below, <code>amcp_...</code> stands for your token: replace it with the real one.
+      In the boxes below, <code>amcp_...</code> stands for your token: replace it with the real one.
       If your AI app runs on another computer, also replace <code>127.0.0.1</code> with this
       server's address.
     </p>
 
-    <div class="group">
-      <label>Claude Code (the terminal app for Claude)</label>
-      <p class="card-sub">Open a terminal, run this one command, then restart Claude Code:</p>
-      <pre class="code-block">claude mcp add --transport http assetmanager http://127.0.0.1:{{ gateway_port }}/mcp --header "Authorization: Bearer amcp_..."</pre>
+    <div class="client-card">
+      <div class="client-head">
+        <span class="client-dot" style="background: var(--accent); box-shadow: 0 0 0 4px var(--accent-dim);"></span>
+        <span class="client-name">Claude Code</span>
+        <span class="client-tag">Terminal app for Claude</span>
+      </div>
+      <ol class="step-list">
+        <li><span class="step-num">1</span><span>Open a terminal and run this one command (paste your token where it says amcp_...):</span></li>
+      </ol>
+      <div class="code-box">
+        <div class="code-box-head"><span class="code-box-label">Command</span><button class="button button-sm code-copy" type="button" onclick="copyCode(this, 'cc-claude')">Copy</button></div>
+        <pre id="cc-claude"><code>claude mcp add --transport http assetmanager http://127.0.0.1:{{ gateway_port }}/mcp --header "Authorization: Bearer amcp_..."</code></pre>
+      </div>
+      <ol class="step-list">
+        <li><span class="step-num">2</span><span>Restart Claude Code. Done — ask it about your inventory.</span></li>
+      </ol>
     </div>
 
-    <div class="group">
-      <label>Codex (OpenAI's terminal app)</label>
-      <p class="card-sub">Open a terminal, run this one command, then restart Codex:</p>
-      <pre class="code-block">codex mcp add-json assetmanager '{"type":"http","url":"http://127.0.0.1:{{ gateway_port }}/mcp","headers":{"Authorization":"Bearer amcp_..."}}'</pre>
+    <div class="client-card">
+      <div class="client-head">
+        <span class="client-dot" style="background: var(--green); box-shadow: 0 0 0 4px var(--green-dim);"></span>
+        <span class="client-name">Codex</span>
+        <span class="client-tag">OpenAI's terminal app</span>
+      </div>
+      <ol class="step-list">
+        <li><span class="step-num">1</span><span>Open a terminal and run this one command (paste your token where it says amcp_...):</span></li>
+      </ol>
+      <div class="code-box">
+        <div class="code-box-head"><span class="code-box-label">Command</span><button class="button button-sm code-copy" type="button" onclick="copyCode(this, 'cc-codex')">Copy</button></div>
+        <pre id="cc-codex"><code>codex mcp add-json assetmanager '{"type":"http","url":"http://127.0.0.1:{{ gateway_port }}/mcp","headers":{"Authorization":"Bearer amcp_..."}}'</code></pre>
+      </div>
+      <ol class="step-list">
+        <li><span class="step-num">2</span><span>Restart Codex. Done — ask it about your inventory.</span></li>
+      </ol>
     </div>
 
-    <div class="group">
-      <label>Hermes Agent</label>
-      <p class="card-sub">Step 1 — open a terminal and run this one command:</p>
-      <pre class="code-block">hermes mcp add assetmanager --url http://127.0.0.1:{{ gateway_port }}/mcp --auth header</pre>
-      <p class="card-sub">Step 2 — open Hermes's settings file, <code>~/.hermes/config.yaml</code>,
-        in any text editor. The command above created an <code>assetmanager</code> entry under the
-        <code>mcp_servers:</code> section. Add your token under it so it looks like this:</p>
-      <pre class="code-block">assetmanager:
+    <div class="client-card">
+      <div class="client-head">
+        <span class="client-dot" style="background: var(--blue); box-shadow: 0 0 0 4px var(--blue-dim);"></span>
+        <span class="client-name">Hermes Agent</span>
+        <span class="client-tag">3 steps</span>
+      </div>
+      <ol class="step-list">
+        <li><span class="step-num">1</span><span>Open a terminal and run this one command:</span></li>
+      </ol>
+      <div class="code-box">
+        <div class="code-box-head"><span class="code-box-label">Command</span><button class="button button-sm code-copy" type="button" onclick="copyCode(this, 'cc-hermes1')">Copy</button></div>
+        <pre id="cc-hermes1"><code>hermes mcp add assetmanager --url http://127.0.0.1:{{ gateway_port }}/mcp --auth header</code></pre>
+      </div>
+      <ol class="step-list">
+        <li><span class="step-num">2</span><span>Open Hermes's settings file, <code>~/.hermes/config.yaml</code>, in any text editor.
+          The command above created an <code>assetmanager</code> entry under the
+          <code>mcp_servers:</code> section. Add your token under it so it looks like this:</span></li>
+      </ol>
+      <div class="code-box">
+        <div class="code-box-head"><span class="code-box-label">~/.hermes/config.yaml — paste your token</span><button class="button button-sm code-copy" type="button" onclick="copyCode(this, 'cc-hermes2')">Copy</button></div>
+        <pre id="cc-hermes2"><code>assetmanager:
   url: http://127.0.0.1:{{ gateway_port }}/mcp
   headers:
-    Authorization: "Bearer amcp_..."</pre>
-      <p class="card-sub">Step 3 — save the file and start a new Hermes chat.
-        To check it connected, run: <code>hermes mcp test assetmanager</code></p>
+    Authorization: "Bearer amcp_..."</code></pre>
+      </div>
+      <ol class="step-list">
+        <li><span class="step-num">3</span><span>Save the file and start a new Hermes chat. To check it connected, run:
+          <code>hermes mcp test assetmanager</code></span></li>
+      </ol>
     </div>
 
-    <div class="group">
-      <label>Claude Desktop</label>
-      <p class="card-sub">Open Claude Desktop → Settings → Developer → Edit Config, paste this
-        block into the file, then restart Claude Desktop:</p>
-      <pre class="code-block">// claude_desktop_config.json
-{
+    <div class="client-card">
+      <div class="client-head">
+        <span class="client-dot" style="background: var(--warning); box-shadow: 0 0 0 4px var(--warning-dim);"></span>
+        <span class="client-name">Claude Desktop</span>
+        <span class="client-tag">Desktop app</span>
+      </div>
+      <ol class="step-list">
+        <li><span class="step-num">1</span><span>Open Claude Desktop → Settings → Developer → Edit Config.</span></li>
+        <li><span class="step-num">2</span><span>Paste this block into the file, replacing amcp_... with your token:</span></li>
+      </ol>
+      <div class="code-box">
+        <div class="code-box-head"><span class="code-box-label">claude_desktop_config.json</span><button class="button button-sm code-copy" type="button" onclick="copyCode(this, 'cc-desktop')">Copy</button></div>
+        <pre id="cc-desktop"><code>{
   "mcpServers": {
     "assetmanager": {
       "url": "http://127.0.0.1:{{ gateway_port }}/mcp",
       "headers": { "Authorization": "Bearer amcp_..." }
     }
   }
-}</pre>
+}</code></pre>
+      </div>
+      <ol class="step-list">
+        <li><span class="step-num">3</span><span>Save and restart Claude Desktop. Done.</span></li>
+      </ol>
     </div>
 
     <p class="card-sub">
@@ -298,4 +446,25 @@
     </p>
   </section>
 </div>
+
+<script>
+  function copyCode(btn, id) {
+    var pre = document.getElementById(id);
+    if (!pre) return;
+    var text = pre.innerText;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        btn.textContent = 'Copied';
+        setTimeout(function () { btn.textContent = 'Copy'; }, 1500);
+      });
+    } else {
+      btn.textContent = 'Copy failed';
+      setTimeout(function () { btn.textContent = 'Copy'; }, 1500);
+    }
+  }
+  function toggleAccessEdit(id) {
+    var row = document.getElementById('access-edit-' + id);
+    if (row) row.classList.toggle('hidden');
+  }
+</script>
 {% endblock %}

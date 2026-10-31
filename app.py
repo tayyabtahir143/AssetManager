@@ -10410,6 +10410,12 @@ def mcp_settings():
                 .order_by(McpToken.id.desc())
                 .first()
             )
+            if access.expires_at:
+                delta = access.expires_at - datetime.datetime.now()
+                secs = max(1, int(delta.total_seconds()))
+                access.days_left = int(secs // 86400) + (1 if secs % 86400 else 0)
+            else:
+                access.days_left = None
         context["legacy_tokens"] = (
             McpToken.query.filter(McpToken.access_id.is_(None))
             .order_by(McpToken.created_at.desc())
@@ -10776,6 +10782,43 @@ def mcp_access_revoke(access_id):
         )
     log_audit("revoke", "mcp_access", entity_id=access_id, details=owner.username if owner else "")
     flash("Access revoked." + ("" if sent else " (email skipped — SMTP not configured)"), "success")
+    return redirect(url_for("mcp_settings"))
+
+
+@app.route("/settings/mcp/accesses/<int:access_id>/edit", methods=["POST"])
+@login_required
+@require_app_admin
+def mcp_access_edit(access_id):
+    """Admin-only: change an existing access's scope and/or expiry."""
+    access = McpAccess.query.get_or_404(access_id)
+    scope = request.form.get("scope", access.scope).strip()
+    if scope not in {"read_only", "full"}:
+        scope = access.scope
+    expiry_raw = _parse_int(request.form.get("expiry", ""), None)
+    expiry_changed = expiry_raw in {0, 7, 30, 90, 365}
+    if expiry_changed:
+        access.expires_at = (
+            datetime.datetime.now() + datetime.timedelta(days=expiry_raw)
+            if expiry_raw
+            else None
+        )
+    access.scope = scope
+    for token in McpToken.query.filter_by(access_id=access.id).all():
+        token.scope = scope
+        if expiry_changed:
+            token.expires_at = access.expires_at
+    db.session.commit()
+    owner = User.query.get(access.user_id)
+    log_audit(
+        "edit",
+        "mcp_access",
+        entity_id=access_id,
+        details=(
+            f"{(owner.username if owner else '?')} scope={scope} "
+            f"expiry={'unchanged' if not expiry_changed else (expiry_raw or 'never')}"
+        ),
+    )
+    flash("Access updated.", "success")
     return redirect(url_for("mcp_settings"))
 
 
