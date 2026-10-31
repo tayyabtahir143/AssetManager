@@ -474,6 +474,22 @@ class AuditLog(db.Model):
     details = db.Column(db.Text, nullable=True)
 
 
+class McpConfig(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    enabled = db.Column(db.Boolean, nullable=False, default=False)
+
+
+class McpToken(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(80), nullable=False)
+    token_hash = db.Column(db.String(64), unique=True, nullable=False)
+    scope = db.Column(db.String(16), nullable=False, default="read_only")  # read_only | full
+    user_id = db.Column(db.Integer, nullable=False)
+    enabled = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=func.now())
+    last_used_at = db.Column(db.DateTime, nullable=True)
+
+
 class SMTPConfig(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     host = db.Column(db.String(255))
@@ -616,6 +632,43 @@ ICON_CHOICES = [
 
 def is_valid_asset_icon(icon):
     return bool(icon) and icon in ASSET_ICONS
+
+
+def generate_mcp_token():
+    """Issue a new API token. Only the SHA-256 digest is stored; the plaintext
+    is shown once at creation time."""
+    return "amcp_" + secrets.token_urlsafe(32)
+
+
+def hash_mcp_token(token):
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def get_mcp_config():
+    config = McpConfig.query.get(1)
+    if config is None:
+        config = McpConfig(id=1, enabled=False)
+        db.session.add(config)
+        db.session.commit()
+    return config
+
+
+def _resolve_mcp_token(token):
+    """Validate an amcp_* API token. Returns (user, scope) or (None, None)."""
+    if not token.startswith("amcp_"):
+        return None, None
+    config = McpConfig.query.get(1)
+    if config is None or not config.enabled:
+        return None, None
+    row = McpToken.query.filter_by(token_hash=hash_mcp_token(token)).first()
+    if row is None or not row.enabled:
+        return None, None
+    user = User.query.get(row.user_id)
+    if not user:
+        return None, None
+    row.last_used_at = datetime.datetime.now()
+    db.session.commit()
+    return user, row.scope
 
 
 class BuiltinAssetFieldSetting(db.Model):
@@ -5241,17 +5294,26 @@ def api_auth_required(asset_type=None, permission=None):
             if not auth_header.startswith("Bearer "):
                 return jsonify({"error": "Missing token"}), 401
             token = auth_header.split(" ", 1)[1].strip()
+            mcp_scope = None
             try:
                 payload = _jwt_decode(token)
             except Exception:
-                return jsonify({"error": "Invalid token"}), 401
-            if payload.get("type") != "access":
-                return jsonify({"error": "Invalid token type"}), 401
-            user_id = payload.get("sub")
-            user = User.query.get(user_id) if user_id else None
+                payload = None
+            if payload is not None:
+                if payload.get("type") != "access":
+                    return jsonify({"error": "Invalid token type"}), 401
+                user_id = payload.get("sub")
+                user = User.query.get(user_id) if user_id else None
+            else:
+                user, mcp_scope = _resolve_mcp_token(token)
+                if user is None:
+                    return jsonify({"error": "Invalid token"}), 401
+                if request.method != "GET" and mcp_scope != "full":
+                    return jsonify({"error": "This token is read-only"}), 403
             if not user:
                 return jsonify({"error": "User not found"}), 401
             request.api_user = user
+            request.api_mcp_scope = mcp_scope
             if permission:
                 if asset_type:
                     perms = get_role_asset_permissions(user, asset_type)
@@ -10212,6 +10274,87 @@ def api_v1_custom_assets_list(asset_key):
 @csrf.exempt
 def api_v1_custom_assets_get(asset_key, item_id):
     return api_custom_assets_get(asset_key, item_id)
+
+# ---------------------------------------------------------------------------
+# MCP management — app-admins configure the MCP gateway: enable/disable and
+# scoped API tokens (read_only | full). Tokens are hashed at rest and shown
+# once at creation.
+# ---------------------------------------------------------------------------
+
+@app.route("/settings/mcp")
+@login_required
+@require_app_admin
+def mcp_settings():
+    config = get_mcp_config()
+    tokens = McpToken.query.order_by(McpToken.created_at.desc()).all()
+    new_token = session.pop("mcp_new_token", None)
+    return render_template(
+        "settings_mcp.html", config=config, tokens=tokens, new_token=new_token
+    )
+
+
+@app.route("/settings/mcp/toggle", methods=["POST"])
+@login_required
+@require_app_admin
+def mcp_settings_toggle():
+    config = get_mcp_config()
+    config.enabled = "enabled" in request.form
+    db.session.commit()
+    log_audit("update", "mcp_config", entity_id="global", details=f"enabled={config.enabled}")
+    flash("MCP gateway " + ("enabled." if config.enabled else "disabled."), "success")
+    return redirect(url_for("mcp_settings"))
+
+
+@app.route("/settings/mcp/tokens", methods=["POST"])
+@login_required
+@require_app_admin
+def mcp_token_create():
+    name = request.form.get("name", "").strip()
+    scope = request.form.get("scope", "read_only").strip()
+    if scope not in {"read_only", "full"}:
+        scope = "read_only"
+    if not name:
+        flash("Token name is required.", "error")
+        return redirect(url_for("mcp_settings"))
+    token = generate_mcp_token()
+    db.session.add(
+        McpToken(
+            name=name,
+            token_hash=hash_mcp_token(token),
+            scope=scope,
+            user_id=get_current_user().id,
+        )
+    )
+    db.session.commit()
+    session["mcp_new_token"] = token
+    log_audit("create", "mcp_token", details=f"{name} scope={scope}")
+    flash("Token created. Copy it now — it will not be shown again.", "success")
+    return redirect(url_for("mcp_settings"))
+
+
+@app.route("/settings/mcp/tokens/<int:token_id>/revoke", methods=["POST"])
+@login_required
+@require_app_admin
+def mcp_token_revoke(token_id):
+    token = McpToken.query.get_or_404(token_id)
+    token.enabled = False
+    db.session.commit()
+    log_audit("update", "mcp_token", entity_id=token_id, details=f"revoked {token.name}")
+    flash("Token revoked.", "success")
+    return redirect(url_for("mcp_settings"))
+
+
+@app.route("/settings/mcp/tokens/<int:token_id>/delete", methods=["POST"])
+@login_required
+@require_app_admin
+def mcp_token_delete(token_id):
+    token = McpToken.query.get_or_404(token_id)
+    db.session.delete(token)
+    db.session.commit()
+    log_audit("delete", "mcp_token", entity_id=token_id, details=f"deleted {token.name}")
+    flash("Token deleted.", "success")
+    return redirect(url_for("mcp_settings"))
+
 
 
 if __name__ == "__main__":

@@ -64,11 +64,9 @@ body.auth-page::before {
   content: "";
   position: fixed;
   top: 0; left: 0; right: 0;
-  height: 6px;
+  height: 1px;
   z-index: 3;
-  background-color: #14120e;
-  background-image: var(--auth-stripe);
-  background-size: 14px 14px;
+  background: var(--auth-line);
 }
 ::selection { background: rgba(255, 176, 46, 0.32); color: var(--auth-ink); }
 [data-theme="light"] ::selection { background: rgba(143, 86, 0, 0.22); }
@@ -144,10 +142,8 @@ body.auth-page::before {
 .auth-layout::before {
   content: "";
   display: block;
-  height: 6px;
-  background-color: #14120e;
-  background-image: var(--auth-stripe);
-  background-size: 14px 14px;
+  height: 1px;
+  background: var(--auth-line);
 }
 .auth-brand {
   padding: 26px 32px 18px;

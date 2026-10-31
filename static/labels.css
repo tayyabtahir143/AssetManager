@@ -29,11 +29,9 @@
   content: "";
   position: absolute;
   top: 0; left: 0; right: 0;
-  height: 5px;
+  height: 2px;
   border-radius: calc(var(--radius) - 1px) calc(var(--radius) - 1px) 0 0;
-  background-color: #14120e;
-  background-image: var(--stripe);
-  background-size: 14px 14px;
+  background: var(--accent);
 }
 .label-card:hover { border-color: var(--accent); }
 .label-info {

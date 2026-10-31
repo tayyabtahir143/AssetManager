@@ -51,11 +51,8 @@
   content: "";
   position: absolute;
   top: 0; left: 0; right: 0;
-  height: 5px;
-  border-radius: calc(var(--radius-sm) - 1px) calc(var(--radius-sm) - 1px) 0 0;
-  background-color: #14120e;
-  background-image: var(--stripe);
-  background-size: 14px 14px;
+  height: 1px;
+  background: var(--edge);
   pointer-events: none;
   z-index: 1;
 }

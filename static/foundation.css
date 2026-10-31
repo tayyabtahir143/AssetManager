@@ -367,13 +367,10 @@ body::before {
 ::-webkit-scrollbar-thumb:hover { background: var(--ink-3); }
 a { color: var(--accent); text-underline-offset: 3px; }
 
-/* The signature mark: a hazard-tape band. One authored stripe, reused as
-   the world's stamp on the shell, dialogs, editors, labels and login. */
+/* Thin separator band used across the shell (hairline, no pattern). */
 .stripe-band {
-  height: 5px;
-  background-color: #14120e;
-  background-image: var(--stripe);
-  background-size: 14px 14px;
+  height: 1px;
+  background: var(--edge);
   flex: none;
 }
 
@@ -577,10 +574,8 @@ a { color: var(--accent); text-underline-offset: 3px; }
   content: "";
   position: absolute;
   top: 0; left: 0; right: 0;
-  height: 5px;
-  background-color: #14120e;
-  background-image: var(--stripe);
-  background-size: 14px 14px;
+  height: 1px;
+  background: var(--edge);
 }
 .topbar-left { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1; }
 .topbar-right { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
@@ -1097,11 +1092,8 @@ form.inline { display: inline; }
   content: "";
   position: absolute;
   top: 0; left: 0; right: 0;
-  height: 5px;
-  border-radius: calc(var(--radius) - 1px) calc(var(--radius) - 1px) 0 0;
-  background-color: #14120e;
-  background-image: var(--stripe);
-  background-size: 14px 14px;
+  height: 1px;
+  background: var(--edge);
 }
 .autologout-icon {
   width: 52px; height: 52px; border-radius: 10px;

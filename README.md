@@ -609,16 +609,19 @@ curl -X POST http://localhost:5000/api/v1/auth/refresh \
 
 ### MCP Server (LLM integration)
 
-`mcp_server.py` exposes the read-only REST API as MCP tools so LLM clients can query assets, users, departments, roles, groups, the audit log and dashboard KPIs. All tools are read-only.
+`mcp_server.py` exposes the REST API as MCP tools so LLM clients can query assets, users, departments, roles, groups, the audit log and dashboard KPIs. Manage everything from **Settings → MCP** in the web UI:
+
+- **Gateway toggle** — enable or disable token-based MCP access (username/password JWT API access is unaffected).
+- **API tokens** — create named tokens with a scope: **Read only** (query-only) or **Full access** (includes create/update/delete through the API). Tokens are stored as SHA-256 hashes, shown once at creation, and can be revoked or deleted at any time; the UI shows last-used timestamps.
 
 ```bash
 # 1. Install dependencies
 pip install -r requirements.txt   # adds mcp + httpx
 
-# 2. Point it at your AssetManager and give it credentials
+# 2. Create a token in the app: Settings → MCP → Create token
+#    (read-only or full access), then point the server at it
 export ASSET_MANAGER_URL=http://localhost:5000
-export ASSET_MANAGER_USERNAME=admin
-export ASSET_MANAGER_PASSWORD=your-password   # or ASSET_MANAGER_TOKEN=<jwt>
+export ASSET_MANAGER_TOKEN=amcp_...   # or ASSET_MANAGER_USERNAME + ASSET_MANAGER_PASSWORD
 
 # 3a. stdio (local clients — Claude Desktop, Codex CLI)
 python mcp_server.py
@@ -637,8 +640,7 @@ Claude Desktop config example (`claude_desktop_config.json`):
       "args": ["/path/to/AssetManager/mcp_server.py"],
       "env": {
         "ASSET_MANAGER_URL": "http://localhost:5000",
-        "ASSET_MANAGER_USERNAME": "admin",
-        "ASSET_MANAGER_PASSWORD": "your-password"
+        "ASSET_MANAGER_TOKEN": "amcp_your-token-from-settings"
       }
     }
   }

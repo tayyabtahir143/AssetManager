@@ -52,6 +52,9 @@ class AssetManagerClient:
         return {"Authorization": f"Bearer {self._access_token}"}
 
     def _ensure_token(self):
+        if self._access_token and self._access_token.startswith("amcp_"):
+            # App-issued MCP tokens are long-lived; no login/refresh needed.
+            return
         if self._access_token and time.time() < self._expires_at - 30:
             return
         if self._refresh_token:

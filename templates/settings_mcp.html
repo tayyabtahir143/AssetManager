@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="page-header">
+  <div class="page-heading">
+    <h1 class="page-title">MCP Server</h1>
+    <p class="page-subtitle">Let LLM clients (Claude Desktop, Codex, Hermes, Cursor) query this inventory through the MCP gateway. Every request is authenticated by an API token with a read-only or full-access scope.</p>
+  </div>
+</div>
+
+<div class="settings-stack">
+  <section class="card">
+    <div class="card-head">
+      <div>
+        <h2 class="card-title">Gateway</h2>
+        <p class="card-sub">Enable or disable token-based MCP access. Username/password JWT API access is not affected by this switch.</p>
+      </div>
+      <form method="post" action="{{ url_for('mcp_settings_toggle') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="button {{ 'button-primary' if not config.enabled else '' }}" type="submit" name="{{ 'enabled' if not config.enabled else 'disabled' }}">
+          {{ 'Enable MCP' if not config.enabled else 'Disable MCP' }}
+        </button>
+      </form>
+    </div>
+    <p class="status-line">
+      Status:
+      <span class="badge {{ 'badge-green' if config.enabled else 'badge-muted' }}">
+        {{ 'Enabled' if config.enabled else 'Disabled' }}
+      </span>
+    </p>
+  </section>
+
+  {% if new_token %}
+  <section class="card token-reveal">
+    <h2 class="card-title">New token — copy it now</h2>
+    <p class="card-sub">This token is shown only once. Store it in your MCP client's configuration.</p>
+    <div class="token-row">
+      <code class="token-value">{{ new_token }}</code>
+      <button class="button" type="button" onclick="navigator.clipboard.writeText('{{ new_token }}'); this.textContent='Copied';">Copy</button>
+    </div>
+  </section>
+  {% endif %}
+
+  <section class="card">
+    <h2 class="card-title">Create token</h2>
+    <form method="post" action="{{ url_for('mcp_token_create') }}" class="token-create">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="group">
+        <label for="name">Name</label>
+        <input id="name" name="name" type="text" placeholder="e.g. Claude Desktop — prod" required>
+      </div>
+      <div class="group">
+        <label for="scope">Access</label>
+        <select id="scope" name="scope">
+          <option value="read_only">Read only — query assets, users, departments, audit log</option>
+          <option value="full">Full access — includes create, update and delete through the API</option>
+        </select>
+      </div>
+      <button class="button button-primary" type="submit">Create token</button>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2 class="card-title">Tokens</h2>
+    {% if tokens %}
+    <div class="table-wrap">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Access</th>
+            <th>Created</th>
+            <th>Last used</th>
+            <th>Status</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for token in tokens %}
+          <tr>
+            <td>{{ token.name }}</td>
+            <td>
+              <span class="badge {{ 'badge-blue' if token.scope == 'full' else 'badge-muted' }}">
+                {{ 'Full access' if token.scope == 'full' else 'Read only' }}
+              </span>
+            </td>
+            <td>{{ token.created_at.strftime('%Y-%m-%d %H:%M') if token.created_at else '—' }}</td>
+            <td>{{ token.last_used_at.strftime('%Y-%m-%d %H:%M') if token.last_used_at else 'never' }}</td>
+            <td>
+              <span class="badge {{ 'badge-green' if token.enabled else 'badge-muted' }}">
+                {{ 'Active' if token.enabled else 'Revoked' }}
+              </span>
+            </td>
+            <td class="row-actions">
+              {% if token.enabled %}
+              <form method="post" action="{{ url_for('mcp_token_revoke', token_id=token.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="button button-sm" type="submit">Revoke</button>
+              </form>
+              {% endif %}
+              <form method="post" action="{{ url_for('mcp_token_delete', token_id=token.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="button button-sm button-danger" type="submit">Delete</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="muted">No tokens yet. Create one above to connect your first MCP client.</p>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <h2 class="card-title">Connect a client</h2>
+    <p class="card-sub">Run the bundled server and export your token:</p>
+    <pre class="code-block">export ASSET_MANAGER_URL=http://127.0.0.1:5000
+export ASSET_MANAGER_TOKEN=amcp_...
+python mcp_server.py                                  # stdio
+python mcp_server.py --transport streamable-http --port 8765   # HTTP: /mcp</pre>
+  </section>
+</div>
+{% endblock %}
