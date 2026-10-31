@@ -27,6 +27,7 @@
   --accent-2:    #ffc155;
   --accent-dim:  rgba(255, 176, 46, 0.13);
   --accent-glow: none;
+  --accent-edge: #b97a0d;   /* darker enamel rim for accent plates */
   --on-accent:   #1a1206;
   --blue:        #6fb1f2;
   --blue-dim:    rgba(111, 177, 242, 0.14);
@@ -80,12 +81,13 @@
   --accent-2:    #6a3e00;
   --accent-dim:  rgba(125, 74, 0, 0.10);
   --accent-glow: none;
+  --accent-edge: #6a3e00;
   --on-accent:   #f8f5ec;
-  --blue:        #2b6cb0;
+  --blue:        #24598f;
   --blue-dim:    rgba(43, 108, 176, 0.12);
-  --green:       #1d7a3e;
+  --green:       #166433;
   --green-dim:   rgba(29, 122, 62, 0.12);
-  --danger:      #b5332a;
+  --danger:      #9c2b23;
   --danger-dim:  rgba(181, 51, 42, 0.11);
   --warning:     #7d4a00;
   --warning-dim: rgba(125, 74, 0, 0.10);
@@ -99,27 +101,84 @@
 }
 
 /* ── Colour schemes: six enamel recipes ──────────────────────────────────
-   Each scheme re-tints the accent family (plus the accent-tinted ring and
-   warning tokens) for both shifts. Amber is the default — :root holds it,
-   so no [data-scheme="amber"] block exists. The [data-scheme][data-theme]
-   pairs win over the single-attribute rules by specificity. ─────────────── */
+   Each scheme re-tints BOTH the accent family and the semantic status
+   family for both shifts — green (in stock / success), blue (assigned /
+   info), warning (pending; always an amber/yellow), danger (broken),
+   and muted — so status surfaces harmonise with the accent instead of
+   staying stock. Hue families stay recognisable across schemes; only
+   angle, saturation and lightness are tuned (WCAG AA badge contrast is
+   maintained for every scheme × shift pair). Amber is the default — its
+   values are pinned in :root, with an explicit block for uniformity.
+   The [data-scheme][data-theme] pairs win over the single-attribute
+   rules by specificity. ──────────────────────────────────────────────── */
+[data-scheme="amber"] {
+  --accent:      #ffb02e;
+  --accent-2:    #ffc155;
+  --accent-dim:  rgba(255, 176, 46, 0.13);
+  --accent-edge: #b97a0d;
+  --on-accent:   #1a1206;
+  --ring:        rgba(255, 176, 46, 0.42);
+  --green:      #5fce8e;
+  --green-dim:  rgba(95, 206, 142, 0.14);
+  --blue:       #6fb1f2;
+  --blue-dim:   rgba(111, 177, 242, 0.14);
+  --warning:    #ffb02e;
+  --warning-dim: rgba(255, 176, 46, 0.14);
+  --danger:     #ef6a5e;
+  --danger-dim: rgba(239, 106, 94, 0.14);
+  --muted:      #98917d;
+}
+[data-scheme="amber"][data-theme="light"] {
+  --accent:      #7d4a00;
+  --accent-2:    #6a3e00;
+  --accent-dim:  rgba(125, 74, 0, 0.10);
+  --accent-edge: #6a3e00;
+  --on-accent:   #f8f5ec;
+  --ring:        rgba(125, 74, 0, 0.4);
+  --green:      #1d7a3e;
+  --green-dim:  rgba(29, 122, 62, 0.12);
+  --blue:       #2b6cb0;
+  --blue-dim:   rgba(43, 108, 176, 0.12);
+  --warning:    #7d4a00;
+  --warning-dim: rgba(125, 74, 0, 0.10);
+  --danger:     #b5332a;
+  --danger-dim: rgba(181, 51, 42, 0.11);
+  --muted:      #6f6752;
+}
+
 [data-scheme="indigo"] {
   --accent:      #818cf8;
   --accent-2:    #a5b4fc;
   --accent-dim:  rgba(129, 140, 248, 0.15);
+  --accent-edge: #5b63c8;
   --on-accent:   #0b0e26;
   --ring:        rgba(129, 140, 248, 0.42);
-  --warning:     #818cf8;
-  --warning-dim: rgba(129, 140, 248, 0.14);
+  --green:       #6fbd9d;
+  --green-dim:   rgba(111, 189, 157, 0.14);
+  --blue:        #8b9cf2;
+  --blue-dim:    rgba(139, 156, 242, 0.14);
+  --warning:     #e2ac55;
+  --warning-dim: rgba(226, 172, 85, 0.14);
+  --danger:      #f57e8e;
+  --danger-dim:  rgba(245, 126, 142, 0.14);
+  --muted:       #8b93a8;
 }
 [data-scheme="indigo"][data-theme="light"] {
   --accent:      #4f46e5;
   --accent-2:    #4338ca;
   --accent-dim:  rgba(79, 70, 229, 0.12);
+  --accent-edge: #4338ca;
   --on-accent:   #f8f5ec;
   --ring:        rgba(79, 70, 229, 0.35);
-  --warning:     #4f46e5;
-  --warning-dim: rgba(79, 70, 229, 0.11);
+  --green:       #266046;
+  --green-dim:   rgba(38, 96, 70, 0.12);
+  --blue:        #3d4bc2;
+  --blue-dim:    rgba(61, 75, 194, 0.12);
+  --warning:     #7d5200;
+  --warning-dim: rgba(125, 82, 0, 0.10);
+  --danger:      #9a2f42;
+  --danger-dim:  rgba(154, 47, 66, 0.11);
+  --muted:       #5c6170;
 }
 [data-scheme="indigo"] ::selection { background: rgba(129, 140, 248, 0.32); }
 [data-scheme="indigo"][data-theme="light"] ::selection { background: rgba(79, 70, 229, 0.22); }
@@ -128,19 +187,35 @@
   --accent:      #34d399;
   --accent-2:    #6ee7b7;
   --accent-dim:  rgba(52, 211, 153, 0.15);
+  --accent-edge: #0ea371;
   --on-accent:   #04150f;
   --ring:        rgba(52, 211, 153, 0.42);
-  --warning:     #34d399;
-  --warning-dim: rgba(52, 211, 153, 0.14);
+  --green:       #57d98f;
+  --green-dim:   rgba(87, 217, 143, 0.14);
+  --blue:        #55c8bd;
+  --blue-dim:    rgba(85, 200, 189, 0.14);
+  --warning:     #ffc155;
+  --warning-dim: rgba(255, 193, 85, 0.14);
+  --danger:      #f47b70;
+  --danger-dim:  rgba(244, 123, 112, 0.14);
+  --muted:       #8ba396;
 }
 [data-scheme="emerald"][data-theme="light"] {
   --accent:      #047857;
   --accent-2:    #065f46;
   --accent-dim:  rgba(4, 120, 87, 0.12);
+  --accent-edge: #065f46;
   --on-accent:   #f8f5ec;
   --ring:        rgba(4, 120, 87, 0.35);
-  --warning:     #047857;
-  --warning-dim: rgba(4, 120, 87, 0.11);
+  --green:       #0d6637;
+  --green-dim:   rgba(13, 102, 55, 0.12);
+  --blue:        #09685f;
+  --blue-dim:    rgba(9, 104, 95, 0.12);
+  --warning:     #7d5405;
+  --warning-dim: rgba(125, 84, 5, 0.10);
+  --danger:      #9e2a26;
+  --danger-dim:  rgba(158, 42, 38, 0.11);
+  --muted:       #5f6f64;
 }
 [data-scheme="emerald"] ::selection { background: rgba(52, 211, 153, 0.32); }
 [data-scheme="emerald"][data-theme="light"] ::selection { background: rgba(4, 120, 87, 0.22); }
@@ -149,19 +224,35 @@
   --accent:      #fb7185;
   --accent-2:    #fda4af;
   --accent-dim:  rgba(251, 113, 133, 0.15);
+  --accent-edge: #e0455f;
   --on-accent:   #2b0a10;
   --ring:        rgba(251, 113, 133, 0.42);
-  --warning:     #fb7185;
-  --warning-dim: rgba(251, 113, 133, 0.14);
+  --green:       #9bd06b;
+  --green-dim:   rgba(155, 208, 107, 0.14);
+  --blue:        #9aa3f0;
+  --blue-dim:    rgba(154, 163, 240, 0.14);
+  --warning:     #ffbf4f;
+  --warning-dim: rgba(255, 191, 79, 0.14);
+  --danger:      #f67b79;
+  --danger-dim:  rgba(246, 123, 121, 0.14);
+  --muted:       #a19397;
 }
 [data-scheme="rose"][data-theme="light"] {
   --accent:      #be123c;
   --accent-2:    #9f1239;
   --accent-dim:  rgba(190, 18, 60, 0.12);
+  --accent-edge: #9f1239;
   --on-accent:   #f8f5ec;
   --ring:        rgba(190, 18, 60, 0.35);
-  --warning:     #be123c;
-  --warning-dim: rgba(190, 18, 60, 0.11);
+  --green:       #465f1d;
+  --green-dim:   rgba(70, 95, 29, 0.12);
+  --blue:        #4e48b3;
+  --blue-dim:    rgba(78, 72, 179, 0.12);
+  --warning:     #7d4e00;
+  --warning-dim: rgba(125, 78, 0, 0.10);
+  --danger:      #a92e44;
+  --danger-dim:  rgba(169, 46, 68, 0.11);
+  --muted:       #73646a;
 }
 [data-scheme="rose"] ::selection { background: rgba(251, 113, 133, 0.32); }
 [data-scheme="rose"][data-theme="light"] ::selection { background: rgba(190, 18, 60, 0.22); }
@@ -170,19 +261,35 @@
   --accent:      #38bdf8;
   --accent-2:    #7dd3fc;
   --accent-dim:  rgba(56, 189, 248, 0.14);
+  --accent-edge: #0284c7;
   --on-accent:   #08141c;
   --ring:        rgba(56, 189, 248, 0.42);
-  --warning:     #38bdf8;
-  --warning-dim: rgba(56, 189, 248, 0.14);
+  --green:       #5cd4a9;
+  --green-dim:   rgba(92, 212, 169, 0.14);
+  --blue:        #5cc5f5;
+  --blue-dim:    rgba(92, 197, 245, 0.14);
+  --warning:     #f8c05c;
+  --warning-dim: rgba(248, 192, 92, 0.14);
+  --danger:      #f57c72;
+  --danger-dim:  rgba(245, 124, 114, 0.14);
+  --muted:       #8ba3ac;
 }
 [data-scheme="ocean"][data-theme="light"] {
   --accent:      #0369a1;
   --accent-2:    #075985;
   --accent-dim:  rgba(3, 105, 161, 0.12);
+  --accent-edge: #075985;
   --on-accent:   #f8f5ec;
   --ring:        rgba(3, 105, 161, 0.35);
-  --warning:     #0369a1;
-  --warning-dim: rgba(3, 105, 161, 0.11);
+  --green:       #0c634c;
+  --green-dim:   rgba(12, 99, 76, 0.12);
+  --blue:        #0b5e8f;
+  --blue-dim:    rgba(11, 94, 143, 0.12);
+  --warning:     #7a4f06;
+  --warning-dim: rgba(122, 79, 6, 0.10);
+  --danger:      #9e2a2a;
+  --danger-dim:  rgba(158, 42, 42, 0.11);
+  --muted:       #5e7078;
 }
 [data-scheme="ocean"] ::selection { background: rgba(56, 189, 248, 0.32); }
 [data-scheme="ocean"][data-theme="light"] ::selection { background: rgba(3, 105, 161, 0.22); }
@@ -191,19 +298,35 @@
   --accent:      #94a3b8;
   --accent-2:    #cbd5e1;
   --accent-dim:  rgba(148, 163, 184, 0.15);
+  --accent-edge: #64748b;
   --on-accent:   #10141b;
   --ring:        rgba(148, 163, 184, 0.42);
-  --warning:     #94a3b8;
-  --warning-dim: rgba(148, 163, 184, 0.14);
+  --green:       #7fb48f;
+  --green-dim:   rgba(127, 180, 143, 0.14);
+  --blue:        #8aa4c4;
+  --blue-dim:    rgba(138, 164, 196, 0.14);
+  --warning:     #c9a25f;
+  --warning-dim: rgba(201, 162, 95, 0.14);
+  --danger:      #d59086;
+  --danger-dim:  rgba(213, 144, 134, 0.14);
+  --muted:       #8c94a2;
 }
 [data-scheme="slate"][data-theme="light"] {
   --accent:      #475569;
   --accent-2:    #334155;
   --accent-dim:  rgba(71, 85, 105, 0.12);
+  --accent-edge: #334155;
   --on-accent:   #f8f5ec;
   --ring:        rgba(71, 85, 105, 0.35);
-  --warning:     #475569;
-  --warning-dim: rgba(71, 85, 105, 0.11);
+  --green:       #405d46;
+  --green-dim:   rgba(64, 93, 70, 0.12);
+  --blue:        #485d7c;
+  --blue-dim:    rgba(72, 93, 124, 0.12);
+  --warning:     #6b5227;
+  --warning-dim: rgba(107, 82, 39, 0.10);
+  --danger:      #81443d;
+  --danger-dim:  rgba(129, 68, 61, 0.11);
+  --muted:       #5f6671;
 }
 [data-scheme="slate"] ::selection { background: rgba(148, 163, 184, 0.32); }
 [data-scheme="slate"][data-theme="light"] ::selection { background: rgba(71, 85, 105, 0.22); }
@@ -600,7 +723,7 @@ a.card:hover { border-color: var(--ring); }
   padding: 8px 14px; border-radius: 7px;
   font-size: 12.5px; font-weight: 600;
   text-decoration: none; cursor: pointer;
-  border: 1px solid #b97a0d;
+  border: 1px solid var(--accent-edge);
   transition: background var(--transition), border-color var(--transition), transform var(--transition), color var(--transition);
   font-family: inherit;
   white-space: nowrap;
@@ -611,7 +734,7 @@ a.card:hover { border-color: var(--ring); }
 }
 .button:hover { background: var(--accent-2); transform: translateY(-1px); }
 .button:active { transform: translateY(1px); box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3); }
-[data-theme="light"] .button { border-color: #6a3e00; box-shadow: 0 1px 0 rgba(58, 48, 26, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.25); }
+[data-theme="light"] .button { border-color: var(--accent-edge); box-shadow: 0 1px 0 rgba(58, 48, 26, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.25); }
 .button.secondary {
   background: var(--surface-2);
   color: var(--ink-2);

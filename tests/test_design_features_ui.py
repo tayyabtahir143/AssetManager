@@ -114,6 +114,101 @@ class TestColourSchemeTokens:
             assert css.count(token) >= len(SCHEMES), token
 
 
+class TestSemanticStatusTokens:
+    """The six schemes tune the semantic status family (green/blue/warning/
+    danger/muted) for both shifts, and surfaces consume the tokens instead of
+    hardcoded stock status hexes."""
+
+    SEMANTIC = ("--green", "--green-dim", "--blue", "--blue-dim",
+                "--warning", "--warning-dim", "--danger", "--danger-dim",
+                "--muted")
+
+    @staticmethod
+    def _scheme_blocks(css):
+        import re
+
+        blocks = {scheme: {"night": "", "light": ""} for scheme in SCHEMES}
+        for match in re.finditer(
+            r'\[data-scheme="([a-z]+)"\](?:\[data-theme="light"\])?\s*\{([^}]*)\}',
+            css,
+        ):
+            scheme = match.group(1)
+            if scheme not in blocks:
+                continue
+            shift = "light" if '[data-theme="light"]' in match.group(0) else "night"
+            blocks[scheme][shift] = match.group(2)
+        return blocks
+
+    def test_every_scheme_tunes_all_semantic_tokens_in_both_shifts(self):
+        css = (REPO_ROOT / "static" / "foundation.css").read_text(encoding="utf-8")
+        blocks = self._scheme_blocks(css)
+        for scheme in SCHEMES:
+            for shift in ("night", "light"):
+                body = blocks[scheme][shift]
+                for token in self.SEMANTIC:
+                    assert f"{token}:" in body, f"{scheme} {shift} is missing {token}"
+
+    def test_status_palettes_are_distinct_across_schemes(self):
+        import re
+
+        css = (REPO_ROOT / "static" / "foundation.css").read_text(encoding="utf-8")
+        blocks = self._scheme_blocks(css)
+        for token in ("--green", "--blue", "--warning", "--danger", "--muted"):
+            for shift in ("night", "light"):
+                values = []
+                for scheme in SCHEMES:
+                    match = re.search(rf"{token}:\s*([^;]+);", blocks[scheme][shift])
+                    assert match, f"{scheme} {shift} is missing {token}"
+                    values.append(match.group(1).strip())
+                assert len(set(values)) == len(SCHEMES), (
+                    f"{token} {shift} values collide across schemes: {values}"
+                )
+
+    def test_warning_stays_in_the_amber_family_everywhere(self):
+        """Warning means pending; in every tuned scheme it keeps the amber/
+        yellow family instead of collapsing onto the accent hue (an indigo
+        'warning' badge was exactly the reported bug). Amber is the identity
+        scheme: its warning is the safety amber itself."""
+        import re
+
+        css = (REPO_ROOT / "static" / "foundation.css").read_text(encoding="utf-8")
+        blocks = self._scheme_blocks(css)
+        for scheme in SCHEMES:
+            for shift in ("night", "light"):
+                body = blocks[scheme][shift]
+                warning = re.search(r"--warning:\s*(#[0-9a-fA-F]{6})", body)
+                assert warning, f"{scheme} {shift} is missing --warning"
+                for sibling in ("--green", "--blue", "--danger"):
+                    other = re.search(rf"{sibling}:\s*(#[0-9a-fA-F]{{6}})", body)
+                    assert other, f"{scheme} {shift} is missing {sibling}"
+                    assert warning.group(1) != other.group(1), (
+                        f"{scheme} {shift}: warning {warning.group(1)} collides "
+                        f"with {sibling} {other.group(1)}"
+                    )
+                if scheme != "amber":
+                    accent = re.search(r"--accent:\s*(#[0-9a-fA-F]{6})", body)
+                    assert accent, f"{scheme} {shift} is missing --accent"
+                    assert warning.group(1) != accent.group(1), (
+                        f"{scheme} {shift}: warning {warning.group(1)} should "
+                        f"not equal accent {accent.group(1)}"
+                    )
+
+    def test_inventory_css_has_no_hardcoded_status_hexes(self):
+        css = (REPO_ROOT / "static" / "inventory.css").read_text(encoding="utf-8")
+        for hex_value in ("#22c55e", "#3b82f6", "#ef4444", "#f59e0b",
+                          "#10b981", "#818cf8", "#fb7185", "#4f46e5"):
+            assert hex_value not in css, f"inventory.css hardcodes {hex_value}"
+
+    def test_dashboard_charts_consume_semantic_tokens(self):
+        source = (REPO_ROOT / "templates" / "index.html").read_text(encoding="utf-8")
+        assert "tok('--green')" in source
+        assert "tok('--blue')" in source
+        assert "tok('--danger')" in source
+        for hex_value in ("#22c55e", "#3b82f6", "#ef4444", "#f59e0b",
+                          "#10b981", "#818cf8", "#fb7185", "#4f46e5"):
+            assert hex_value not in source, f"index.html charts hardcode {hex_value}"
+
+
 @pytest.fixture
 def scheme_browser(admin_client):
     """Playwright page backed by the in-memory Flask test client."""

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-scheme="amber">
 {% set brand_raw = (branding_name or "Asset") | trim %}
 {% set brand_lower = brand_raw | lower %}
 {% if brand_lower.endswith("asset manager") %}
@@ -27,9 +27,16 @@
         const root = document.documentElement;
         if (savedTheme === "light") root.setAttribute("data-theme", "light");
         else root.removeAttribute("data-theme");
+        /* Colour scheme: restore the saved enamel recipe before first paint
+           (amber is the server-rendered default). */
+        const scheme = localStorage.getItem("assetmanager-scheme");
+        if (["amber", "indigo", "emerald", "rose", "ocean", "slate"].indexOf(scheme) !== -1) {
+          root.dataset.scheme = scheme;
+        }
       } catch (_) {}
     })();
   </script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='foundation.css', v=app_version) }}">
   <link rel="stylesheet" href="{{ url_for('static', filename='auth.css', v=app_version) }}">
 </head>
 <body class="auth-page">

@@ -13,13 +13,13 @@
   --auth-faint: #98917d;
   --auth-line: #2b333c;
   --auth-line-strong: #3d4854;
-  --auth-accent: #ffb02e;
-  --auth-button: #ffb02e;
-  --auth-button-ink: #1a1206;
-  --auth-ring: rgba(255, 176, 46, 0.42);
-  --auth-error: #ef6a5e;
-  --auth-error-bg: rgba(239, 106, 94, 0.12);
-  --auth-ok: #5fce8e;
+  --auth-accent: var(--accent);
+  --auth-button: var(--accent);
+  --auth-button-ink: var(--on-accent);
+  --auth-ring: var(--ring);
+  --auth-error: var(--danger);
+  --auth-error-bg: var(--danger-dim);
+  --auth-ok: var(--green);
   --auth-shadow: 0 2px 0 rgba(0, 0, 0, 0.45), 0 26px 64px rgba(0, 0, 0, 0.55);
   --auth-stripe: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14'%3E%3Crect width='14' height='14' fill='%2314120e'/%3E%3Cpath d='M0 10 4 14H0Z' fill='%23ffb02e'/%3E%3Cpath d='M10 0h4v4Z' fill='%23ffb02e'/%3E%3C/svg%3E");
   --auth-font-display: 'Barlow Condensed', 'Barlow', 'Segoe UI', system-ui, sans-serif;
@@ -35,13 +35,13 @@
   --auth-faint: #6f6752;
   --auth-line: #d3cbb5;
   --auth-line-strong: #b0a68c;
-  --auth-accent: #7d4a00;
-  --auth-button: #7d4a00;
-  --auth-button-ink: #f8f5ec;
-  --auth-ring: rgba(125, 74, 0, 0.4);
-  --auth-error: #b5332a;
-  --auth-error-bg: rgba(181, 51, 42, 0.1);
-  --auth-ok: #1d7a3e;
+  --auth-accent: var(--accent);
+  --auth-button: var(--accent);
+  --auth-button-ink: var(--on-accent);
+  --auth-ring: var(--ring);
+  --auth-error: var(--danger);
+  --auth-error-bg: var(--danger-dim);
+  --auth-ok: var(--green);
   --auth-shadow: 0 2px 0 rgba(58, 48, 26, 0.2), 0 26px 64px rgba(58, 48, 26, 0.22);
 }
 *, *::before, *::after { box-sizing: border-box; }
