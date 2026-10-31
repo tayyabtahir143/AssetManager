@@ -92,6 +92,7 @@ This release adds global search, printable QR labels, bulk assign/status updates
 - **CSV export** — Excel-friendly CSV download for every built-in and custom asset list
 - **Custom asset-type icons** — pick a stencil icon per custom asset type when creating or editing it; the dashboard catalog and pickers render it (whitelisted keys only)
 - **Colour schemes** — six modern schemes (Amber, Indigo, Emerald, Rose, Ocean, Slate) across the Night/Day themes, switchable from the workspace shell
+- **MCP server** — expose the inventory to any LLM client (Claude Desktop, Codex, Hermes, Cursor) as MCP tools: search assets, browse built-in and custom asset types, users, departments, roles, groups, audit log, dashboard KPIs
 - **Global search** — search all asset types at once (tag / vendor / model / assignee) from the quick-nav dialog or the REST API
 - **Printable QR labels** — select rows in any list and print asset-tag labels with QR codes
 - **Bulk assign / status update** — reassign or change status for many assets at once
@@ -606,6 +607,46 @@ curl -X POST http://localhost:5000/api/v1/auth/refresh \
 | `page` | Page number | `1` |
 | `per_page` | Items per page (max 200) | `25` |
 
+### MCP Server (LLM integration)
+
+`mcp_server.py` exposes the read-only REST API as MCP tools so LLM clients can query assets, users, departments, roles, groups, the audit log and dashboard KPIs. All tools are read-only.
+
+```bash
+# 1. Install dependencies
+pip install -r requirements.txt   # adds mcp + httpx
+
+# 2. Point it at your AssetManager and give it credentials
+export ASSET_MANAGER_URL=http://localhost:5000
+export ASSET_MANAGER_USERNAME=admin
+export ASSET_MANAGER_PASSWORD=your-password   # or ASSET_MANAGER_TOKEN=<jwt>
+
+# 3a. stdio (local clients — Claude Desktop, Codex CLI)
+python mcp_server.py
+
+# 3b. streamable HTTP (remote clients — connect to http://<host>:8765/mcp)
+python mcp_server.py --transport streamable-http --port 8765
+```
+
+Claude Desktop config example (`claude_desktop_config.json`):
+
+```json
+{
+  "mcpServers": {
+    "assetmanager": {
+      "command": "python",
+      "args": ["/path/to/AssetManager/mcp_server.py"],
+      "env": {
+        "ASSET_MANAGER_URL": "http://localhost:5000",
+        "ASSET_MANAGER_USERNAME": "admin",
+        "ASSET_MANAGER_PASSWORD": "your-password"
+      }
+    }
+  }
+}
+```
+
+Tools: `search_assets`, `list_asset_types`, `list_assets`, `get_asset`, `dashboard_summary`, `list_users`, `list_departments`, `list_roles`, `list_groups`, `list_audit_log`. The server authenticates against the app's own user database (JWT login + auto-refresh), and permissions follow the configured role's `can_read`.
+
 ### Global Search
 
 ```bash
@@ -630,6 +671,19 @@ curl "http://localhost:5000/api/search?q=thinkpad" \
 ```
 
 Queries must be at least 2 characters; results are capped at 15 across built-in and custom asset types.
+
+### Read-Only Extended Endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/api/v1/dashboard-summary` | KPI totals + per-category counts |
+| `GET` | `/api/v1/audit-log?page=&per_page=` | Paginated audit log (actor, IP, entity, details) |
+| `GET` | `/api/v1/roles` | Roles with capabilities and per-asset-type permissions |
+| `GET` | `/api/v1/groups` | Groups with assigned role and member user ids |
+| `GET` | `/api/v1/search?q=` | Global asset search (see below) |
+| `GET` | `/api/v1/custom/{key}/assets` | List custom-type assets (paginated, q/status filters) |
+| `GET` | `/api/v1/custom/{key}/assets/{id}` | Get one custom-type asset |
+| `GET` | `/api/v1/asset-types` | Now includes custom types with `custom` and `icon` fields |
 
 ### Reference Endpoints
 

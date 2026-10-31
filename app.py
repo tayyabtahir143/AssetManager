@@ -5573,12 +5573,15 @@ def api_refresh():
 @app.route("/api/asset-types", methods=["GET"])
 @api_auth_required(permission="can_read")
 def api_asset_types():
-    return jsonify(
-        [
-            {"key": key, "label": definition["label"]}
-            for key, definition in ASSET_DEFS.items()
-        ]
-    )
+    builtin = [
+        {"key": key, "label": definition["label"], "custom": False, "icon": None}
+        for key, definition in ASSET_DEFS.items()
+    ]
+    custom = [
+        {"key": asset_type.key, "label": asset_type.label, "custom": True, "icon": asset_type.icon}
+        for asset_type in get_custom_asset_types()
+    ]
+    return jsonify(builtin + custom)
 
 
 @app.route("/api/users", methods=["GET"])
@@ -5597,6 +5600,148 @@ def api_users():
 def api_departments():
     departments = Department.query.order_by(Department.name.asc()).all()
     return jsonify([dept.name for dept in departments])
+
+
+@app.route("/api/dashboard-summary", methods=["GET"])
+@api_auth_required(permission="can_read")
+def api_dashboard_summary():
+    stats = _compute_dashboard_stats(request.api_user)
+    total = stats["total_assets"]
+    assigned = stats["total_assigned"]
+    available = stats["total_available"]
+    return jsonify(
+        {
+            "total_assets": total,
+            "assigned": assigned,
+            "available": available,
+            "broken": max(total - assigned - available, 0),
+            "categories": [
+                {"key": a["key"], "label": a["label"], "count": a["count"], "icon": a.get("icon")}
+                for a in stats["assets"]
+            ],
+        }
+    )
+
+
+@app.route("/api/audit-log", methods=["GET"])
+@api_auth_required(permission="can_read")
+def api_audit_log():
+    page = max(_parse_int(request.args.get("page", ""), 1), 1)
+    per_page = max(min(_parse_int(request.args.get("per_page", ""), 50), 200), 1)
+    total = AuditLog.query.count()
+    items = (
+        AuditLog.query.order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+        .all()
+    )
+    rows = [
+        {
+            "id": entry.id,
+            "created_at": entry.created_at.isoformat() if entry.created_at else None,
+            "user_id": entry.user_id,
+            "username": entry.username,
+            "action": entry.action,
+            "entity_type": entry.entity_type,
+            "entity_id": entry.entity_id,
+            "success": entry.success,
+            "ip_address": entry.ip_address,
+            "details": entry.details,
+        }
+        for entry in items
+    ]
+    return jsonify({"items": rows, "page": page, "per_page": per_page, "total": total})
+
+
+@app.route("/api/roles", methods=["GET"])
+@api_auth_required(permission="can_read")
+def api_roles():
+    roles = []
+    for role in Role.query.order_by(Role.name.asc()).all():
+        roles.append(
+            {
+                "name": role.name,
+                "is_app_admin": role.is_app_admin,
+                "can_add": role.can_add,
+                "can_delete": role.can_delete,
+                "can_read": role.can_read,
+                "can_bulk_delete": role.can_bulk_delete,
+                "can_manage_depts": role.can_manage_depts,
+                "asset_permissions": [
+                    {
+                        "asset_type": rp.asset_type,
+                        "can_add": rp.can_add,
+                        "can_delete": rp.can_delete,
+                        "can_read": rp.can_read,
+                        "can_bulk_delete": rp.can_bulk_delete,
+                    }
+                    for rp in RolePermission.query.filter_by(role_id=role.id).all()
+                ],
+            }
+        )
+    return jsonify(roles)
+
+
+@app.route("/api/groups", methods=["GET"])
+@api_auth_required(permission="can_read")
+def api_groups():
+    groups = []
+    for group in Group.query.order_by(Group.name.asc()).all():
+        member_ids = [
+            m.user_id for m in GroupMember.query.filter_by(group_id=group.id).all()
+        ]
+        groups.append(
+            {
+                "name": group.name,
+                "role": group.role,
+                "member_count": len(member_ids),
+                "member_user_ids": member_ids,
+            }
+        )
+    return jsonify(groups)
+
+
+@app.route("/api/custom/<asset_key>/assets", methods=["GET"])
+@api_auth_required(permission="can_read", asset_type=None)
+def api_custom_assets_list(asset_key):
+    asset_type = get_custom_asset_by_key(asset_key)
+    if not asset_type:
+        return jsonify({"error": "Unknown asset type"}), 404
+    if not get_role_asset_permissions(request.api_user, f"custom:{asset_key}").get("can_read", False):
+        return jsonify({"error": "Forbidden"}), 403
+    page = max(_parse_int(request.args.get("page", ""), 1), 1)
+    per_page = max(min(_parse_int(request.args.get("per_page", ""), 25), 200), 1)
+    query = AssetItem.query.filter_by(asset_type_id=asset_type.id)
+    q = (request.args.get("q") or "").strip()
+    if q:
+        needle = q.lower()
+        query = query.filter(func.lower(cast(AssetItem.data, String)).like(f"%{needle}%"))
+    status = (request.args.get("status") or "all").strip()
+    total = query.count()
+    items = query.order_by(AssetItem.id.asc()).offset((page - 1) * per_page).limit(per_page).all()
+    rows = []
+    for item in items:
+        data = item.data or {}
+        if status not in {"", "all"} and normalize_status(str(data.get("status", "") or "")) != normalize_status(status):
+            continue
+        rows.append({"id": item.id, **data})
+    return jsonify({"items": rows, "page": page, "per_page": per_page, "total": total})
+
+
+@app.route("/api/custom/<asset_key>/assets/<int:item_id>", methods=["GET"])
+@api_auth_required(permission="can_read", asset_type=None)
+def api_custom_assets_get(asset_key, item_id):
+    asset_type = get_custom_asset_by_key(asset_key)
+    if not asset_type:
+        return jsonify({"error": "Unknown asset type"}), 404
+    if not get_role_asset_permissions(request.api_user, f"custom:{asset_key}").get("can_read", False):
+        return jsonify({"error": "Forbidden"}), 403
+    item = (
+        AssetItem.query.filter_by(asset_type_id=asset_type.id, id=item_id).first()
+    )
+    if not item:
+        return jsonify({"error": "Not found"}), 404
+    return jsonify({"id": item.id, **(item.data or {})})
 
 
 @app.route("/api/assets/<asset_type>", methods=["GET"])
@@ -5838,11 +5983,9 @@ def api_assets_delete(asset_type, item_id):
     return jsonify({"status": "deleted"})
 
 
-@app.route("/")
-@login_required
-@require_permission("can_read")
-def index():
-    user = get_current_user()
+def _compute_dashboard_stats(user):
+    """Shared dashboard counters used by the index page and the read-only
+    /api/dashboard-summary endpoint."""
     assets_list = []
     total_assets = 0
     total_assigned = 0
@@ -5904,6 +6047,24 @@ def index():
                 }
             )
         total_assets += AssetItem.query.filter_by(asset_type_id=asset_type.id).count()
+    return {
+        "assets": assets_list,
+        "total_assets": total_assets,
+        "total_assigned": total_assigned,
+        "total_available": total_available,
+    }
+
+
+@app.route("/")
+@login_required
+@require_permission("can_read")
+def index():
+    user = get_current_user()
+    stats = _compute_dashboard_stats(user)
+    assets_list = stats["assets"]
+    total_assets = stats["total_assets"]
+    total_assigned = stats["total_assigned"]
+    total_available = stats["total_available"]
     dept_summary = build_dept_summary()
     recent_activity = AuditLog.query.order_by(AuditLog.created_at.desc()).limit(8).all()
     for _a in recent_activity:
@@ -10008,6 +10169,48 @@ def api_v1_assets_update(asset_type, item_id):
 @csrf.exempt
 def api_v1_assets_delete(asset_type, item_id):
     return api_assets_delete(asset_type, item_id)
+
+
+@app.route("/api/v1/dashboard-summary", methods=["GET"])
+@csrf.exempt
+def api_v1_dashboard_summary():
+    return api_dashboard_summary()
+
+
+@app.route("/api/v1/audit-log", methods=["GET"])
+@csrf.exempt
+def api_v1_audit_log():
+    return api_audit_log()
+
+
+@app.route("/api/v1/roles", methods=["GET"])
+@csrf.exempt
+def api_v1_roles():
+    return api_roles()
+
+
+@app.route("/api/v1/groups", methods=["GET"])
+@csrf.exempt
+def api_v1_groups():
+    return api_groups()
+
+
+@app.route("/api/v1/search", methods=["GET"])
+@csrf.exempt
+def api_v1_search():
+    return api_search()
+
+
+@app.route("/api/v1/custom/<asset_key>/assets", methods=["GET"])
+@csrf.exempt
+def api_v1_custom_assets_list(asset_key):
+    return api_custom_assets_list(asset_key)
+
+
+@app.route("/api/v1/custom/<asset_key>/assets/<int:item_id>", methods=["GET"])
+@csrf.exempt
+def api_v1_custom_assets_get(asset_key, item_id):
+    return api_custom_assets_get(asset_key, item_id)
 
 
 if __name__ == "__main__":
