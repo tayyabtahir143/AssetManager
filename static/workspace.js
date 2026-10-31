@@ -23,6 +23,26 @@
     savePreference('workspace-density', compact ? 'compact' : 'comfortable');
   });
 
+  /* ── Colour scheme: six enamel recipes re-tinting the accent family ──── */
+  const SCHEMES = ['amber', 'indigo', 'emerald', 'rose', 'ocean', 'slate'];
+  const schemeButtons = document.querySelectorAll('[data-scheme-picker] [data-scheme-value]');
+  const setScheme = value => {
+    const scheme = SCHEMES.includes(value) ? value : 'amber';
+    root.dataset.scheme = scheme;
+    schemeButtons.forEach(button => {
+      const active = button.dataset.schemeValue === scheme;
+      button.classList.toggle('is-active', active);
+      button.setAttribute('aria-pressed', String(active));
+    });
+  };
+  setScheme(readPreference('assetmanager-scheme'));
+  schemeButtons.forEach(button => {
+    button.addEventListener('click', () => {
+      setScheme(button.dataset.schemeValue);
+      savePreference('assetmanager-scheme', button.dataset.schemeValue);
+    });
+  });
+
   document.querySelectorAll('.sidebar .nav-link.active').forEach(link => link.setAttribute('aria-current', 'page'));
   const sidebar = document.getElementById('sidebar');
   const overlay = document.getElementById('mobile-overlay');

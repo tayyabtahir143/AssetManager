@@ -28,7 +28,7 @@
           {{ (display_query or query)[0].upper() }}
         </div>
         <div>
-          <div style="font-size:16px; font-weight:700;">{{ display_query or query }}</div>
+          <div class="card-head">{{ display_query or query }}</div>
           <div class="muted text-sm">
             {{ total_items }} item{{ 's' if total_items != 1 else '' }} assigned
             {% if total_quantity %} · {{ total_quantity }} units total{% endif %}
@@ -42,7 +42,7 @@
     {% for section in sections %}
       <div class="card animate-in" style="margin-top: 16px;">
         <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;">
-          <div style="font-size:15px; font-weight:700;">{{ section.label }}</div>
+          <div class="card-head">{{ section.label }}</div>
           <span class="badge badge-blue">{{ section.count }}{% if section.consumable %} units{% endif %}</span>
         </div>
         {% if section.columns and section.rows %}

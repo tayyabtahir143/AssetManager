@@ -474,6 +474,61 @@ class AuditLog(db.Model):
     details = db.Column(db.Text, nullable=True)
 
 
+class McpConfig(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    enabled = db.Column(db.Boolean, nullable=False, default=False)
+
+
+class McpAccessRequest(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=False)
+    scope = db.Column(db.String(16), nullable=False, default="read_only")
+    expiry_days = db.Column(db.Integer, nullable=False, default=0)  # 0 = never
+    reason = db.Column(db.String(255), nullable=True)
+    status = db.Column(db.String(16), nullable=False, default="pending")  # pending/approved/declined
+    created_at = db.Column(db.DateTime, nullable=False, server_default=func.now())
+    decided_by = db.Column(db.Integer, nullable=True)
+    decided_at = db.Column(db.DateTime, nullable=True)
+    admin_note = db.Column(db.String(255), nullable=True)
+
+
+class McpAccess(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=False)
+    scope = db.Column(db.String(16), nullable=False, default="read_only")
+    expires_at = db.Column(db.DateTime, nullable=True)
+    status = db.Column(db.String(16), nullable=False, default="active")  # active/revoked
+    granted_by = db.Column(db.Integer, nullable=True)
+    granted_at = db.Column(db.DateTime, nullable=False, server_default=func.now())
+    revoked_by = db.Column(db.Integer, nullable=True)
+    revoked_at = db.Column(db.DateTime, nullable=True)
+
+
+class McpUsageLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, nullable=True)
+    username = db.Column(db.String(80), nullable=True)
+    token_id = db.Column(db.Integer, nullable=True)
+    tool_name = db.Column(db.String(80), nullable=False)
+    success = db.Column(db.Boolean, nullable=False, default=True)
+    error = db.Column(db.String(255), nullable=True)
+    arguments = db.Column(db.Text, nullable=True)
+    duration_ms = db.Column(db.Integer, nullable=True)
+    ip_address = db.Column(db.String(45), nullable=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=func.now())
+
+
+class McpToken(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(80), nullable=False)
+    token_hash = db.Column(db.String(64), unique=True, nullable=False)
+    scope = db.Column(db.String(16), nullable=False, default="read_only")  # read_only | full
+    user_id = db.Column(db.Integer, nullable=False)
+    enabled = db.Column(db.Boolean, nullable=False, default=True)
+    created_at = db.Column(db.DateTime, nullable=False, server_default=func.now())
+    last_used_at = db.Column(db.DateTime, nullable=True)
+    expires_at = db.Column(db.DateTime, nullable=True)  # None = never
+    access_id = db.Column(db.Integer, nullable=True)  # FK to McpAccess (legacy rows: NULL)
 class SMTPConfig(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     host = db.Column(db.String(255))
@@ -586,6 +641,8 @@ class AssetType(db.Model):
     key = db.Column(db.String(50), unique=True, nullable=False)
     label = db.Column(db.String(80), nullable=False)
     has_quantity = db.Column(db.Boolean, nullable=False, default=False)
+    # Whitelisted icon key rendered through templates/_icons.html (never raw HTML).
+    icon = db.Column(db.String(50), nullable=True)
     fields = db.relationship("AssetField", backref="asset_type", cascade="all, delete-orphan")
     items = db.relationship("AssetItem", backref="asset_type", cascade="all, delete-orphan")
 
@@ -597,6 +654,77 @@ class BuiltinAssetTypeSetting(db.Model):
     fields = db.relationship(
         "BuiltinAssetFieldSetting", backref="asset_type", cascade="all, delete-orphan"
     )
+
+
+# Whitelisted icon keys for custom asset types. Each key maps to SVG snippets
+# in templates/_icons.html; values are never rendered directly.
+ASSET_ICONS = [
+    "laptop", "desktop", "monitor", "keyboard", "mouse", "headset", "ram",
+    "network", "phone", "cable", "server", "printer", "camera", "tool",
+    "desk", "vehicle", "tag", "box",
+]
+
+ICON_CHOICES = [
+    {"key": key, "label": key.replace("_", " ").title()} for key in ASSET_ICONS
+]
+
+
+def is_valid_asset_icon(icon):
+    return bool(icon) and icon in ASSET_ICONS
+
+
+def generate_mcp_token():
+    """Issue a new API token. Only the SHA-256 digest is stored; the plaintext
+    is shown once at creation time."""
+    return "amcp_" + secrets.token_urlsafe(32)
+
+
+def hash_mcp_token(token):
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()
+
+
+def get_mcp_config():
+    config = McpConfig.query.get(1)
+    if config is None:
+        config = McpConfig(id=1, enabled=False)
+        db.session.add(config)
+        db.session.commit()
+    return config
+
+
+def _resolve_mcp_token(token):
+    """Validate an amcp_* API token. Returns (user, scope) or (None, None)."""
+    if not token.startswith("amcp_"):
+        return None, None
+    config = McpConfig.query.get(1)
+    if config is None or not config.enabled:
+        return None, None
+    row = McpToken.query.filter_by(token_hash=hash_mcp_token(token)).first()
+    if row is None or not row.enabled:
+        return None, None
+    if row.expires_at is not None and datetime.datetime.now() > row.expires_at:
+        # Auto-revoke on expiry.
+        row.enabled = False
+        db.session.commit()
+        return None, None
+    if row.access_id is not None:
+        access = McpAccess.query.get(row.access_id)
+        if access is None or access.status != "active":
+            return None, None
+        if access.expires_at is not None and datetime.datetime.now() > access.expires_at:
+            row.enabled = False
+            db.session.commit()
+            return None, None
+        if access.scope != row.scope:
+            # Access-level scope is authoritative for granted tokens.
+            row.scope = access.scope
+            db.session.commit()
+    user = User.query.get(row.user_id)
+    if not user:
+        return None, None
+    row.last_used_at = datetime.datetime.now()
+    db.session.commit()
+    return user, row.scope
 
 
 class BuiltinAssetFieldSetting(db.Model):
@@ -3966,6 +4094,7 @@ def build_dept_summary():
                 bump(dept, asset_type.label, 1, 0, 1)
                 continue
             is_assigned = status == "assigned"
+            dept = (item.data or {}).get("dept") if is_assigned else None
             bump(dept, asset_type.label, 1, 1 if is_assigned else 0, 0 if is_assigned else 1)
 
     summary = list(dept_map.values())
@@ -4313,6 +4442,63 @@ def ensure_user_password_change_column():
     try:
         db.session.execute(
             text('ALTER TABLE "user" ADD COLUMN IF NOT EXISTS must_change_password BOOLEAN DEFAULT FALSE')
+        )
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+
+def ensure_asset_type_icon_column():
+    if db.engine.dialect.name == "sqlite":
+        result = db.session.execute(text("PRAGMA table_info(asset_type)")).fetchall()
+        if not result:
+            return
+        columns = {row[1] for row in result}
+        if "icon" not in columns:
+            db.session.execute(text("ALTER TABLE asset_type ADD COLUMN icon VARCHAR(50)"))
+        db.session.commit()
+        return
+    try:
+        db.session.execute(
+            text('ALTER TABLE asset_type ADD COLUMN IF NOT EXISTS icon VARCHAR(50)')
+        )
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+
+def ensure_mcp_token_access_column():
+    if db.engine.dialect.name == "sqlite":
+        result = db.session.execute(text("PRAGMA table_info(mcp_token)")).fetchall()
+        if not result:
+            return
+        columns = {row[1] for row in result}
+        if "access_id" not in columns:
+            db.session.execute(text("ALTER TABLE mcp_token ADD COLUMN access_id INTEGER"))
+        db.session.commit()
+        return
+    try:
+        db.session.execute(
+            text('ALTER TABLE mcp_token ADD COLUMN IF NOT EXISTS access_id INTEGER')
+        )
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+
+
+def ensure_mcp_token_expires_column():
+    if db.engine.dialect.name == "sqlite":
+        result = db.session.execute(text("PRAGMA table_info(mcp_token)")).fetchall()
+        if not result:
+            return
+        columns = {row[1] for row in result}
+        if "expires_at" not in columns:
+            db.session.execute(text("ALTER TABLE mcp_token ADD COLUMN expires_at DATETIME"))
+        db.session.commit()
+        return
+    try:
+        db.session.execute(
+            text('ALTER TABLE mcp_token ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP')
         )
         db.session.commit()
     except Exception:
@@ -4855,6 +5041,9 @@ def init_db():
         ensure_role_admin_column()
         ensure_user_email_column()
         ensure_user_password_change_column()
+        ensure_asset_type_icon_column()
+        ensure_mcp_token_expires_column()
+        ensure_mcp_token_access_column()
         ensure_user_ldap_column()
         ensure_role_permission_bulk_column()
         ensure_ldap_group_columns()
@@ -5201,17 +5390,26 @@ def api_auth_required(asset_type=None, permission=None):
             if not auth_header.startswith("Bearer "):
                 return jsonify({"error": "Missing token"}), 401
             token = auth_header.split(" ", 1)[1].strip()
+            mcp_scope = None
             try:
                 payload = _jwt_decode(token)
             except Exception:
-                return jsonify({"error": "Invalid token"}), 401
-            if payload.get("type") != "access":
-                return jsonify({"error": "Invalid token type"}), 401
-            user_id = payload.get("sub")
-            user = User.query.get(user_id) if user_id else None
+                payload = None
+            if payload is not None:
+                if payload.get("type") != "access":
+                    return jsonify({"error": "Invalid token type"}), 401
+                user_id = payload.get("sub")
+                user = User.query.get(user_id) if user_id else None
+            else:
+                user, mcp_scope = _resolve_mcp_token(token)
+                if user is None:
+                    return jsonify({"error": "Invalid token"}), 401
+                if request.method != "GET" and mcp_scope != "full":
+                    return jsonify({"error": "This token is read-only"}), 403
             if not user:
                 return jsonify({"error": "User not found"}), 401
             request.api_user = user
+            request.api_mcp_scope = mcp_scope
             if permission:
                 if asset_type:
                     perms = get_role_asset_permissions(user, asset_type)
@@ -5534,12 +5732,15 @@ def api_refresh():
 @app.route("/api/asset-types", methods=["GET"])
 @api_auth_required(permission="can_read")
 def api_asset_types():
-    return jsonify(
-        [
-            {"key": key, "label": definition["label"]}
-            for key, definition in ASSET_DEFS.items()
-        ]
-    )
+    builtin = [
+        {"key": key, "label": definition["label"], "custom": False, "icon": None}
+        for key, definition in ASSET_DEFS.items()
+    ]
+    custom = [
+        {"key": asset_type.key, "label": asset_type.label, "custom": True, "icon": asset_type.icon}
+        for asset_type in get_custom_asset_types()
+    ]
+    return jsonify(builtin + custom)
 
 
 @app.route("/api/users", methods=["GET"])
@@ -5558,6 +5759,148 @@ def api_users():
 def api_departments():
     departments = Department.query.order_by(Department.name.asc()).all()
     return jsonify([dept.name for dept in departments])
+
+
+@app.route("/api/dashboard-summary", methods=["GET"])
+@api_auth_required(permission="can_read")
+def api_dashboard_summary():
+    stats = _compute_dashboard_stats(request.api_user)
+    total = stats["total_assets"]
+    assigned = stats["total_assigned"]
+    available = stats["total_available"]
+    return jsonify(
+        {
+            "total_assets": total,
+            "assigned": assigned,
+            "available": available,
+            "broken": max(total - assigned - available, 0),
+            "categories": [
+                {"key": a["key"], "label": a["label"], "count": a["count"], "icon": a.get("icon")}
+                for a in stats["assets"]
+            ],
+        }
+    )
+
+
+@app.route("/api/audit-log", methods=["GET"])
+@api_auth_required(permission="can_read")
+def api_audit_log():
+    page = max(_parse_int(request.args.get("page", ""), 1), 1)
+    per_page = max(min(_parse_int(request.args.get("per_page", ""), 50), 200), 1)
+    total = AuditLog.query.count()
+    items = (
+        AuditLog.query.order_by(AuditLog.created_at.desc(), AuditLog.id.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+        .all()
+    )
+    rows = [
+        {
+            "id": entry.id,
+            "created_at": entry.created_at.isoformat() if entry.created_at else None,
+            "user_id": entry.user_id,
+            "username": entry.username,
+            "action": entry.action,
+            "entity_type": entry.entity_type,
+            "entity_id": entry.entity_id,
+            "success": entry.success,
+            "ip_address": entry.ip_address,
+            "details": entry.details,
+        }
+        for entry in items
+    ]
+    return jsonify({"items": rows, "page": page, "per_page": per_page, "total": total})
+
+
+@app.route("/api/roles", methods=["GET"])
+@api_auth_required(permission="can_read")
+def api_roles():
+    roles = []
+    for role in Role.query.order_by(Role.name.asc()).all():
+        roles.append(
+            {
+                "name": role.name,
+                "is_app_admin": role.is_app_admin,
+                "can_add": role.can_add,
+                "can_delete": role.can_delete,
+                "can_read": role.can_read,
+                "can_bulk_delete": role.can_bulk_delete,
+                "can_manage_depts": role.can_manage_depts,
+                "asset_permissions": [
+                    {
+                        "asset_type": rp.asset_type,
+                        "can_add": rp.can_add,
+                        "can_delete": rp.can_delete,
+                        "can_read": rp.can_read,
+                        "can_bulk_delete": rp.can_bulk_delete,
+                    }
+                    for rp in RolePermission.query.filter_by(role_id=role.id).all()
+                ],
+            }
+        )
+    return jsonify(roles)
+
+
+@app.route("/api/groups", methods=["GET"])
+@api_auth_required(permission="can_read")
+def api_groups():
+    groups = []
+    for group in Group.query.order_by(Group.name.asc()).all():
+        member_ids = [
+            m.user_id for m in GroupMember.query.filter_by(group_id=group.id).all()
+        ]
+        groups.append(
+            {
+                "name": group.name,
+                "role": group.role,
+                "member_count": len(member_ids),
+                "member_user_ids": member_ids,
+            }
+        )
+    return jsonify(groups)
+
+
+@app.route("/api/custom/<asset_key>/assets", methods=["GET"])
+@api_auth_required(permission="can_read", asset_type=None)
+def api_custom_assets_list(asset_key):
+    asset_type = get_custom_asset_by_key(asset_key)
+    if not asset_type:
+        return jsonify({"error": "Unknown asset type"}), 404
+    if not get_role_asset_permissions(request.api_user, f"custom:{asset_key}").get("can_read", False):
+        return jsonify({"error": "Forbidden"}), 403
+    page = max(_parse_int(request.args.get("page", ""), 1), 1)
+    per_page = max(min(_parse_int(request.args.get("per_page", ""), 25), 200), 1)
+    query = AssetItem.query.filter_by(asset_type_id=asset_type.id)
+    q = (request.args.get("q") or "").strip()
+    if q:
+        needle = q.lower()
+        query = query.filter(func.lower(cast(AssetItem.data, String)).like(f"%{needle}%"))
+    status = (request.args.get("status") or "all").strip()
+    total = query.count()
+    items = query.order_by(AssetItem.id.asc()).offset((page - 1) * per_page).limit(per_page).all()
+    rows = []
+    for item in items:
+        data = item.data or {}
+        if status not in {"", "all"} and normalize_status(str(data.get("status", "") or "")) != normalize_status(status):
+            continue
+        rows.append({"id": item.id, **data})
+    return jsonify({"items": rows, "page": page, "per_page": per_page, "total": total})
+
+
+@app.route("/api/custom/<asset_key>/assets/<int:item_id>", methods=["GET"])
+@api_auth_required(permission="can_read", asset_type=None)
+def api_custom_assets_get(asset_key, item_id):
+    asset_type = get_custom_asset_by_key(asset_key)
+    if not asset_type:
+        return jsonify({"error": "Unknown asset type"}), 404
+    if not get_role_asset_permissions(request.api_user, f"custom:{asset_key}").get("can_read", False):
+        return jsonify({"error": "Forbidden"}), 403
+    item = (
+        AssetItem.query.filter_by(asset_type_id=asset_type.id, id=item_id).first()
+    )
+    if not item:
+        return jsonify({"error": "Not found"}), 404
+    return jsonify({"id": item.id, **(item.data or {})})
 
 
 @app.route("/api/assets/<asset_type>", methods=["GET"])
@@ -5799,11 +6142,9 @@ def api_assets_delete(asset_type, item_id):
     return jsonify({"status": "deleted"})
 
 
-@app.route("/")
-@login_required
-@require_permission("can_read")
-def index():
-    user = get_current_user()
+def _compute_dashboard_stats(user):
+    """Shared dashboard counters used by the index page and the read-only
+    /api/dashboard-summary endpoint."""
     assets_list = []
     total_assets = 0
     total_assigned = 0
@@ -5817,6 +6158,7 @@ def index():
                     "label": definition["label"],
                     "count": definition["model"].query.count(),
                     "url": url_for("list_assets", asset_type=key),
+                    "icon": None,
                 }
             )
         if definition.get("consumable"):
@@ -5860,9 +6202,28 @@ def index():
                     "label": asset_type.label,
                     "count": AssetItem.query.filter_by(asset_type_id=asset_type.id).count(),
                     "url": url_for("list_custom_assets", asset_key=asset_type.key),
+                    "icon": asset_type.icon,
                 }
             )
         total_assets += AssetItem.query.filter_by(asset_type_id=asset_type.id).count()
+    return {
+        "assets": assets_list,
+        "total_assets": total_assets,
+        "total_assigned": total_assigned,
+        "total_available": total_available,
+    }
+
+
+@app.route("/")
+@login_required
+@require_permission("can_read")
+def index():
+    user = get_current_user()
+    stats = _compute_dashboard_stats(user)
+    assets_list = stats["assets"]
+    total_assets = stats["total_assets"]
+    total_assigned = stats["total_assigned"]
+    total_available = stats["total_available"]
     dept_summary = build_dept_summary()
     recent_activity = AuditLog.query.order_by(AuditLog.created_at.desc()).limit(8).all()
     for _a in recent_activity:
@@ -7633,7 +7994,11 @@ def add_asset_type():
             flash("At least one field is required.", "error")
             return redirect(url_for("add_asset_type"))
         has_quantity = "has_quantity" in request.form
-        asset_type = AssetType(key=key, label=label, has_quantity=has_quantity)
+        icon = request.form.get("icon", "").strip() or None
+        if icon and not is_valid_asset_icon(icon):
+            flash("Selected icon is not supported.", "error")
+            return redirect(url_for("add_asset_type"))
+        asset_type = AssetType(key=key, label=label, has_quantity=has_quantity, icon=icon)
         db.session.add(asset_type)
         db.session.flush()
         for name, label_field, field_type, options in field_rows:
@@ -7650,7 +8015,7 @@ def add_asset_type():
         ensure_role_permissions()
         log_audit("create", "asset_type", entity_id=asset_type.id, details=key)
         return redirect(url_for("list_asset_types"))
-    return render_template("asset_type_add.html")
+    return render_template("asset_type_add.html", icon_choices=ICON_CHOICES)
 
 
 @app.route("/asset-types/edit/<int:asset_type_id>", methods=["GET", "POST"])
@@ -7667,6 +8032,11 @@ def edit_asset_type(asset_type_id):
             return redirect(url_for("edit_asset_type", asset_type_id=asset_type.id))
         asset_type.label = label
         asset_type.has_quantity = "has_quantity" in request.form
+        icon = request.form.get("icon", "").strip() or None
+        if icon and not is_valid_asset_icon(icon):
+            flash("Selected icon is not supported.", "error")
+            return redirect(url_for("edit_asset_type", asset_type_id=asset_type.id))
+        asset_type.icon = icon
         for field in fields:
             field.label = request.form.get(f"field_label_{field.id}", field.label).strip()
             field_type = request.form.get(f"field_type_{field.id}", field.field_type)
@@ -7725,7 +8095,8 @@ def edit_asset_type(asset_type_id):
         log_audit("update", "asset_type", entity_id=asset_type.id, details=details)
         return redirect(url_for("list_asset_types"))
     return render_template(
-        "asset_type_edit.html", asset_type=asset_type, fields=fields
+        "asset_type_edit.html", asset_type=asset_type, fields=fields,
+        icon_choices=ICON_CHOICES,
     )
 
 
@@ -9957,6 +10328,643 @@ def api_v1_assets_update(asset_type, item_id):
 @csrf.exempt
 def api_v1_assets_delete(asset_type, item_id):
     return api_assets_delete(asset_type, item_id)
+
+
+@app.route("/api/v1/dashboard-summary", methods=["GET"])
+@csrf.exempt
+def api_v1_dashboard_summary():
+    return api_dashboard_summary()
+
+
+@app.route("/api/v1/audit-log", methods=["GET"])
+@csrf.exempt
+def api_v1_audit_log():
+    return api_audit_log()
+
+
+@app.route("/api/v1/roles", methods=["GET"])
+@csrf.exempt
+def api_v1_roles():
+    return api_roles()
+
+
+@app.route("/api/v1/groups", methods=["GET"])
+@csrf.exempt
+def api_v1_groups():
+    return api_groups()
+
+
+@app.route("/api/v1/search", methods=["GET"])
+@csrf.exempt
+def api_v1_search():
+    return api_search()
+
+
+@app.route("/api/v1/custom/<asset_key>/assets", methods=["GET"])
+@csrf.exempt
+def api_v1_custom_assets_list(asset_key):
+    return api_custom_assets_list(asset_key)
+
+
+@app.route("/api/v1/custom/<asset_key>/assets/<int:item_id>", methods=["GET"])
+@csrf.exempt
+def api_v1_custom_assets_get(asset_key, item_id):
+    return api_custom_assets_get(asset_key, item_id)
+
+# ---------------------------------------------------------------------------
+# MCP management — app-admins configure the MCP gateway: enable/disable and
+# scoped API tokens (read_only | full). Tokens are hashed at rest and shown
+# once at creation.
+# ---------------------------------------------------------------------------
+
+@app.route("/settings/mcp")
+@login_required
+def mcp_settings():
+    user = get_current_user()
+    is_admin = user_has_app_admin(user)
+    config = get_mcp_config()
+    new_token = session.pop("mcp_new_token", None)
+    context = {
+        "config": config,
+        "new_token": new_token,
+        "gateway_running": mcp_gateway_running(),
+        "gateway_port": MCP_GATEWAY_PORT,
+        "is_admin": is_admin,
+        "now": datetime.datetime.now(),
+    }
+    if is_admin:
+        context["pending_requests"] = (
+            McpAccessRequest.query.filter_by(status="pending")
+            .order_by(McpAccessRequest.created_at.asc())
+            .all()
+        )
+        for req in context["pending_requests"]:
+            req.requester = User.query.get(req.user_id)
+        context["accesses"] = (
+            McpAccess.query.order_by(McpAccess.granted_at.desc()).all()
+        )
+        for access in context["accesses"]:
+            access.owner = User.query.get(access.user_id)
+            access.current_token = (
+                McpToken.query.filter_by(access_id=access.id)
+                .order_by(McpToken.id.desc())
+                .first()
+            )
+            if access.expires_at:
+                delta = access.expires_at - datetime.datetime.now()
+                secs = max(1, int(delta.total_seconds()))
+                access.days_left = int(secs // 86400) + (1 if secs % 86400 else 0)
+            else:
+                access.days_left = None
+        context["legacy_tokens"] = (
+            McpToken.query.filter(McpToken.access_id.is_(None))
+            .order_by(McpToken.created_at.desc())
+            .all()
+        )
+        context["all_usernames"] = [
+            row.username
+            for row in User.query.with_entities(User.username)
+            .order_by(User.username)
+            .all()
+        ]
+        context["usage_page"] = max(
+            _parse_int(request.args.get("usage_page", ""), 1), 1
+        )
+        usage_query = McpUsageLog.query
+        context["usage_total"] = usage_query.count()
+        context["usage_logs"] = (
+            usage_query.order_by(McpUsageLog.id.desc())
+            .offset((context["usage_page"] - 1) * 50)
+            .limit(50)
+            .all()
+        )
+    else:
+        context["own_access"] = McpAccess.query.filter_by(user_id=user.id).first()
+        context["own_request"] = (
+            McpAccessRequest.query.filter_by(user_id=user.id, status="pending")
+            .order_by(McpAccessRequest.id.desc())
+            .first()
+        )
+        if context["own_access"]:
+            context["own_token"] = (
+                McpToken.query.filter_by(access_id=context["own_access"].id)
+                .order_by(McpToken.id.desc())
+                .first()
+            )
+    return render_template("settings_mcp.html", **context)
+
+
+MCP_GATEWAY_PORT = int(os.environ.get("MCP_GATEWAY_PORT", "8765"))
+_MCP_GATEWAY = {"thread": None, "server": None}
+
+
+def mcp_gateway_running():
+    thread = _MCP_GATEWAY["thread"]
+    return bool(thread and thread.is_alive())
+
+
+def _mcp_usage_logger(token, tool_name, arguments, success, error, duration_ms, ip_address):
+    """Called from the gateway thread after every MCP tool call."""
+    with app.app_context():
+        try:
+            user = None
+            token_row = None
+            if token:
+                try:
+                    user, _scope = _resolve_mcp_token(token)
+                    token_row = McpToken.query.filter_by(
+                        token_hash=hash_mcp_token(token)
+                    ).first()
+                except Exception:
+                    user = None
+            db.session.add(
+                McpUsageLog(
+                    user_id=user.id if user else None,
+                    username=user.username if user else None,
+                    token_id=token_row.id if token_row else None,
+                    tool_name=tool_name,
+                    success=bool(success),
+                    error=(error or "")[:255] or None,
+                    arguments=arguments,
+                    duration_ms=duration_ms,
+                    ip_address=ip_address,
+                )
+            )
+            db.session.commit()
+        except Exception as exc:
+            app.logger.warning("MCP usage logging failed: %s", exc)
+            db.session.rollback()
+
+
+def start_mcp_gateway():
+    if mcp_gateway_running():
+        return
+    import uvicorn
+
+    import mcp_server
+
+    mcp_server.set_usage_logger(_mcp_usage_logger)
+    fastmcp = mcp_server.build_fastmcp(embedded_app=app)
+    asgi_app = fastmcp.streamable_http_app()
+    config = uvicorn.Config(
+        asgi_app, host="0.0.0.0", port=MCP_GATEWAY_PORT, log_level="error"
+    )
+    server = uvicorn.Server(config)
+    thread = threading.Thread(target=server.run, daemon=True, name="mcp-gateway")
+    thread.start()
+    _MCP_GATEWAY["thread"] = thread
+    _MCP_GATEWAY["server"] = server
+
+
+def stop_mcp_gateway():
+    server = _MCP_GATEWAY["server"]
+    thread = _MCP_GATEWAY["thread"]
+    if server is not None:
+        server.should_exit = True
+    if thread is not None:
+        thread.join(timeout=5)
+    _MCP_GATEWAY["thread"] = None
+    _MCP_GATEWAY["server"] = None
+
+
+
+
+def get_mcp_admin_users():
+    """Users with an app-admin role (MCP request/notice recipients)."""
+    return [user for user in User.query.all() if user_has_app_admin(user)]
+
+
+def _mcp_scope_label(scope):
+    return "Full access" if scope == "full" else "Read only"
+
+
+def _mcp_setup_commands(base_url):
+    """Plain-language connection steps, emailed to users with their token."""
+    return (
+        "Pick ONE of the apps below and follow its steps.\n"
+        "Wherever you see <YOUR TOKEN>, paste the token from above instead.\n\n"
+        "--- Claude Code (terminal app for Claude) ---\n"
+        "1. Open a terminal and run this one command:\n"
+        f"   claude mcp add --transport http assetmanager {base_url}/mcp --header \"Authorization: Bearer <YOUR TOKEN>\"\n"
+        "2. Restart Claude Code. Done.\n\n"
+        "--- Codex (OpenAI's terminal app) ---\n"
+        "1. Open a terminal and run this one command:\n"
+        f"   codex mcp add-json assetmanager '{{\"type\":\"http\",\"url\":\"{base_url}/mcp\",\"headers\":{{\"Authorization\":\"Bearer <YOUR TOKEN>\"}}}}'\n"
+        "2. Restart Codex. Done.\n\n"
+        "--- Hermes Agent ---\n"
+        "1. Open a terminal and run this one command:\n"
+        f"   hermes mcp add assetmanager --url {base_url}/mcp --auth header\n"
+        "2. Open Hermes's settings file (the file ~/.hermes/config.yaml on your computer)\n"
+        "   in any text editor. Under the section called mcp_servers: you will find an\n"
+        "   \"assetmanager\" entry that the command just created. Add your token under it\n"
+        "   so it looks like this:\n"
+        "     assetmanager:\n"
+        f"       url: {base_url}/mcp\n"
+        "       headers:\n"
+        "         Authorization: \"Bearer <YOUR TOKEN>\"\n"
+        "3. Save the file and start a new Hermes chat.\n"
+        "   (Check it works with: hermes mcp test assetmanager)\n\n"
+        "--- Claude Desktop ---\n"
+        "1. Open Claude Desktop, go to Settings -> Developer -> Edit Config.\n"
+        "2. Paste this into the file, replacing <YOUR TOKEN> with your token:\n"
+        "{\n"
+        "  \"mcpServers\": {\n"
+        "    \"assetmanager\": {\n"
+        f"      \"url\": \"{base_url}/mcp\",\n"
+        "      \"headers\": { \"Authorization\": \"Bearer <YOUR TOKEN>\" }\n"
+        "    }\n"
+        "  }\n"
+        "}\n"
+        "3. Save and restart Claude Desktop.\n\n"
+        "Your token is like a password that lets the AI into the inventory — keep it\n"
+        "private. If you lose it, go to Settings -> MCP and rotate it for a new one.\n"
+    )
+
+
+def _mcp_endpoint_base():
+    host = request.host.split(":")[0] if request.host else "127.0.0.1"
+    return f"http://{host}:{MCP_GATEWAY_PORT}"
+
+
+def _mcp_email_token(user, token, subject):
+    """Email the one-time token + setup commands to the user. Returns True if
+    sent, False if SMTP is not configured/enabled."""
+    base = _mcp_endpoint_base()
+    body = (
+        f"Hello {user.username},\n\n"
+        f"Your AssetManager MCP access is ready. Token (copy it now, shown only once):\n\n"
+        f"  {token}\n\n"
+        f"Endpoint: {base}/mcp\n\n"
+        f"Add the server to your LLM client:\n{_mcp_setup_commands(base)}\n"
+        f"Keep this token secret — it acts as your credential. "
+        f"If it leaks, rotate it from Settings → MCP.\n"
+    )
+    html_body = (
+        "<div style='font-family:sans-serif;max-width:640px;'>"
+        "<h2>AssetManager MCP access</h2>"
+        f"<p>Hello {user.username}, your MCP access is ready.</p>"
+        f"<p><b>Token</b> (copy now, shown only once):</p>"
+        f"<pre style='background:#f4f4f4;padding:10px;border-radius:6px;'>{token}</pre>"
+        f"<p><b>Endpoint:</b> <code>{base}/mcp</code></p>"
+        "<pre style='background:#f4f4f4;padding:10px;border-radius:6px;'>"
+        f"{_mcp_setup_commands(base)}</pre>"
+        "<p>Keep this token secret. Rotate it from Settings → MCP if it leaks.</p>"
+        "</div>"
+    )
+    recipients = [user.email] if user.email else []
+    if not recipients:
+        return False
+    return send_email(subject, body, recipients, html_body=html_body)
+
+
+def _create_mcp_access_token(access):
+    """Create the active token row for an access grant. Returns the plaintext."""
+    plain = generate_mcp_token()
+    db.session.add(
+        McpToken(
+            name=f"access-{access.user_id}",
+            token_hash=hash_mcp_token(plain),
+            scope=access.scope,
+            user_id=access.user_id,
+            access_id=access.id,
+            expires_at=access.expires_at,
+        )
+    )
+    db.session.flush()
+    return plain
+
+
+@app.route("/settings/mcp/request", methods=["POST"])
+@login_required
+def mcp_access_request():
+    user = get_current_user()
+    existing = McpAccessRequest.query.filter_by(
+        user_id=user.id, status="pending"
+    ).first()
+    if existing:
+        flash("You already have a pending MCP access request.", "error")
+        return redirect(url_for("mcp_settings"))
+    scope = request.form.get("scope", "read_only").strip()
+    if scope not in {"read_only", "full"}:
+        scope = "read_only"
+    expiry_days = int(_parse_int(request.form.get("expiry", "0"), 0))
+    expiry_days = expiry_days if expiry_days in {0, 7, 30, 90, 365} else 0
+    reason = request.form.get("reason", "").strip()[:255] or None
+    db.session.add(
+        McpAccessRequest(
+            user_id=user.id, scope=scope, expiry_days=expiry_days,
+            reason=reason, status="pending",
+        )
+    )
+    db.session.commit()
+    log_audit("create", "mcp_access_request", details=f"{user.username} scope={scope} expiry={expiry_days}")
+    sent = False
+    for admin in get_mcp_admin_users():
+        if admin.email:
+            sent = send_email(
+                "MCP access request",
+                f"{user.username} requested MCP access (scope: {_mcp_scope_label(scope)}"
+                f", expiry: {expiry_days or 'never'}). Review it under Settings → MCP.",
+                [admin.email],
+            ) or sent
+    flash(
+        "Access requested. An administrator has been notified"
+        + ("" if sent else " (email skipped — SMTP not configured)") + ".",
+        "success",
+    )
+    return redirect(url_for("mcp_settings"))
+
+
+@app.route("/settings/mcp/requests/<int:req_id>/approve", methods=["POST"])
+@login_required
+@require_app_admin
+def mcp_access_approve(req_id):
+    req = McpAccessRequest.query.get_or_404(req_id)
+    if req.status != "pending":
+        flash("This request has already been decided.", "error")
+        return redirect(url_for("mcp_settings"))
+    scope = request.form.get("scope", req.scope).strip()
+    if scope not in {"read_only", "full"}:
+        scope = req.scope
+    expiry_days = int(_parse_int(request.form.get("expiry", str(req.expiry_days)), req.expiry_days))
+    expiry_days = expiry_days if expiry_days in {0, 7, 30, 90, 365} else 0
+    admin = get_current_user()
+    beneficiary = User.query.get(req.user_id)
+    if not beneficiary:
+        flash("Requesting user no longer exists.", "error")
+        return redirect(url_for("mcp_settings"))
+    plain, access = _grant_mcp_access(
+        beneficiary, scope, expiry_days, granted_by=admin.id, email_subject="MCP access approved"
+    )
+    req.status = "approved"
+    req.decided_by = admin.id
+    req.decided_at = datetime.datetime.now()
+    db.session.commit()
+    if plain:
+        session["mcp_new_token"] = plain
+    log_audit("approve", "mcp_access_request", entity_id=req_id, details=f"{beneficiary.username} scope={scope}")
+    return redirect(url_for("mcp_settings"))
+
+
+@app.route("/settings/mcp/requests/<int:req_id>/decline", methods=["POST"])
+@login_required
+@require_app_admin
+def mcp_access_decline(req_id):
+    req = McpAccessRequest.query.get_or_404(req_id)
+    if req.status != "pending":
+        flash("This request has already been decided.", "error")
+        return redirect(url_for("mcp_settings"))
+    note = request.form.get("note", "").strip()[:255] or None
+    req.status = "declined"
+    req.decided_by = get_current_user().id
+    req.decided_at = datetime.datetime.now()
+    req.admin_note = note
+    db.session.commit()
+    beneficiary = User.query.get(req.user_id)
+    sent = False
+    if beneficiary and beneficiary.email:
+        sent = send_email(
+            "MCP access declined",
+            f"Your request for MCP access was declined."
+            + (f" Note: {note}" if note else ""),
+            [beneficiary.email],
+        )
+    log_audit("decline", "mcp_access_request", entity_id=req_id, details=beneficiary.username if beneficiary else "")
+    flash("Request declined." + ("" if sent else " (email skipped — SMTP not configured)"), "success")
+    return redirect(url_for("mcp_settings"))
+
+
+@app.route("/settings/mcp/accesses", methods=["POST"])
+@login_required
+@require_app_admin
+def mcp_access_grant():
+    username = normalize_username(request.form.get("username", "").strip())
+    beneficiary = User.query.filter_by(username=username).first()
+    if not beneficiary:
+        flash("User not found.", "error")
+        return redirect(url_for("mcp_settings"))
+    scope = request.form.get("scope", "read_only").strip()
+    if scope not in {"read_only", "full"}:
+        scope = "read_only"
+    expiry_days = int(_parse_int(request.form.get("expiry", "0"), 0))
+    expiry_days = expiry_days if expiry_days in {0, 7, 30, 90, 365} else 0
+    admin = get_current_user()
+    plain, access = _grant_mcp_access(
+        beneficiary, scope, expiry_days, granted_by=admin.id, email_subject="MCP access granted"
+    )
+    if plain:
+        session["mcp_new_token"] = plain
+    log_audit("grant", "mcp_access", entity_id=access.id, details=f"{beneficiary.username} scope={scope}")
+    return redirect(url_for("mcp_settings"))
+
+
+@app.route("/settings/mcp/accesses/<int:access_id>/revoke", methods=["POST"])
+@login_required
+@require_app_admin
+def mcp_access_revoke(access_id):
+    access = McpAccess.query.get_or_404(access_id)
+    if access.status == "revoked":
+        flash("Access already revoked.", "error")
+        return redirect(url_for("mcp_settings"))
+    access.status = "revoked"
+    access.revoked_by = get_current_user().id
+    access.revoked_at = datetime.datetime.now()
+    for token in McpToken.query.filter_by(access_id=access.id).all():
+        token.enabled = False
+    db.session.commit()
+    owner = User.query.get(access.user_id)
+    sent = False
+    if owner and owner.email:
+        sent = send_email(
+            "MCP access revoked",
+            "Your AssetManager MCP access has been revoked. Contact an administrator if this was unexpected.",
+            [owner.email],
+        )
+    log_audit("revoke", "mcp_access", entity_id=access_id, details=owner.username if owner else "")
+    flash("Access revoked." + ("" if sent else " (email skipped — SMTP not configured)"), "success")
+    return redirect(url_for("mcp_settings"))
+
+
+@app.route("/settings/mcp/accesses/<int:access_id>/edit", methods=["POST"])
+@login_required
+@require_app_admin
+def mcp_access_edit(access_id):
+    """Admin-only: change an existing access's scope and/or expiry."""
+    access = McpAccess.query.get_or_404(access_id)
+    scope = request.form.get("scope", access.scope).strip()
+    if scope not in {"read_only", "full"}:
+        scope = access.scope
+    expiry_raw = _parse_int(request.form.get("expiry", ""), None)
+    expiry_changed = expiry_raw in {0, 7, 30, 90, 365}
+    if expiry_changed:
+        access.expires_at = (
+            datetime.datetime.now() + datetime.timedelta(days=expiry_raw)
+            if expiry_raw
+            else None
+        )
+    access.scope = scope
+    for token in McpToken.query.filter_by(access_id=access.id).all():
+        token.scope = scope
+        if expiry_changed:
+            token.expires_at = access.expires_at
+    db.session.commit()
+    owner = User.query.get(access.user_id)
+    log_audit(
+        "edit",
+        "mcp_access",
+        entity_id=access_id,
+        details=(
+            f"{(owner.username if owner else '?')} scope={scope} "
+            f"expiry={'unchanged' if not expiry_changed else (expiry_raw or 'never')}"
+        ),
+    )
+    flash("Access updated.", "success")
+    return redirect(url_for("mcp_settings"))
+
+
+@app.route("/settings/mcp/accesses/<int:access_id>/rotate", methods=["POST"])
+@login_required
+@require_app_admin
+def mcp_access_rotate(access_id):
+    access = McpAccess.query.get_or_404(access_id)
+    if access.status != "active":
+        flash("Cannot rotate a revoked access.", "error")
+        return redirect(url_for("mcp_settings"))
+    owner = User.query.get(access.user_id)
+    if not owner:
+        flash("Access owner no longer exists.", "error")
+        return redirect(url_for("mcp_settings"))
+    for old in McpToken.query.filter_by(access_id=access.id).all():
+        old.enabled = False
+    plain = _create_mcp_access_token(access)
+    db.session.commit()
+    session["mcp_new_token"] = plain
+    sent = _mcp_email_token(owner, plain, "MCP token rotated")
+    log_audit("rotate", "mcp_access", entity_id=access_id, details=owner.username)
+    flash("Token rotated." + ("" if sent else " (email skipped — SMTP not configured)"), "success")
+    return redirect(url_for("mcp_settings"))
+
+
+@app.route("/settings/mcp/self/rotate", methods=["POST"])
+@login_required
+def mcp_self_rotate():
+    user = get_current_user()
+    access = McpAccess.query.filter_by(user_id=user.id, status="active").first()
+    if not access:
+        flash("No active MCP access.", "error")
+        return redirect(url_for("mcp_settings"))
+    for old in McpToken.query.filter_by(access_id=access.id).all():
+        old.enabled = False
+    plain = _create_mcp_access_token(access)
+    db.session.commit()
+    session["mcp_new_token"] = plain
+    sent = _mcp_email_token(user, plain, "MCP token rotated")
+    log_audit("rotate", "mcp_access", entity_id=access.id, details=f"self {user.username}")
+    flash("Token rotated." + ("" if sent else " (email skipped — SMTP not configured)"), "success")
+    return redirect(url_for("mcp_settings"))
+
+
+def _grant_mcp_access(beneficiary, scope, expiry_days, granted_by, email_subject):
+    """Create/refresh the user's active access + token. Returns (plain, access)."""
+    expires_at = (
+        datetime.datetime.now() + datetime.timedelta(days=expiry_days)
+        if expiry_days else None
+    )
+    access = McpAccess.query.filter_by(user_id=beneficiary.id).first()
+    if access is None:
+        access = McpAccess(user_id=beneficiary.id, granted_by=granted_by)
+        db.session.add(access)
+    else:
+        for old in McpToken.query.filter_by(access_id=access.id).all():
+            old.enabled = False
+    access.scope = scope
+    access.expires_at = expires_at
+    access.status = "active"
+    access.granted_by = granted_by
+    access.granted_at = datetime.datetime.now()
+    access.revoked_by = None
+    access.revoked_at = None
+    db.session.flush()
+    plain = _create_mcp_access_token(access)
+    db.session.commit()
+    sent = _mcp_email_token(beneficiary, plain, email_subject)
+    if not sent:
+        # SMTP off: still fine — token is revealed once in the panel.
+        pass
+    return plain, access
+
+
+@app.route("/settings/mcp/toggle", methods=["POST"])
+@login_required
+@require_app_admin
+def mcp_settings_toggle():
+    config = get_mcp_config()
+    config.enabled = "enabled" in request.form
+    db.session.commit()
+    if config.enabled:
+        start_mcp_gateway()
+    else:
+        stop_mcp_gateway()
+    log_audit("update", "mcp_config", entity_id="global", details=f"enabled={config.enabled}")
+    flash("MCP gateway " + ("enabled." if config.enabled else "disabled."), "success")
+    return redirect(url_for("mcp_settings"))
+
+
+@app.route("/settings/mcp/tokens", methods=["POST"])
+@login_required
+@require_app_admin
+def mcp_token_create():
+    name = request.form.get("name", "").strip()
+    scope = request.form.get("scope", "read_only").strip()
+    if scope not in {"read_only", "full"}:
+        scope = "read_only"
+    if not name:
+        flash("Token name is required.", "error")
+        return redirect(url_for("mcp_settings"))
+    expiry = request.form.get("expiry", "never").strip()
+    expires_at = None
+    if expiry.isdigit() and int(expiry) > 0:
+        expires_at = datetime.datetime.now() + datetime.timedelta(days=int(expiry))
+    token = generate_mcp_token()
+    db.session.add(
+        McpToken(
+            name=name,
+            token_hash=hash_mcp_token(token),
+            scope=scope,
+            user_id=get_current_user().id,
+            expires_at=expires_at,
+        )
+    )
+    db.session.commit()
+    session["mcp_new_token"] = token
+    log_audit("create", "mcp_token", details=f"{name} scope={scope} expiry={expiry}")
+    flash("Token created. Copy it now — it will not be shown again.", "success")
+    return redirect(url_for("mcp_settings"))
+
+
+@app.route("/settings/mcp/tokens/<int:token_id>/revoke", methods=["POST"])
+@login_required
+@require_app_admin
+def mcp_token_revoke(token_id):
+    token = McpToken.query.get_or_404(token_id)
+    token.enabled = False
+    db.session.commit()
+    log_audit("update", "mcp_token", entity_id=token_id, details=f"revoked {token.name}")
+    flash("Token revoked.", "success")
+    return redirect(url_for("mcp_settings"))
+
+
+@app.route("/settings/mcp/tokens/<int:token_id>/delete", methods=["POST"])
+@login_required
+@require_app_admin
+def mcp_token_delete(token_id):
+    token = McpToken.query.get_or_404(token_id)
+    db.session.delete(token)
+    db.session.commit()
+    log_audit("delete", "mcp_token", entity_id=token_id, details=f"deleted {token.name}")
+    flash("Token deleted.", "success")
+    return redirect(url_for("mcp_settings"))
+
 
 
 if __name__ == "__main__":

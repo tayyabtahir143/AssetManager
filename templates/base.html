@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-scheme="amber">
 {% set brand_raw = (branding_name or "Asset") | trim %}
 {% set brand_lower = brand_raw | lower %}
 {% if brand_lower.endswith("asset manager") %}
@@ -19,7 +19,7 @@
     <link rel="shortcut icon" href="{{ url_for('dynamic_favicon', v=(brand_raw or 'A')) }}">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600;700&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='foundation.css', v=app_version) }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='workspace.css', v=app_version) }}">
     <style>
@@ -27,24 +27,32 @@
       /* Extends the .quick-nav-* surface using the shared workspace tokens. */
       #quick-nav-assets { border-top: 1px solid var(--border); padding: 8px; overflow-y: auto; max-height: 24dvh; }
       #quick-nav-assets:empty { display: none; }
-      .quick-nav-assets-label { padding: 4px 12px 6px; color: var(--ink-3); font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-      .quick-nav-asset-result { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center; padding: 9px 12px; border-radius: var(--radius-sm); color: var(--ink); text-decoration: none; font-size: 12px; transition: background var(--transition); }
+      .quick-nav-assets-label { padding: 4px 12px 7px; color: var(--ink-3); font-size: 9.5px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
+      .quick-nav-asset-result { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; align-items: center; padding: 9px 12px; border-radius: 7px; color: var(--ink); text-decoration: none; font-size: 12.5px; transition: background var(--transition); }
       .quick-nav-asset-result:hover, .quick-nav-asset-result:focus { background: var(--accent-dim); color: var(--ink); }
       .qna-title { font-weight: 600; color: var(--ink); }
       .quick-nav-asset-result:hover .qna-title, .quick-nav-asset-result:focus .qna-title { color: var(--accent); }
-      .qna-badge { justify-self: end; background: var(--accent-dim); color: var(--accent); border-radius: var(--radius-xs); padding: 1px 7px; font-size: 9px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
-      .qna-tag { grid-column: 1 / -1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--ink-2); font-size: 10px; }
-      .qna-subtitle { grid-column: 1 / -1; color: var(--ink-3); font-size: 10px; }
+      .qna-badge { justify-self: end; background: var(--accent-dim); color: var(--accent); border: 1px solid var(--border-2); border-radius: 5px; padding: 1px 7px; font-size: 9.5px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; }
+      .qna-tag { grid-column: 1 / -1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; color: var(--ink-2); font-size: 10.5px; letter-spacing: 0.03em; }
+      .qna-subtitle { grid-column: 1 / -1; color: var(--ink-3); font-size: 10.5px; }
       .quick-nav-assets-loading, .quick-nav-assets-empty, .quick-nav-assets-hint { padding: 14px 12px; color: var(--ink-2); font-size: 12px; }
     </style>
     <script>
       try {
+        /* Two shifts: night (default) and day. Legacy theme names from older
+           builds map onto the nearest shift so nobody lands unthemed. */
         const theme = localStorage.getItem('theme');
-        if (['classic', 'light', 'ocean', 'forest', 'sunset'].includes(theme)) {
-          document.documentElement.dataset.theme = theme;
+        if (theme === 'light') {
+          document.documentElement.dataset.theme = 'light';
         }
         if (localStorage.getItem('workspace-density') === 'compact') {
           document.documentElement.dataset.density = 'compact';
+        }
+        /* Colour scheme: restore the saved enamel recipe before first paint
+           (amber is the server-rendered default). */
+        const scheme = localStorage.getItem('assetmanager-scheme');
+        if (['amber', 'indigo', 'emerald', 'rose', 'ocean', 'slate'].indexOf(scheme) !== -1) {
+          document.documentElement.dataset.scheme = scheme;
         }
       } catch (_) {}
     </script>
@@ -89,19 +97,23 @@
             <nav>
               <a class="nav-link {{ 'active' if ep == 'index' }}" href="{{ url_for('index') }}">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
-                Dashboard
+                <span class="nav-label">Dashboard</span>
               </a>
               <a class="nav-link {{ 'active' if ep == 'free_inventory' }}" href="{{ url_for('free_inventory') }}">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.91 8.84L8.56 2.23a1.93 1.93 0 0 0-1.81 0L3.1 4.13a2.12 2.12 0 0 0-.05 3.69l12.22 6.93a2 2 0 0 0 1.94 0L21 12.51a2.12 2.12 0 0 0-.09-3.67z"/><path d="M3.09 8.84L1.77 9.5A1.93 1.93 0 0 0 1 11.19v1.37a1.93 1.93 0 0 0 1.09 1.73l2.14 1.28"/><path d="M5 15.5L3.09 19.5"/><path d="M20.91 8.84l1.23.68A1.93 1.93 0 0 1 23 11.19v1.37a1.93 1.93 0 0 1-1.09 1.73l-2.14 1.28"/><path d="M19 15.5l1.91 4"/><path d="M12 11.5V21"/></svg>
-                Available Assets
+                <span class="nav-label">Available Assets</span>
               </a>
               <a class="nav-link {{ 'active' if ep == 'user_assets' }}" href="{{ url_for('user_assets') }}">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                User Assets
+                <span class="nav-label">User Assets</span>
               </a>
               <a class="nav-link {{ 'active' if ep in ['reports','export_report'] }}" href="{{ url_for('reports') }}">
                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" x2="18" y1="20" y2="10"/><line x1="12" x2="12" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="14"/></svg>
-                Reports
+                <span class="nav-label">Reports</span>
+              </a>
+              <a class="nav-link {{ 'active' if ep == 'mcp_settings' }}" href="{{ url_for('mcp_settings') }}">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9"/><path d="M12 3a9 9 0 0 1 9 9"/><circle cx="12" cy="12" r="3"/></svg>
+                <span class="nav-label">MCP</span>
               </a>
             </nav>
 
@@ -111,70 +123,74 @@
                 {% if app_admin %}
                   <a class="nav-link {{ 'active' if ep in ['list_users','add_user','edit_user'] }}" href="{{ url_for('list_users') }}">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                    Users
+                    <span class="nav-label">Users</span>
                   </a>
                   <a class="nav-link {{ 'active' if ep in ['list_groups','add_group','edit_group'] }}" href="{{ url_for('list_groups') }}">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                    Groups
+                    <span class="nav-label">Groups</span>
                   </a>
                   <a class="nav-link {{ 'active' if ep in ['list_roles','add_role','edit_role'] }}" href="{{ url_for('list_roles') }}">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/></svg>
-                    Roles
+                    <span class="nav-label">Roles</span>
                   </a>
                   <a class="nav-link {{ 'active' if ep in ['list_asset_types','add_asset_type','edit_asset_type','edit_builtin_asset_type'] }}" href="{{ url_for('list_asset_types') }}">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7.5 12 2l10 5.5v9L12 22 2 16.5z"/><path d="M12 12v10"/><path d="M2 7.5l10 4.5 10-4.5"/></svg>
-                    Asset Types
+                    <span class="nav-label">Asset Types</span>
                   </a>
                 {% endif %}
                 {% if permissions.can_manage_depts %}
                   <a class="nav-link {{ 'active' if ep == 'manage_departments' }}" href="{{ url_for('manage_departments') }}">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/></svg>
-                    Departments
+                    <span class="nav-label">Departments</span>
                   </a>
                 {% endif %}
                 {% if app_admin %}
                   <a class="nav-link {{ 'active' if ep == 'security_settings' }}" href="{{ url_for('security_settings') }}">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                    Security
+                    <span class="nav-label">Security</span>
                   </a>
                   <a class="nav-link {{ 'active' if ep == 'branding_settings' }}" href="{{ url_for('branding_settings') }}">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>
-                    Branding
+                    <span class="nav-label">Branding</span>
                   </a>
                   <a class="nav-link {{ 'active' if ep == 'ldap_settings' }}" href="{{ url_for('ldap_settings') }}">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg>
-                    LDAP
+                    <span class="nav-label">LDAP</span>
                   </a>
                   <a class="nav-link {{ 'active' if ep == 'smtp_settings' }}" href="{{ url_for('smtp_settings') }}">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
-                    SMTP
+                    <span class="nav-label">SMTP</span>
                   </a>
                   <a class="nav-link {{ 'active' if ep == 'audit_log' }}" href="{{ url_for('audit_log') }}">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>
-                    Audit Log
+                    <span class="nav-label">Audit Log</span>
                   </a>
                   <a class="nav-link {{ 'active' if ep in ['view_logs','logs_tail'] }}" href="{{ url_for('view_logs') }}">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></svg>
-                    Logs
+                    <span class="nav-label">Logs</span>
                   </a>
                   <a class="nav-link {{ 'active' if ep in ['backup_settings','backup_config_download','restore_config_backup'] }}" href="{{ url_for('backup_settings') }}">
                     <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" x2="2" y1="12" y2="12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><line x1="6" x2="6.01" y1="16" y2="16"/><line x1="10" x2="10.01" y1="16" y2="16"/></svg>
-                    Backups
+                    <span class="nav-label">Backups</span>
                   </a>
                 {% endif %}
               </nav>
             {% endif %}
 
             <div class="sidebar-footer">
+              <button type="button" class="rail-toggle" id="rail-toggle" aria-label="Expand navigation" aria-expanded="false" title="Expand navigation">
+                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                <span class="rail-label">Expand rail</span>
+              </button>
               {% if update_status and update_status.available and (app_admin or current_user.role == 'admin') %}
                 <a class="update-btn" href="https://hub.docker.com/r/{{ dockerhub_repo }}" target="_blank" rel="noopener">
                   <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
-                  Update Available
+                  <span>Update Available</span>
                 </a>
               {% endif %}
               <a class="button secondary" href="{{ url_for('logout') }}" style="justify-content: center;">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
-                Sign out
+                <span>Sign out</span>
               </a>
               <div class="version-tag">v{{ app_version }}</div>
             </div>
@@ -192,7 +208,12 @@
             </button>
             <button type="button" class="quick-nav-trigger" id="quick-nav-open" aria-haspopup="dialog" aria-controls="quick-nav" aria-label="Search pages and actions">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg>
-              <span>Search pages and actions…</span><kbd>Ctrl K</kbd>
+              <span>Search pages and actions…</span>
+              <span class="cmd-hint" aria-hidden="true">
+                <span class="hint-chip">E Edit</span>
+                <span class="hint-chip">N New</span>
+                <kbd>Ctrl K</kbd>
+              </span>
             </button>
           </div>
           <div class="topbar-right">
@@ -200,21 +221,18 @@
               <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
               <span id="app-time" data-tz="{{ tz_name }}">--:--</span>
             </div>
+            <div class="scheme-picker" data-scheme-picker role="group" aria-label="Colour scheme">
+              {% for scheme_name in ["amber", "indigo", "emerald", "rose", "ocean", "slate"] %}
+              <button type="button" class="scheme-swatch{% if scheme_name == 'amber' %} is-active{% endif %}" data-scheme-value="{{ scheme_name }}" aria-label="{{ scheme_name | capitalize }} scheme" title="{{ scheme_name | capitalize }} scheme" aria-pressed="{{ 'true' if scheme_name == 'amber' else 'false' }}"></button>
+              {% endfor %}
+            </div>
             <button type="button" class="theme-btn" id="density-toggle" aria-pressed="false" title="Toggle compact tables">Compact</button>
             <button type="button" class="theme-btn" id="theme-toggle" aria-label="Change colour theme" title="Change colour theme">
-              <!-- dark moon -->
+              <!-- night shift (moon) -->
               <svg id="theme-icon-dark" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
-              <!-- classic spark -->
-              <svg id="theme-icon-classic" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="m12 3 1.9 3.9L18 9l-4.1 2.1L12 15l-1.9-3.9L6 9l4.1-2.1z"/><path d="M5 19h.01"/><path d="M19 19h.01"/></svg>
-              <!-- light sun -->
+              <!-- day shift (sun) -->
               <svg id="theme-icon-light" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
-              <!-- ocean wave -->
-              <svg id="theme-icon-ocean" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M2 6c.6.5 1.2 1 2.5 1C7 7 7 5 9.5 5c2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2"/><path d="M2 12c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2"/><path d="M2 18c.6.5 1.2 1 2.5 1 2.5 0 2.5-2 5-2 2.6 0 2.4 2 5 2 2.5 0 2.5-2 5-2"/></svg>
-              <!-- forest tree -->
-              <svg id="theme-icon-forest" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M17 14h.01"/><path d="M7 7h12a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h2.5"/><path d="m8 10 4-6 4 6"/><path d="M12 10v3"/></svg>
-              <!-- sunset horizon -->
-              <svg id="theme-icon-sunset" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><path d="M12 10V2"/><path d="m4.93 10.93 1.41 1.41"/><path d="M2 18h2"/><path d="M20 18h2"/><path d="m19.07 10.93-1.41 1.41"/><path d="M22 22H2"/><path d="M16 18a4 4 0 0 0-8 0"/></svg>
-              <span id="theme-label">Light</span>
+              <span id="theme-label">Day</span>
             </button>
             {% if show_sidebar %}
               <a class="button secondary" href="{{ url_for('logout') }}" style="padding: 7px 12px;">
@@ -231,7 +249,13 @@
               {%- for category, message in messages %}
                 <div class="flash {{ category }}" role="status">
                   <span class="flash-icon">
-                    {%- if category == 'success' %}✓{%- elif category == 'error' %}✕{%- else %}ℹ{%- endif %}
+                    {%- if category == 'success' -%}
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                    {%- elif category == 'error' -%}
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg>
+                    {%- else -%}
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="16" y2="12"/><line x1="12" x2="12.01" y1="8" y2="8"/></svg>
+                    {%- endif -%}
                   </span>
                   {{ message }}
                   <button type="button" class="flash-close" aria-label="Dismiss notification" onclick="this.closest('.flash').remove()">×</button>
@@ -263,7 +287,7 @@
     <dialog class="workspace-dialog" id="quick-nav" aria-labelledby="quick-nav-title">
       <div class="quick-nav-header">
         <h2 id="quick-nav-title">Go to a page</h2>
-        <button type="button" class="btn-icon" id="quick-nav-close" aria-label="Close quick navigation">×</button>
+        <button type="button" class="btn-icon" id="quick-nav-close" aria-label="Close quick navigation"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg></button>
       </div>
       <div class="quick-nav-field">
         <input type="search" id="quick-nav-search" placeholder="Search pages and assets…" aria-label="Search pages and actions" autocomplete="off">
@@ -279,7 +303,9 @@
     <!-- Auto-logout warning modal -->
     <div class="autologout-overlay" id="autologout-overlay" role="dialog" aria-modal="true" aria-labelledby="autologout-title">
       <div class="autologout-modal">
-        <div class="autologout-icon">⏱</div>
+        <div class="autologout-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
         <div class="autologout-title" id="autologout-title">Session Expiring</div>
         <div class="autologout-msg">You've been inactive. You'll be signed out in:</div>
         <div class="autologout-countdown" id="autologout-countdown">60</div>
@@ -300,48 +326,24 @@
     {% endif %}
 
     <script>
-      /* Theme */
+      /* Theme — two shifts. The label names what one click gives you. */
       const root = document.documentElement;
-      const themeLbl    = document.getElementById('theme-label');
-      const iconDark    = document.getElementById('theme-icon-dark');
-      const iconClassic = document.getElementById('theme-icon-classic');
-      const iconLight   = document.getElementById('theme-icon-light');
-      const iconOcean   = document.getElementById('theme-icon-ocean');
-      const iconForest  = document.getElementById('theme-icon-forest');
-      const iconSunset  = document.getElementById('theme-icon-sunset');
-      // Themes cycle: dark → classic → light → ocean → forest → sunset → dark
-      const THEMES = ['dark', 'classic', 'light', 'ocean', 'forest', 'sunset'];
-      const THEME_LABELS = {
-        dark: 'Classic',
-        classic: 'Light',
-        light: 'Ocean',
-        ocean: 'Forest',
-        forest: 'Sunset',
-        sunset: 'Dark',
-      };
-      const THEME_ICONS  = {
-        dark: iconDark,
-        classic: iconClassic,
-        light: iconLight,
-        ocean: iconOcean,
-        forest: iconForest,
-        sunset: iconSunset,
-      };
+      const themeLbl  = document.getElementById('theme-label');
+      const iconDark  = document.getElementById('theme-icon-dark');
+      const iconLight = document.getElementById('theme-icon-light');
       const applyTheme = (theme) => {
-        if (theme === 'dark') { root.removeAttribute('data-theme'); }
-        else                  { root.setAttribute('data-theme', theme); }
-        if (themeLbl) themeLbl.textContent = THEME_LABELS[theme] || 'Classic';
-        Object.entries(THEME_ICONS).forEach(([t, el]) => {
-          if (el) el.style.display = t === theme ? '' : 'none';
-        });
+        if (theme === 'light') root.setAttribute('data-theme', 'light');
+        else                    root.removeAttribute('data-theme');
+        if (themeLbl) themeLbl.textContent = theme === 'light' ? 'Night' : 'Day';
+        if (iconDark)  iconDark.style.display  = theme === 'light' ? 'none' : '';
+        if (iconLight) iconLight.style.display = theme === 'light' ? '' : 'none';
       };
       let saved = 'dark';
-      try { saved = localStorage.getItem('theme') || 'dark'; } catch (_) {}
-      applyTheme(THEMES.includes(saved) ? saved : 'dark');
+      try { saved = localStorage.getItem('theme') === 'light' ? 'light' : 'dark'; } catch (_) {}
+      applyTheme(saved);
       document.getElementById('theme-toggle')?.addEventListener('click', () => {
-        const cur = root.getAttribute('data-theme') || 'dark';
-        const idx = THEMES.indexOf(cur);
-        const next = THEMES[(idx + 1) % THEMES.length];
+        const cur = root.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+        const next = cur === 'light' ? 'dark' : 'light';
         try { localStorage.setItem('theme', next); } catch (_) {}
         applyTheme(next);
       });
@@ -464,6 +466,43 @@
       }
     })();
     </script>
+    <!-- ── Icon rail: pin toggle + hover/focus expansion ───────────────── -->
+    <script>
+    (function () {
+      const layoutEl = document.querySelector('.layout');
+      const sidebar = document.getElementById('sidebar');
+      const railToggle = document.getElementById('rail-toggle');
+      if (!layoutEl || !sidebar) return;
+      const setPinned = (pinned) => {
+        layoutEl.classList.toggle('rail-pinned', pinned);
+        if (railToggle) {
+          railToggle.setAttribute('aria-expanded', String(pinned));
+          railToggle.setAttribute('aria-label', pinned ? 'Collapse navigation' : 'Expand navigation');
+          railToggle.title = pinned ? 'Collapse navigation' : 'Expand navigation';
+          const label = railToggle.querySelector('.rail-label');
+          if (label) label.textContent = pinned ? 'Collapse rail' : 'Expand rail';
+        }
+      };
+      let pinned = false;
+      try { pinned = localStorage.getItem('sidebar-pinned') === '1'; } catch (_) {}
+      setPinned(pinned);
+      railToggle?.addEventListener('click', () => {
+        pinned = !pinned;
+        setPinned(pinned);
+        try { localStorage.setItem('sidebar-pinned', pinned ? '1' : '0'); } catch (_) {}
+      });
+      /* Hover expansion uses hover-intent: quick pointer transits never
+         expand the rail, and the floor reflows while it is open. */
+      let enterTimer = null, leaveTimer = null;
+      const expand = () => { clearTimeout(leaveTimer); enterTimer = setTimeout(() => layoutEl.classList.add('rail-expanded'), 200); };
+      const collapse = () => { clearTimeout(enterTimer); leaveTimer = setTimeout(() => layoutEl.classList.remove('rail-expanded'), 260); };
+      sidebar.addEventListener('mouseenter', expand);
+      sidebar.addEventListener('mouseleave', collapse);
+      sidebar.addEventListener('focusin', () => { clearTimeout(leaveTimer); layoutEl.classList.add('rail-expanded'); });
+      sidebar.addEventListener('focusout', () => { clearTimeout(enterTimer); layoutEl.classList.remove('rail-expanded'); });
+    })();
+    </script>
+
     <!-- Toast container -->
     <div class="toast-container" id="toast-container"></div>
 
@@ -474,7 +513,11 @@
       if (!container) return;
       const toast = document.createElement('div');
       toast.className = 'toast ' + (type || 'info');
-      const icon = type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ';
+      const icon = type === 'success'
+        ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>'
+        : type === 'error'
+          ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg>'
+          : '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="16" y2="12"/><line x1="12" x2="12.01" y1="8" y2="8"/></svg>';
       toast.innerHTML = `<span>${icon}</span><span style="flex:1;">${message}</span><button onclick="dismissToast(this.parentNode)" style="background:none;border:none;color:inherit;cursor:pointer;font-size:16px;padding:0;line-height:1;margin-left:auto;">×</button>`;
       container.appendChild(toast);
       setTimeout(() => dismissToast(toast), 5000);

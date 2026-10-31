@@ -7,6 +7,19 @@
   const headers = [...table.querySelectorAll('th[data-sort-col]')];
   const choices = [...document.querySelectorAll('[data-column-choice]')];
   const storageKey = `inventory-columns:${table.closest('[data-asset-type]').dataset.assetType}`;
+  const viewStorageKey = `inventory-view:${table.closest('[data-asset-type]').dataset.assetType}`;
+  /* Card-view elements are resolved up front: applyColumns() can rebuild the
+     card grid on its very first run. */
+  const cardsGrid = document.getElementById('inventory-cards');
+  const cardsEmpty = document.getElementById('inventory-cards-empty');
+  const viewTable = document.getElementById('view-toggle-table');
+  const viewCards = document.getElementById('view-toggle-cards');
+  const viewContainers = [...document.querySelectorAll('.inventory-page .inventory-view')];
+  let currentView = 'table';
+  try {
+    const pref = localStorage.getItem(viewStorageKey);
+    if (pref === 'cards' || pref === 'table') currentView = pref;
+  } catch (_) { /* Storage may be unavailable. */ }
   let hiddenFields = new Set();
   try {
     const stored = JSON.parse(localStorage.getItem(storageKey));
@@ -29,6 +42,7 @@
       });
     });
     choices.forEach(choice => { choice.checked = !hiddenFields.has(choice.dataset.columnChoice); });
+    buildCardsIfActive();
   };
   const saveColumns = () => {
     try { localStorage.setItem(storageKey, JSON.stringify([...hiddenFields])); } catch (_) { /* Keep the in-memory preference usable. */ }
@@ -104,6 +118,9 @@
         badge.className = `badge ${colors[value] || ''}`;
         badge.textContent = value || '-';
         cell.appendChild(badge);
+      } else if (name === 'asset_tag') {
+        cell.className = 'col-tag';
+        cell.textContent = value || '-';
       } else cell.textContent = value || '-';
     });
     if (config.canAdd || config.canDelete) {
@@ -163,6 +180,7 @@
       hasMore = data.has_more;
       applyColumns();
       sortRows();
+      buildCardsIfActive();
       refreshBulkTools();
     } catch (_) {
       failed = true;
@@ -214,4 +232,183 @@
   });
   document.addEventListener('click', () => queueMicrotask(refreshBulkTools));
   refreshBulkTools();
+
+  /* ── Card view: the same records as bay plates ──────────────────────── */
+  /* One data source (the table rows), two presentations. The card grid is
+     rebuilt from the table so sorting, column choices, bulk selection and
+     load-more stay perfectly in sync; the real form checkboxes live in the
+     table and the cards carry mirrors that never submit duplicates. */
+  const setView = view => {
+    currentView = view === 'cards' ? 'cards' : 'table';
+    viewContainers.forEach(container => {
+      container.hidden = container.dataset.view !== currentView;
+    });
+    if (viewTable) viewTable.setAttribute('aria-pressed', String(currentView === 'table'));
+    if (viewCards) viewCards.setAttribute('aria-pressed', String(currentView === 'cards'));
+    try { localStorage.setItem(viewStorageKey, currentView); } catch (_) {}
+    if (currentView === 'cards') buildCards();
+  };
+
+  /* Hoisted function declarations: applyColumns() runs before this section
+     is evaluated, so the card view must be callable from its first pass. */
+  function syncMirrors() {
+    if (!cardsGrid) return;
+    cardsGrid.querySelectorAll('.inventory-card').forEach(card => {
+      const box = [...document.querySelectorAll('.inventory-view[data-view="table"] .asset-checkbox')]
+        .find(b => b.value === card.dataset.cardRow);
+      const mirror = card.querySelector('.asset-checkbox-mirror');
+      if (box && mirror) mirror.checked = box.checked;
+    });
+  }
+
+  function buildCards() {
+    if (!cardsGrid) return;
+    cardsGrid.replaceChildren();
+    const headerCells = [...table.tHead.rows[0].cells];
+    const fieldHeaders = headerCells.filter(th => th.dataset.field && !th.hidden);
+    const cellOf = (row, th) => {
+      const cell = row.cells[th.cellIndex];
+      return cell && !cell.hidden ? cell : null;
+    };
+    const rows = [...body.rows].filter(row => row.querySelector('.col-idx'));
+    rows.forEach(row => {
+      const box = row.querySelector('.asset-checkbox');
+      const id = box ? box.value : '';
+      const article = document.createElement('article');
+      article.className = 'inventory-card';
+      article.dataset.cardRow = id;
+
+      const top = document.createElement('div');
+      top.className = 'inventory-card-top';
+      const tagHeader = fieldHeaders.find(th => th.dataset.field === 'asset_tag');
+      const tagCell = tagHeader ? cellOf(row, tagHeader) : null;
+      if (tagCell) {
+        const plate = document.createElement('span');
+        plate.className = 'tag-plate';
+        plate.textContent = tagCell.textContent.replace(/[↑↓]/g, '').trim() || '-';
+        top.appendChild(plate);
+      }
+      const statusHeader = fieldHeaders.find(th => th.dataset.field === 'status');
+      const statusCell = statusHeader ? cellOf(row, statusHeader) : null;
+      if (statusCell) {
+        const srcBadge = statusCell.querySelector('.badge');
+        const badge = document.createElement('span');
+        badge.className = srcBadge ? srcBadge.className : 'badge badge-default';
+        badge.textContent = statusCell.textContent.trim() || '-';
+        top.appendChild(badge);
+      }
+      const mirror = document.createElement('input');
+      mirror.type = 'checkbox';
+      mirror.className = 'asset-checkbox-mirror bulk-toggle-asset';
+      mirror.setAttribute('aria-label', box ? box.getAttribute('aria-label') : `Select asset ${id}`);
+      mirror.checked = Boolean(box && box.checked);
+      top.appendChild(mirror);
+      article.appendChild(top);
+
+      const vendorHeader = fieldHeaders.find(th => th.dataset.field === 'vendor');
+      const modelHeader = fieldHeaders.find(th => th.dataset.field === 'model');
+      const titleParts = [];
+      [vendorHeader, modelHeader].forEach(th => {
+        if (!th) return;
+        const cell = cellOf(row, th);
+        if (cell) {
+          const text = cell.textContent.trim();
+          if (text && text !== '-') titleParts.push(text);
+        }
+      });
+      const title = document.createElement('div');
+      title.className = 'inventory-card-title';
+      if (titleParts.length) {
+        title.textContent = titleParts.join(' ');
+      } else {
+        const fallback = fieldHeaders
+          .filter(th => th.dataset.field !== 'asset_tag' && th.dataset.field !== 'status')
+          .map(th => cellOf(row, th))
+          .find(cell => cell && cell.textContent.trim() && cell.textContent.trim() !== '-');
+        title.textContent = fallback ? fallback.textContent.trim() : 'Asset';
+      }
+      article.appendChild(title);
+
+      const fields = document.createElement('div');
+      fields.className = 'inventory-card-fields';
+      fieldHeaders.forEach(th => {
+        const name = th.dataset.field;
+        if (!name || name === 'asset_tag' || name === 'status' || name === 'vendor' || name === 'model') return;
+        const cell = cellOf(row, th);
+        if (!cell) return;
+        const label = th.textContent.replace(/[↑↓]/g, '').trim();
+        const value = cell.textContent.trim() || '-';
+        const field = document.createElement('div');
+        field.className = 'inventory-card-field';
+        const dt = document.createElement('span');
+        dt.className = 'inventory-card-field-label';
+        dt.textContent = label;
+        const dd = document.createElement('span');
+        dd.className = 'inventory-card-field-value';
+        dd.textContent = value;
+        field.append(dt, dd);
+        fields.appendChild(field);
+      });
+      if (fields.childElementCount) article.appendChild(fields);
+
+      const act = row.querySelector('.col-act');
+      if (act && act.childElementCount) {
+        const actions = document.createElement('div');
+        actions.className = 'inventory-card-actions';
+        [...act.children].forEach(el => {
+          const clone = el.cloneNode(true);
+          if (clone.tagName === 'BUTTON' && !clone.getAttribute('onclick')) {
+            clone.addEventListener('click', () => window.confirm('Delete this item?'));
+          }
+          actions.appendChild(clone);
+        });
+        article.appendChild(actions);
+      }
+      cardsGrid.appendChild(article);
+    });
+    if (cardsEmpty) cardsEmpty.hidden = rows.length > 0;
+    syncMirrors();
+  };
+
+  function buildCardsIfActive() {
+    if (currentView === 'cards') buildCards();
+  }
+
+  if (cardsGrid) {
+    cardsGrid.addEventListener('change', event => {
+      const mirror = event.target;
+      if (!mirror.classList || !mirror.classList.contains('asset-checkbox-mirror')) return;
+      const card = mirror.closest('.inventory-card');
+      const box = [...document.querySelectorAll('.inventory-view[data-view="table"] .asset-checkbox')]
+        .find(b => b.value === (card ? card.dataset.cardRow : ''));
+      if (box) {
+        box.checked = mirror.checked;
+        box.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
+  }
+  if (viewTable) viewTable.addEventListener('click', () => setView('table'));
+  if (viewCards) viewCards.addEventListener('click', () => setView('cards'));
+
+  /* Keep mirrors honest whenever the table checkboxes change. */
+  document.addEventListener('change', event => {
+    const target = event.target;
+    if (target && (target.id === 'select-all-assets' || (target.classList && target.classList.contains('asset-checkbox')))) {
+      queueMicrotask(syncMirrors);
+    }
+  });
+  document.addEventListener('click', () => queueMicrotask(syncMirrors));
+  document.addEventListener('click', event => {
+    if (!cardsGrid || !cardsGrid.contains(event.target)) return;
+    if (event.target.closest('a, button, input, label')) return;
+    const card = event.target.closest('.inventory-card');
+    if (!card || !card.dataset.cardRow) return;
+    const box = [...document.querySelectorAll('.inventory-view[data-view="table"] .asset-checkbox')]
+      .find(b => b.value === card.dataset.cardRow);
+    if (box && box.style.display !== 'none') {
+      box.checked = !box.checked;
+      box.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  });
+  setView(currentView);
 })();

@@ -1,0 +1,65 @@
+{# Shared asset-type icon macro. Icons are server-defined SVG snippets keyed by
+   name; only whitelisted keys are rendered (never raw HTML from the database). #}
+{% macro asset_icon(icon_key, label, size=22) -%}
+{%- set snippets = {
+  "laptop": '<rect x="3" y="4" width="18" height="12" rx="2"/><path d="M2 20h20"/>',
+  "desktop": '<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>',
+  "monitor": '<rect x="2" y="3" width="20" height="14" rx="2"/><line x1="12" y1="17" x2="12" y2="21"/><path d="M8 21h8"/>',
+  "keyboard": '<rect x="2" y="6" width="20" height="12" rx="2"/><line x1="6" y1="10" x2="6.01" y2="10"/><line x1="10" y1="10" x2="10.01" y2="10"/><line x1="14" y1="10" x2="14.01" y2="10"/><line x1="18" y1="10" x2="18.01" y2="10"/><line x1="8" y1="14" x2="16" y2="14"/>',
+  "mouse": '<rect x="7" y="2" width="10" height="20" rx="5"/><path d="M12 2v6"/>',
+  "headset": '<path d="M4 14a8 8 0 0 1 16 0"/><rect x="2" y="14" width="4" height="7" rx="1.5"/><rect x="18" y="14" width="4" height="7" rx="1.5"/><path d="M20 21a3 3 0 0 1-3 3h-3"/>',
+  "ram": '<rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10v4M9.5 10v4M13 10v4M16.5 10v4M19 10v4"/>',
+  "network": '<rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/>',
+  "phone": '<rect x="7" y="2" width="10" height="20" rx="2"/><line x1="11" y1="18" x2="13" y2="18"/>',
+  "cable": '<path d="M13 2 3 14h7l-1 8 10-12h-7z"/>',
+  "server": '<rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/>',
+  "printer": '<path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>',
+  "camera": '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
+  "tool": '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
+  "desk": '<rect x="2" y="7" width="20" height="6"/><line x1="4" y1="13" x2="4" y2="21"/><line x1="20" y1="13" x2="20" y2="21"/><line x1="8" y1="7" x2="8" y2="13"/>',
+  "vehicle": '<path d="M14 17H5V6h9z"/><path d="M16 8h4l3 3v6h-7V8z"/><circle cx="7.5" cy="18.5" r="1.5"/><circle cx="16.5" cy="18.5" r="1.5"/>',
+  "tag": '<path d="M20.59 13.41 12 22 2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>',
+  "box": '<path d="M21 8 12 3 3 8v8l9 5 9-5Z"/><path d="M3 8l9 5 9-5"/><path d="M12 13v8"/>',
+} -%}
+{%- set gl = (label or "") | lower -%}
+{%- if icon_key and icon_key in snippets -%}
+  {%- set inner = snippets[icon_key] -%}
+{%- elif "laptop" in gl or "notebook" in gl -%}
+  {%- set inner = snippets["laptop"] -%}
+{%- elif "computer" in gl or "desktop" in gl -%}
+  {%- set inner = snippets["desktop"] -%}
+{%- elif "screen" in gl or "monitor" in gl or "display" in gl -%}
+  {%- set inner = snippets["monitor"] -%}
+{%- elif "keyboard" in gl or "keys" in gl -%}
+  {%- set inner = snippets["keyboard"] -%}
+{%- elif "mouse" in gl -%}
+  {%- set inner = snippets["mouse"] -%}
+{%- elif "headset" in gl or "headphone" in gl or "audio" in gl -%}
+  {%- set inner = snippets["headset"] -%}
+{%- elif "ram" in gl or "memory" in gl -%}
+  {%- set inner = snippets["ram"] -%}
+{%- elif "network" in gl or "switch" in gl or "router" in gl or "firewall" in gl -%}
+  {%- set inner = snippets["network"] -%}
+{%- elif "phone" in gl or "mobile" in gl or "tablet" in gl -%}
+  {%- set inner = snippets["phone"] -%}
+{%- elif "cable" in gl or "adapter" in gl or "dock" in gl or "charger" in gl -%}
+  {%- set inner = snippets["cable"] -%}
+{%- elif "server" in gl -%}
+  {%- set inner = snippets["server"] -%}
+{%- elif "printer" in gl or "print" in gl -%}
+  {%- set inner = snippets["printer"] -%}
+{%- elif "camera" in gl or "webcam" in gl -%}
+  {%- set inner = snippets["camera"] -%}
+{%- elif "tool" in gl or "repair" in gl or "kit" in gl -%}
+  {%- set inner = snippets["tool"] -%}
+{%- elif "desk" in gl or "furniture" in gl or "chair" in gl -%}
+  {%- set inner = snippets["desk"] -%}
+{%- elif "vehicle" in gl or "truck" in gl or "car" in gl -%}
+  {%- set inner = snippets["vehicle"] -%}
+{%- elif "tag" in gl or "label" in gl -%}
+  {%- set inner = snippets["tag"] -%}
+{%- else -%}
+  {%- set inner = snippets["box"] -%}
+{%- endif -%}
+<svg xmlns="http://www.w3.org/2000/svg" width="{{ size }}" height="{{ size }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{{ inner | safe }}</svg>
+{%- endmacro %}

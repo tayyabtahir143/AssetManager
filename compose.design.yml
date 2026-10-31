@@ -14,12 +14,14 @@ services:
     image: assetmanager-design:local
     ports:
       - "127.0.0.1:5000:5000"
+      - "127.0.0.1:8766:8766"
     environment:
       DATABASE_URL: postgresql+psycopg://inventory:${DB_PASSWORD:?DB_PASSWORD must be set in .env}@db:5432/inventory
       SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set in .env}
       TZ: ${TZ:-UTC}
       MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-16}
       LOG_DIR: /data/logs
+      MCP_GATEWAY_PORT: "8766"
     restart: unless-stopped
     depends_on:
       db:

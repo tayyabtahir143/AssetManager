@@ -1,10 +1,10 @@
 {% extends "base.html" %}
+{% from "_icons.html" import asset_icon %}
 {% block content %}
 <link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css', v=app_version) }}">
 <div class="dashboard">
   <header class="dashboard-header">
     <div>
-      <p class="dashboard-eyebrow">Inventory management</p>
       <h1>Inventory overview</h1>
       <p class="dashboard-description">Track allocation, browse asset types, and review recent changes.</p>
     </div>
@@ -16,10 +16,15 @@
   </header>
 
   <dl class="dashboard-kpis" aria-label="Inventory totals">
-    <div class="dashboard-kpi">
+    <div class="dashboard-kpi dashboard-kpi-lead">
       <dt>Total assets</dt>
       <dd>{{ total_assets }}</dd>
       <p>All tracked items</p>
+    </div>
+    <div class="dashboard-kpi">
+      <dt>In stock</dt>
+      <dd class="dashboard-accent">{{ total_available }}</dd>
+      <p>Ready for allocation</p>
     </div>
     <div class="dashboard-kpi">
       <dt>Assigned</dt>
@@ -27,9 +32,9 @@
       <p>Currently with users</p>
     </div>
     <div class="dashboard-kpi">
-      <dt>Available</dt>
-      <dd class="dashboard-accent">{{ total_available }}</dd>
-      <p>Ready for allocation</p>
+      <dt>Broken / write-off</dt>
+      <dd>{{ total_assets - total_assigned - total_available }}</dd>
+      <p>Needs attention</p>
     </div>
     {% if total_assets > 0 %}
     <div class="dashboard-kpi">
@@ -38,34 +43,17 @@
       <p>Assigned / total assets</p>
     </div>
     {% endif %}
+    <div class="dashboard-kpi">
+      <dt>Departments</dt>
+      <dd>{{ dept_summary | length }}</dd>
+      <p>With tracked assets</p>
+    </div>
+    <div class="dashboard-kpi">
+      <dt>Asset types</dt>
+      <dd>{{ assets | length }}</dd>
+      <p>Readable categories</p>
+    </div>
   </dl>
-
-  <section class="dashboard-section" aria-labelledby="asset-types-title">
-    <div class="dashboard-section-heading">
-      <div>
-        <h2 id="asset-types-title">Asset types</h2>
-        <p>Browse inventory by category.</p>
-      </div>
-      <span class="dashboard-column-hint">Tracked items</span>
-    </div>
-    <div class="dashboard-category-filter" id="dashboard-category-filter" hidden>
-      <label for="dashboard-category-search">Find an asset type</label>
-      <input type="search" id="dashboard-category-search" placeholder="Search categories…" autocomplete="off" aria-controls="dashboard-category-list" aria-describedby="dashboard-category-results">
-      <span id="dashboard-category-results" role="status" aria-live="polite"></span>
-    </div>
-    <div class="dashboard-categories" id="dashboard-category-list">
-      {% for asset in assets %}
-      <a class="dashboard-category" href="{{ asset.url }}" data-category-label="{{ asset.label }}" data-quick-nav="{{ asset.label }}">
-        <span class="dashboard-category-label">{{ asset.label }}</span>
-        <span class="dashboard-category-count">{{ asset.count }} <span class="dashboard-category-unit">items</span></span>
-        <span class="dashboard-category-arrow" aria-hidden="true">→</span>
-      </a>
-      {% else %}
-      <div class="dashboard-empty">No readable asset types for your role.</div>
-      {% endfor %}
-      <div class="dashboard-empty" id="dashboard-category-no-match" hidden>No asset types match your search.</div>
-    </div>
-  </section>
 
   {% if total_assets > 0 %}
   <div class="dashboard-chart-row">
@@ -98,6 +86,44 @@
     <p>Your inventory breakdown will appear here once assets are added.</p>
   </section>
   {% endif %}
+
+  <section class="dashboard-section" aria-labelledby="asset-types-title">
+    <div class="dashboard-section-heading">
+      <div>
+        <h2 id="asset-types-title">Asset types</h2>
+        <p>Browse inventory by category.</p>
+      </div>
+      <span class="dashboard-column-hint">Tracked items</span>
+    </div>
+    <div class="dashboard-category-filter" id="dashboard-category-filter" hidden>
+      <label for="dashboard-category-search">Find an asset type</label>
+      <input type="search" id="dashboard-category-search" placeholder="Search categories…" autocomplete="off" aria-controls="dashboard-category-list" aria-describedby="dashboard-category-results">
+      <span id="dashboard-category-results" role="status" aria-live="polite"></span>
+    </div>
+    <div class="dashboard-categories" id="dashboard-category-list">
+      {% for asset in assets %}
+      <a class="dashboard-category" href="{{ asset.url }}" data-category-label="{{ asset.label }}" data-quick-nav="{{ asset.label }}" data-icon="{{ asset.icon or '' }}">
+        <span class="dashboard-category-glyph" aria-hidden="true">
+          {{ asset_icon(asset.icon, asset.label, 22) }}
+        </span>
+        <span class="dashboard-category-body">
+          <span class="dashboard-category-label">{{ asset.label }}</span>
+          {% if total_assets > 0 %}
+          <span class="dashboard-category-meta">{{ asset.count }} of {{ total_assets }} tracked items</span>
+          <span class="dashboard-category-meter" aria-hidden="true"><span style="width:{{ ((asset.count / total_assets) * 100) | int }}%;"></span></span>
+          {% else %}
+          <span class="dashboard-category-meta">No items yet</span>
+          {% endif %}
+        </span>
+        <span class="dashboard-category-count">{{ asset.count }} <span class="dashboard-category-unit">items</span></span>
+        <span class="dashboard-category-arrow" aria-hidden="true">→</span>
+      </a>
+      {% else %}
+      <div class="dashboard-empty">No readable asset types for your role.</div>
+      {% endfor %}
+      <div class="dashboard-empty" id="dashboard-category-no-match" hidden>No asset types match your search.</div>
+    </div>
+  </section>
 
   <section class="dashboard-panel" aria-labelledby="departments-title">
     <div class="dashboard-section-heading">
@@ -246,8 +272,8 @@
     const ink2    = tok('--ink-2');
     const border2 = tok('--border-2');
 
-    Chart.defaults.font.family = "'Inter', system-ui, sans-serif";
-    Chart.defaults.font.size   = 12;
+    Chart.defaults.font.family = "'Barlow', system-ui, sans-serif";
+    Chart.defaults.font.size   = 11;
     Chart.defaults.color       = ink2;
 
     /* ── Donut: Status distribution ─────────────────────── */
@@ -365,6 +391,11 @@
   /* Re-render when theme toggles so colors match */
   document.getElementById('theme-toggle')?.addEventListener('click', () => {
     setTimeout(buildCharts, 80);
+  });
+
+  /* Re-render when the colour scheme changes so accent-tinted charts match */
+  document.querySelectorAll('[data-scheme-picker] [data-scheme-value]').forEach(btn => {
+    btn.addEventListener('click', () => setTimeout(buildCharts, 80));
   });
 })();
 </script>

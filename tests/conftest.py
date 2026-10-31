@@ -10,6 +10,7 @@ os.environ["SECRET_KEY"] = "test-secret-key-do-not-use-in-production"
 os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 os.environ["LOG_DIR"] = "/tmp/assetmanager_test_logs"
 os.environ["WTF_CSRF_ENABLED"] = "False"
+os.environ.setdefault("MCP_GATEWAY_PORT", "18765")
 
 import app as app_module
 

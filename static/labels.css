@@ -1,5 +1,7 @@
-/* Printable asset labels: compact grid on screen, clean 2-column cards
-   with QR codes on paper. */
+/* ─────────────────────────────────────────────────────────────────────────
+   Printable asset labels — on screen, each label is an asset-tag plate with
+   the hazard tape across its top; on paper, a clean black-on-white pair.
+   ───────────────────────────────────────────────────────────────────────── */
 .labels-print-row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
 .labels-grid {
   display: grid;
@@ -12,13 +14,24 @@
   flex-direction: row;
   align-items: center;
   gap: 14px;
-  padding: 16px;
+  padding: 18px 16px 16px;
   border: 1px solid var(--border-2);
   border-radius: var(--radius);
   background: var(--surface);
   color: var(--ink);
   text-decoration: none;
+  box-shadow: var(--shadow-sm);
+  position: relative;
+  overflow: hidden;
   transition: border-color var(--transition);
+}
+.label-card::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  border-radius: calc(var(--radius) - 1px) calc(var(--radius) - 1px) 0 0;
+  background: var(--accent);
 }
 .label-card:hover { border-color: var(--accent); }
 .label-info {
@@ -26,20 +39,30 @@
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;
 }
 .label-type {
   font-size: 10px;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--ink-3);
+  font-weight: 700;
 }
 .label-tag {
-  font-size: 20px;
-  font-weight: 800;
-  letter-spacing: -0.02em;
+  display: inline-flex;
+  align-self: flex-start;
+  max-width: 100%;
+  padding: 3px 9px;
+  border: 1px solid var(--border-2);
+  border-radius: 6px;
+  background: var(--bg-3);
+  font-family: ui-monospace, 'Cascadia Mono', 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
   font-variant-numeric: tabular-nums;
   overflow-wrap: anywhere;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 .label-title { font-size: 13px; color: var(--ink); }
 .label-extra { font-size: 11px; color: var(--ink-2); overflow-wrap: anywhere; }
@@ -49,7 +72,12 @@
   align-items: center;
   justify-content: center;
   line-height: 0;
+  border: 4px solid #ffffff;
+  border-radius: 6px;
+  background: #ffffff;
+  box-shadow: 0 1px 0 rgba(0, 0, 0, 0.3), 0 3px 8px rgba(0, 0, 0, 0.25);
 }
+[data-theme="light"] .label-qr { box-shadow: 0 1px 0 rgba(58, 48, 26, 0.2), 0 3px 8px rgba(58, 48, 26, 0.18); }
 .label-qr canvas, .label-qr img { display: block; width: 96px; height: 96px; }
 
 @media print {
@@ -75,18 +103,29 @@
     min-height: 28mm;
     padding: 3mm;
     border: 1.5px solid #000;
+    border-top: 1.5px solid #000;
     border-radius: 3mm;
     background: #fff !important;
     color: #000 !important;
     text-decoration: none;
+    box-shadow: none;
     print-color-adjust: exact;
     -webkit-print-color-adjust: exact;
   }
+  .label-card::before { display: none; }
   .label-info { gap: 1mm; }
   .label-type { color: #444 !important; }
-  .label-tag { font-size: 13pt; color: #000 !important; }
+  .label-tag {
+    border: 1px solid #000;
+    background: #fff !important;
+    font-size: 13pt;
+    color: #000 !important;
+    box-shadow: none;
+    align-self: flex-start;
+  }
   .label-title { font-size: 9.5pt; color: #000 !important; }
   .label-extra { font-size: 8.5pt; color: #222 !important; }
+  .label-qr { border: none; box-shadow: none; background: #fff; }
   .label-qr canvas, .label-qr img {
     width: 22mm !important;
     height: 22mm !important;

@@ -2,29 +2,13 @@
 {% block content %}
 <link rel="stylesheet" href="{{ url_for('static', filename='inventory.css', v=app_version) }}">
 <section class="inventory-page" data-asset-type="{{ asset_type }}" aria-label="{{ asset_title }} inventory">
-<div class="page-header animate-in">
-  <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:16px; flex-wrap:wrap;">
-    <div>
+<div class="page-header inventory-band animate-in">
+  <div class="inventory-band-title">
+    <div class="inventory-band-heading">
       <h1 class="page-title">{{ asset_title }}</h1>
       <div class="page-subtitle">{{ total_items }} item{{ "s" if total_items != 1 else "" }} total</div>
     </div>
-    <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-      <form method="get" class="inventory-filters" role="search" aria-label="Filter inventory">
-        <div class="inventory-filter"><label for="inventory-query">Search inventory</label>
-        <input id="inventory-query" type="search" name="q" placeholder="Tag, model, user…" value="{{ query or '' }}"></div>
-        <div class="inventory-filter"><label for="inventory-status">Filter by status</label>
-        <select id="inventory-status" name="status">
-          <option value="all" {% if status_filter == "all" %}selected{% endif %}>All statuses</option>
-          <option value="assigned" {% if status_filter == "assigned" %}selected{% endif %}>Assigned</option>
-          <option value="in_stock" {% if status_filter == "in_stock" %}selected{% endif %}>In Stock</option>
-          <option value="broken" {% if status_filter == "broken" %}selected{% endif %}>Broken</option>
-          <option value="write_off" {% if status_filter == "write_off" %}selected{% endif %}>Write Off</option>
-        </select></div>
-        <button class="button secondary" type="submit">
-          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg>
-          Search
-        </button>
-      </form>
+    <div class="inventory-band-actions">
       {% if asset_perms.can_bulk_delete %}
         <button class="button secondary" type="button" id="toggle-asset-bulk">
           <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
@@ -48,11 +32,52 @@
       {% endif %}
     </div>
   </div>
+  <div class="inventory-band-tools">
+    <form method="get" class="inventory-filters" role="search" aria-label="Filter inventory">
+      <div class="inventory-filter"><label for="inventory-query">Search inventory</label>
+      <input id="inventory-query" type="search" name="q" placeholder="Tag, model, user…" value="{{ query or '' }}"></div>
+      <div class="inventory-filter"><label for="inventory-status">Filter by status</label>
+      <select id="inventory-status" name="status">
+        <option value="all" {% if status_filter == "all" %}selected{% endif %}>All statuses</option>
+        <option value="assigned" {% if status_filter == "assigned" %}selected{% endif %}>Assigned</option>
+        <option value="in_stock" {% if status_filter == "in_stock" %}selected{% endif %}>In Stock</option>
+        <option value="broken" {% if status_filter == "broken" %}selected{% endif %}>Broken</option>
+        <option value="write_off" {% if status_filter == "write_off" %}selected{% endif %}>Write Off</option>
+      </select></div>
+      <button class="button secondary" type="submit">
+        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" x2="16.65" y1="21" y2="16.65"/></svg>
+        Search
+      </button>
+    </form>
+  </div>
 </div>
+
+  <div class="inventory-stats animate-in" aria-label="Inventory summary">
+    <div class="inventory-stat">
+      <span class="inventory-stat-value">{{ total_items }}</span>
+      <span class="inventory-stat-label">Total items</span>
+    </div>
+    <div class="inventory-stat">
+      <span class="inventory-stat-value">{{ items | length }}</span>
+      <span class="inventory-stat-label">Loaded this page</span>
+    </div>
+    <div class="inventory-stat">
+      {% if status_filter == 'all' %}
+      <span class="inventory-stat-value">All</span>
+      {% else %}
+      <span class="inventory-stat-value">{{ status_filter | replace('_', ' ') | title }}</span>
+      {% endif %}
+      <span class="inventory-stat-label">Status filter</span>
+    </div>
+    <div class="inventory-stat">
+      <span class="inventory-stat-value">{{ page }} / {{ total_pages }}</span>
+      <span class="inventory-stat-label">Page</span>
+    </div>
+  </div>
 
   {% if app_admin %}
     <div class="card animate-in" style="margin-top: 18px;">
-      <div style="font-size:15px; font-weight:700; margin-bottom:4px;">Import / Export</div>
+      <div class="card-head">Import / Export</div>
       <p class="muted text-sm" style="margin-bottom:12px;">Upload an .xlsx file using this header format: {{ import_headers | join(", ") }}</p>
       <div style="display: flex; gap: 12px; flex-wrap: wrap; align-items: center;">
         <a class="button secondary" href="{{ url_for('export_assets_excel', asset_type=asset_type) }}">Export Excel</a>
@@ -70,7 +95,19 @@
   {% endif %}
 
   <div class="inventory-table-tools">
-    <span class="muted text-sm">Your workspace · preferences saved in this browser</span>
+    <div class="inventory-tools-left">
+      <div class="inventory-view-toggle" role="group" aria-label="Choose list layout">
+        <button type="button" class="view-toggle-btn" id="view-toggle-table" data-view-mode="table" aria-pressed="true">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" x2="21" y1="6" y2="6"/><line x1="3" x2="21" y1="12" y2="12"/><line x1="3" x2="21" y1="18" y2="18"/><line x1="8" x2="8" y1="3" y2="21"/></svg>
+          Table
+        </button>
+        <button type="button" class="view-toggle-btn" id="view-toggle-cards" data-view-mode="cards" aria-pressed="false">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/></svg>
+          Cards
+        </button>
+      </div>
+      <span class="muted text-sm">Your workspace · preferences saved in this browser</span>
+    </div>
     <details class="inventory-columns">
       <summary>Columns</summary>
       <div class="inventory-columns-panel">
@@ -122,6 +159,7 @@
       </div>
     {% endif %}
     <div id="bulk-delete-error" class="flash error" style="display: none; margin: 10px 16px;"></div>
+    <div class="inventory-view" data-view="table">
     <p class="inventory-table-hint" id="inventory-table-hint">All fields fit this view. Sort applies to loaded items.</p>
     <div class="table-wrap" tabindex="0" role="region" aria-label="Inventory table" aria-describedby="inventory-table-hint">
     <table class="list-table">
@@ -178,7 +216,7 @@
                     {% endif %}
                   </td>
                 {% else %}
-                  <td title="{{ value or '' }}">{{ value or "-" }}</td>
+                  <td title="{{ value or '' }}" {% if field_name == "asset_tag" %}class="col-tag"{% endif %}>{{ value or "-" }}</td>
                 {% endif %}
               {% endif %}
             {% endfor %}
@@ -203,6 +241,11 @@
       </tbody>
     </table>
     </div><!-- /.table-wrap -->
+    </div><!-- /.inventory-view table -->
+    <div class="inventory-view inventory-view-cards" data-view="cards" hidden>
+      <div class="inventory-cards" id="inventory-cards" aria-label="Asset cards"></div>
+      <p class="inventory-cards-empty" id="inventory-cards-empty" hidden>No items found.</p>
+    </div><!-- /.inventory-view cards -->
   </form>
   </div><!-- /.card -->
   <div id="bulk-delete-overlay" style="display: none; position: fixed; inset: 0; background: rgba(3, 6, 12, 0.7); z-index: 999; align-items: center; justify-content: center;">
@@ -342,9 +385,14 @@
       document.addEventListener('click', (event) => {
         if (!bulkModeEnabled) return;
         if (rowClickGuard(event.target)) return;
-        const row = event.target.closest('tr');
-        if (!row) return;
-        const checkbox = row.querySelector('.asset-checkbox');
+        let row = event.target.closest('tr');
+        let checkbox = row ? row.querySelector('.asset-checkbox') : null;
+        if (!row) {
+          const card = event.target.closest('.inventory-card');
+          if (card && card.dataset.cardRow) {
+            checkbox = document.querySelector('.inventory-view[data-view="table"] .asset-checkbox[value="' + card.dataset.cardRow + '"]');
+          }
+        }
         if (!checkbox || checkbox.style.display === 'none') return;
         checkbox.checked = !checkbox.checked;
       });

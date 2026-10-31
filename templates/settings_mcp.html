@@ -1,0 +1,470 @@
+{% extends "base.html" %}
+{% block content %}<style>
+  /* ── MCP settings page ─────────────────────────────────────────────── */
+  .settings-stack { display: grid; gap: 16px; }
+
+  /* one-time token reveal */
+  .token-reveal { border-left: 3px solid var(--accent); background: linear-gradient(180deg, var(--accent-dim), var(--surface)); }
+  .token-row { display: flex; gap: 10px; align-items: center; }
+  .token-value {
+    flex: 1; min-width: 0; padding: 10px 12px; border: 1px solid var(--border-2);
+    border-radius: var(--radius-sm); background: var(--bg-2);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 13px; overflow-x: auto; white-space: nowrap;
+  }
+
+  /* client instruction boxes */
+  .client-card {
+    border: 1px solid var(--border); border-radius: var(--radius);
+    background: var(--surface-2); padding: 16px 18px; margin-bottom: 14px;
+  }
+  .client-card:last-child { margin-bottom: 0; }
+  .client-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .client-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .client-name { font-family: var(--font-display); font-size: 16px; font-weight: 600; letter-spacing: 0.02em; color: var(--ink); }
+  .client-tag { margin-left: auto; font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); }
+  .step-list { list-style: none; margin: 0 0 10px; padding: 0; display: grid; gap: 7px; }
+  .step-list li { display: flex; gap: 10px; font-size: 13px; color: var(--ink-2); line-height: 1.5; }
+  .step-num {
+    flex: none; width: 22px; height: 22px; margin-top: 1px; border-radius: 50%;
+    background: var(--accent-dim); color: var(--accent);
+    font-size: 11.5px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+  }
+
+  /* command / config boxes */
+  .code-box {
+    border: 1px solid var(--border-2); border-radius: var(--radius-sm);
+    background: var(--bg-2); overflow: hidden; margin: 2px 0 12px;
+  }
+  .code-box-head {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 6px 10px 6px 12px; border-bottom: 1px solid var(--border); background: var(--surface);
+  }
+  .code-box-label { font-size: 10.5px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-3); }
+  .code-copy { font-size: 11px; padding: 3px 12px; min-height: 26px; }
+  .code-box pre {
+    margin: 0; padding: 12px 14px; overflow-x: auto;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12.5px; line-height: 1.65; color: var(--ink); white-space: pre;
+  }
+  .code-box code { background: transparent; padding: 0; color: inherit; }
+
+  /* access table edit form */
+  .access-edit-row.hidden { display: none; }
+  .access-edit-row td { padding-top: 0; }
+  .access-edit-box {
+    display: grid; grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) auto auto;
+    gap: 12px; align-items: end; margin-top: 6px;
+    border: 1px dashed var(--border-2); border-radius: var(--radius-sm);
+    background: var(--surface-2); padding: 14px 16px;
+  }
+  .access-edit-box .group { margin: 0; }
+  .access-edit-box label { display: block; font-size: 10.5px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-3); margin-bottom: 6px; }
+  @media (max-width: 760px) {
+    .access-edit-box { grid-template-columns: 1fr; }
+  }
+</style>
+
+<div class="page-header">
+  <div class="page-heading">
+    <h1 class="page-title">MCP Server</h1>
+    <p class="page-subtitle">Let LLM clients (Claude Desktop, Claude Code, Codex, Hermes, Cursor) query this inventory through the built-in MCP gateway. Access follows your in-app permissions; every call is audited.</p>
+  </div>
+</div>
+
+<div class="settings-stack">
+  {% if is_admin %}
+  <section class="card">
+    <div class="card-head">
+      <div>
+        <h2 class="card-title">Gateway</h2>
+        <p class="card-sub">Enable or disable the built-in MCP endpoint. Username/password JWT API access is not affected.</p>
+      </div>
+      <form method="post" action="{{ url_for('mcp_settings_toggle') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="button {{ 'button-primary' if not config.enabled else '' }}" type="submit" name="{{ 'enabled' if not config.enabled else 'disabled' }}">
+          {{ 'Enable MCP' if not config.enabled else 'Disable MCP' }}
+        </button>
+      </form>
+    </div>
+    <p class="status-line">
+      Status:
+      <span class="badge {{ 'badge-green' if config.enabled else 'badge-muted' }}">{{ 'Enabled' if config.enabled else 'Disabled' }}</span>
+      <span class="badge {{ 'badge-green' if gateway_running else 'badge-muted' }}" style="margin-left:8px;">Gateway: {{ 'Running' if gateway_running else 'Stopped' }}</span>
+    </p>
+    <div class="group">
+      <label for="mcp-url">MCP endpoint (streamable HTTP)</label>
+      <input id="mcp-url" type="text" readonly value="http://127.0.0.1:{{ gateway_port }}/mcp" onclick="this.select()">
+    </div>
+  </section>
+  {% endif %}
+
+  {% if new_token %}
+  <section class="card token-reveal">
+    <h2 class="card-title">New token — copy it now</h2>
+    <p class="card-sub">This token is shown only once. It was also emailed to the user (if SMTP is configured).</p>
+    <div class="token-row">
+      <code class="token-value">{{ new_token }}</code>
+      <button class="button" type="button" onclick="navigator.clipboard.writeText('{{ new_token }}'); this.textContent='Copied';">Copy</button>
+    </div>
+  </section>
+  {% endif %}
+
+  {% if is_admin %}
+  <section class="card">
+    <h2 class="card-title">Pending requests</h2>
+    {% if pending_requests %}
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>User</th><th>Requested access</th><th>Expiry</th><th>Reason</th><th>Actions</th></tr></thead>
+        <tbody>
+          {% for req in pending_requests %}
+          <tr>
+            <td>{{ req.requester.username if req.requester else '#' ~ req.user_id }}</td>
+            <td>{{ 'Full access' if req.scope == 'full' else 'Read only' }}</td>
+            <td>{{ req.expiry_days ~ ' days' if req.expiry_days else 'Never' }}</td>
+            <td>{{ req.reason or '—' }}</td>
+            <td class="row-actions">
+              <form method="post" action="{{ url_for('mcp_access_approve', req_id=req.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="scope" value="{{ req.scope }}">
+                <input type="hidden" name="expiry" value="{{ req.expiry_days }}">
+                <button class="button button-sm button-primary" type="submit">Approve</button>
+              </form>
+              <form method="post" action="{{ url_for('mcp_access_decline', req_id=req.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="button button-sm button-danger" type="submit">Decline</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="muted">No pending requests.</p>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <h2 class="card-title">Grant access</h2>
+    <form method="post" action="{{ url_for('mcp_access_grant') }}" class="token-create">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <div class="group">
+        <label for="grant-username">User</label>
+        <input id="grant-username" name="username" type="text" list="mcp-user-options" placeholder="Click to pick, or type to search…" required>
+        <datalist id="mcp-user-options">
+          {% for u in all_usernames %}<option value="{{ u }}"></option>{% endfor %}
+        </datalist>
+      </div>
+      <div class="group">
+        <label for="grant-scope">Access</label>
+        <select id="grant-scope" name="scope">
+          <option value="read_only">Read only — capped at queries</option>
+          <option value="full">Full — whatever the user's role allows</option>
+        </select>
+      </div>
+      <div class="group">
+        <label for="grant-expiry">Auto-revoke after</label>
+        <select id="grant-expiry" name="expiry">
+          <option value="0">Never</option>
+          <option value="7">7 days</option>
+          <option value="30">30 days</option>
+          <option value="90">90 days</option>
+          <option value="365">1 year</option>
+        </select>
+      </div>
+      <button class="button button-primary" type="submit">Grant access</button>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2 class="card-title">Access</h2>
+    {% if accesses %}
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>User</th><th>Access</th><th>Expires</th><th>Last used</th><th>Status</th><th></th></tr></thead>
+        <tbody>
+          {% for access in accesses %}
+          <tr>
+            <td>{{ access.owner.username if access.owner else '#' ~ access.user_id }}</td>
+            <td><span class="badge {{ 'badge-blue' if access.scope == 'full' else 'badge-muted' }}">{{ 'Full access' if access.scope == 'full' else 'Read only' }}</span></td>
+            <td>
+              {% if access.expires_at %}
+                {% if access.status == 'active' and access.expires_at < now %}
+                  <span class="badge badge-muted">Expired</span>
+                {% else %}
+                  {{ access.expires_at.strftime('%Y-%m-%d') }}
+                {% endif %}
+              {% else %}Never{% endif %}
+            </td>
+            <td>{{ access.current_token.last_used_at.strftime('%Y-%m-%d %H:%M') if access.current_token and access.current_token.last_used_at else 'never' }}</td>
+            <td><span class="badge {{ 'badge-green' if access.status == 'active' else 'badge-muted' }}">{{ 'Active' if access.status == 'active' else 'Revoked' }}</span></td>
+            <td class="row-actions">
+              {% if access.status == 'active' %}
+              <button class="button button-sm" type="button" onclick="toggleAccessEdit({{ access.id }})">Edit</button>
+              <form method="post" action="{{ url_for('mcp_access_rotate', access_id=access.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="button button-sm" type="submit">Rotate token</button>
+              </form>
+              <form method="post" action="{{ url_for('mcp_access_revoke', access_id=access.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="button button-sm button-danger" type="submit">Revoke</button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% if access.status == 'active' %}
+          <tr class="access-edit-row hidden" id="access-edit-{{ access.id }}">
+            <td colspan="6">
+              <form method="post" action="{{ url_for('mcp_access_edit', access_id=access.id) }}" class="access-edit-box">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <div class="group">
+                  <label for="edit-scope-{{ access.id }}">Access level</label>
+                  <select id="edit-scope-{{ access.id }}" name="scope">
+                    <option value="read_only" {{ 'selected' if access.scope == 'read_only' }}>Read only — queries only</option>
+                    <option value="full" {{ 'selected' if access.scope == 'full' }}>Full — whatever their role allows</option>
+                  </select>
+                </div>
+                <div class="group">
+                  <label for="edit-expiry-{{ access.id }}">Auto-revoke after</label>
+                  <select id="edit-expiry-{{ access.id }}" name="expiry">
+                    <option value="0" {{ 'selected' if not access.days_left }}>Never</option>
+                    <option value="7" {{ 'selected' if access.days_left == 7 }}>7 days</option>
+                    <option value="30" {{ 'selected' if access.days_left == 30 }}>30 days</option>
+                    <option value="90" {{ 'selected' if access.days_left == 90 }}>90 days</option>
+                    <option value="365" {{ 'selected' if access.days_left == 365 }}>1 year</option>
+                    {% if access.days_left and access.days_left not in [7, 30, 90, 365] %}
+                    <option value="{{ access.days_left }}" selected>Keep current ({{ access.days_left }} days)</option>
+                    {% endif %}
+                  </select>
+                </div>
+                <button class="button button-primary" type="submit">Save changes</button>
+                <button class="button" type="button" onclick="toggleAccessEdit({{ access.id }})">Cancel</button>
+              </form>
+            </td>
+          </tr>
+          {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="muted">No MCP access granted yet.</p>
+    {% endif %}
+  </section>
+
+  <section class="card">
+    <h2 class="card-title">Usage audit</h2>
+    <p class="card-sub">{{ usage_total }} MCP call{{ '' if usage_total == 1 else 's' }} logged — who ran which tool, from where, and whether it succeeded.</p>
+    {% if usage_logs %}
+    <div class="table-wrap">
+      <table class="table">
+        <thead><tr><th>Time</th><th>User</th><th>Tool</th><th>Result</th><th>Duration</th><th>IP</th><th>Arguments</th></tr></thead>
+        <tbody>
+          {% for log in usage_logs %}
+          <tr>
+            <td>{{ log.created_at.strftime('%Y-%m-%d %H:%M:%S') if log.created_at else '—' }}</td>
+            <td>{{ log.username or '—' }}</td>
+            <td>{{ log.tool_name }}</td>
+            <td><span class="badge {{ 'badge-green' if log.success else 'badge-danger' }}">{{ 'OK' if log.success else 'Failed' }}</span>{% if log.error %} {{ log.error }}{% endif %}</td>
+            <td>{{ log.duration_ms ~ 'ms' if log.duration_ms is not none else '—' }}</td>
+            <td>{{ log.ip_address or '—' }}</td>
+            <td class="muted">{{ log.arguments or '' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="muted">No MCP calls recorded yet.</p>
+    {% endif %}
+  </section>
+  {% else %}
+  <section class="card">
+    <h2 class="card-title">Your MCP access</h2>
+    {% if own_access %}
+      <p class="status-line">
+        Status:
+        <span class="badge {{ 'badge-green' if own_access.status == 'active' else 'badge-muted' }}">
+          {{ 'Active' if own_access.status == 'active' else 'Revoked' }}
+        </span>
+        <span class="badge {{ 'badge-blue' if own_access.scope == 'full' else 'badge-muted' }}" style="margin-left:8px;">
+          {{ 'Full access' if own_access.scope == 'full' else 'Read only' }}
+        </span>
+        <span class="badge badge-muted" style="margin-left:8px;">
+          Expires: {{ own_access.expires_at.strftime('%Y-%m-%d') if own_access.expires_at else 'Never' }}
+        </span>
+      </p>
+      <p class="card-sub">Your token was emailed when access was granted and is never shown again. If you lost it, rotate for a new one.</p>
+      <form method="post" action="{{ url_for('mcp_self_rotate') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="button" type="submit">Rotate my token</button>
+      </form>
+    {% elif own_request %}
+      <p class="status-line">
+        Status: <span class="badge badge-muted">Pending</span>
+        <span class="card-sub" style="margin-left:8px;">Requested {{ 'Full access' if own_request.scope == 'full' else 'Read only' }} — an administrator will review it.</span>
+      </p>
+    {% else %}
+      <p class="card-sub">You don't have MCP access yet. Request it below — an administrator will approve or decline, and you'll get the connection details by email.</p>
+      <form method="post" action="{{ url_for('mcp_access_request') }}" class="token-create">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <div class="group">
+          <label for="req-scope">Requested access</label>
+          <select id="req-scope" name="scope">
+            <option value="read_only">Read only — query assets, users, departments, audit log</option>
+            <option value="full">Full — everything my role allows in the app</option>
+          </select>
+        </div>
+        <div class="group">
+          <label for="req-expiry">Auto-revoke after</label>
+          <select id="req-expiry" name="expiry">
+            <option value="0">Never</option>
+            <option value="30">30 days</option>
+            <option value="90">90 days</option>
+            <option value="365">1 year</option>
+          </select>
+        </div>
+        <div class="group">
+          <label for="req-reason">Reason (optional)</label>
+          <input id="req-reason" name="reason" type="text" placeholder="e.g. daily inventory reports via Claude">
+        </div>
+        <button class="button button-primary" type="submit">Request access</button>
+      </form>
+    {% endif %}
+  </section>
+  {% endif %}
+
+  <section class="card">
+    <h2 class="card-title">Add to your LLM</h2>
+    <p class="card-sub">
+      Your token is like a password that lets the AI into this inventory — it was sent to you by
+      email when access was granted (admins also see it once, above, when they create it).
+      In the boxes below, <code>amcp_...</code> stands for your token: replace it with the real one.
+      If your AI app runs on another computer, also replace <code>127.0.0.1</code> with this
+      server's address.
+    </p>
+
+    <div class="client-card">
+      <div class="client-head">
+        <span class="client-dot" style="background: var(--accent); box-shadow: 0 0 0 4px var(--accent-dim);"></span>
+        <span class="client-name">Claude Code</span>
+        <span class="client-tag">Terminal app for Claude</span>
+      </div>
+      <ol class="step-list">
+        <li><span class="step-num">1</span><span>Open a terminal and run this one command (paste your token where it says amcp_...):</span></li>
+      </ol>
+      <div class="code-box">
+        <div class="code-box-head"><span class="code-box-label">Command</span><button class="button button-sm code-copy" type="button" onclick="copyCode(this, 'cc-claude')">Copy</button></div>
+        <pre id="cc-claude"><code>claude mcp add --transport http assetmanager http://127.0.0.1:{{ gateway_port }}/mcp --header "Authorization: Bearer amcp_..."</code></pre>
+      </div>
+      <ol class="step-list">
+        <li><span class="step-num">2</span><span>Restart Claude Code. Done — ask it about your inventory.</span></li>
+      </ol>
+    </div>
+
+    <div class="client-card">
+      <div class="client-head">
+        <span class="client-dot" style="background: var(--green); box-shadow: 0 0 0 4px var(--green-dim);"></span>
+        <span class="client-name">Codex</span>
+        <span class="client-tag">OpenAI's terminal app</span>
+      </div>
+      <ol class="step-list">
+        <li><span class="step-num">1</span><span>Open a terminal and run this one command (paste your token where it says amcp_...):</span></li>
+      </ol>
+      <div class="code-box">
+        <div class="code-box-head"><span class="code-box-label">Command</span><button class="button button-sm code-copy" type="button" onclick="copyCode(this, 'cc-codex')">Copy</button></div>
+        <pre id="cc-codex"><code>codex mcp add-json assetmanager '{"type":"http","url":"http://127.0.0.1:{{ gateway_port }}/mcp","headers":{"Authorization":"Bearer amcp_..."}}'</code></pre>
+      </div>
+      <ol class="step-list">
+        <li><span class="step-num">2</span><span>Restart Codex. Done — ask it about your inventory.</span></li>
+      </ol>
+    </div>
+
+    <div class="client-card">
+      <div class="client-head">
+        <span class="client-dot" style="background: var(--blue); box-shadow: 0 0 0 4px var(--blue-dim);"></span>
+        <span class="client-name">Hermes Agent</span>
+        <span class="client-tag">3 steps</span>
+      </div>
+      <ol class="step-list">
+        <li><span class="step-num">1</span><span>Open a terminal and run this one command:</span></li>
+      </ol>
+      <div class="code-box">
+        <div class="code-box-head"><span class="code-box-label">Command</span><button class="button button-sm code-copy" type="button" onclick="copyCode(this, 'cc-hermes1')">Copy</button></div>
+        <pre id="cc-hermes1"><code>hermes mcp add assetmanager --url http://127.0.0.1:{{ gateway_port }}/mcp --auth header</code></pre>
+      </div>
+      <ol class="step-list">
+        <li><span class="step-num">2</span><span>Open Hermes's settings file, <code>~/.hermes/config.yaml</code>, in any text editor.
+          The command above created an <code>assetmanager</code> entry under the
+          <code>mcp_servers:</code> section. Add your token under it so it looks like this:</span></li>
+      </ol>
+      <div class="code-box">
+        <div class="code-box-head"><span class="code-box-label">~/.hermes/config.yaml — paste your token</span><button class="button button-sm code-copy" type="button" onclick="copyCode(this, 'cc-hermes2')">Copy</button></div>
+        <pre id="cc-hermes2"><code>assetmanager:
+  url: http://127.0.0.1:{{ gateway_port }}/mcp
+  headers:
+    Authorization: "Bearer amcp_..."</code></pre>
+      </div>
+      <ol class="step-list">
+        <li><span class="step-num">3</span><span>Save the file and start a new Hermes chat. To check it connected, run:
+          <code>hermes mcp test assetmanager</code></span></li>
+      </ol>
+    </div>
+
+    <div class="client-card">
+      <div class="client-head">
+        <span class="client-dot" style="background: var(--warning); box-shadow: 0 0 0 4px var(--warning-dim);"></span>
+        <span class="client-name">Claude Desktop</span>
+        <span class="client-tag">Desktop app</span>
+      </div>
+      <ol class="step-list">
+        <li><span class="step-num">1</span><span>Open Claude Desktop → Settings → Developer → Edit Config.</span></li>
+        <li><span class="step-num">2</span><span>Paste this block into the file, replacing amcp_... with your token:</span></li>
+      </ol>
+      <div class="code-box">
+        <div class="code-box-head"><span class="code-box-label">claude_desktop_config.json</span><button class="button button-sm code-copy" type="button" onclick="copyCode(this, 'cc-desktop')">Copy</button></div>
+        <pre id="cc-desktop"><code>{
+  "mcpServers": {
+    "assetmanager": {
+      "url": "http://127.0.0.1:{{ gateway_port }}/mcp",
+      "headers": { "Authorization": "Bearer amcp_..." }
+    }
+  }
+}</code></pre>
+      </div>
+      <ol class="step-list">
+        <li><span class="step-num">3</span><span>Save and restart Claude Desktop. Done.</span></li>
+      </ol>
+    </div>
+
+    <p class="card-sub">
+      Any other client (Cursor, VS Code, etc.): add an MCP server of type <strong>HTTP</strong>,
+      point it at <code>http://127.0.0.1:{{ gateway_port }}/mcp</code>, and give it the header
+      <code>Authorization: Bearer amcp_...</code> (your token).
+    </p>
+  </section>
+</div>
+
+<script>
+  function copyCode(btn, id) {
+    var pre = document.getElementById(id);
+    if (!pre) return;
+    var text = pre.innerText;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        btn.textContent = 'Copied';
+        setTimeout(function () { btn.textContent = 'Copy'; }, 1500);
+      });
+    } else {
+      btn.textContent = 'Copy failed';
+      setTimeout(function () { btn.textContent = 'Copy'; }, 1500);
+    }
+  }
+  function toggleAccessEdit(id) {
+    var row = document.getElementById('access-edit-' + id);
+    if (row) row.classList.toggle('hidden');
+  }
+</script>
+{% endblock %}

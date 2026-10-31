@@ -17,7 +17,7 @@
   </div>
 
   <div class="card animate-in" style="margin-top: 18px;">
-    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Filters</div>
+    <div class="card-head">Filters</div>
     <form method="get" class="filter-grid">
       <div>
         <label for="dept">Department</label>
@@ -54,7 +54,7 @@
   </div>
 
   <div class="card animate-in" style="margin-top: 18px;">
-    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Assets by Type</div>
+    <div class="card-head">Assets by Type</div>
     <p class="muted">Assigned vs available totals for the selected filters.</p>
     {% if asset_summary %}
       <div class="table-wrap">
@@ -83,7 +83,7 @@
   </div>
 
   <div class="card animate-in" style="margin-top: 18px;">
-    <div style="font-size:15px; font-weight:700; margin-bottom:12px;">Detailed Asset List</div>
+    <div class="card-head">Detailed Asset List</div>
     <p class="muted">Includes asset tags, specs, assigned user, and department.</p>
     {% if report_rows %}
       <div class="table-wrap">
@@ -146,7 +146,7 @@
       body {
         background: #ffffff !important;
         color: #1e293b !important;
-        font-family: 'Inter', 'Segoe UI', system-ui, sans-serif !important;
+        font-family: 'Barlow', 'Segoe UI', system-ui, sans-serif !important;
         font-size: 11px;
         line-height: 1.5;
       }
