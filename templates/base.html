@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-scheme="amber">
 {% set brand_raw = (branding_name or "Asset") | trim %}
 {% set brand_lower = brand_raw | lower %}
 {% if brand_lower.endswith("asset manager") %}
@@ -47,6 +47,12 @@
         }
         if (localStorage.getItem('workspace-density') === 'compact') {
           document.documentElement.dataset.density = 'compact';
+        }
+        /* Colour scheme: restore the saved enamel recipe before first paint
+           (amber is the server-rendered default). */
+        const scheme = localStorage.getItem('assetmanager-scheme');
+        if (['amber', 'indigo', 'emerald', 'rose', 'ocean', 'slate'].indexOf(scheme) !== -1) {
+          document.documentElement.dataset.scheme = scheme;
         }
       } catch (_) {}
     </script>
@@ -210,6 +216,11 @@
             <div class="time-chip">
               <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
               <span id="app-time" data-tz="{{ tz_name }}">--:--</span>
+            </div>
+            <div class="scheme-picker" data-scheme-picker role="group" aria-label="Colour scheme">
+              {% for scheme_name in ["amber", "indigo", "emerald", "rose", "ocean", "slate"] %}
+              <button type="button" class="scheme-swatch{% if scheme_name == 'amber' %} is-active{% endif %}" data-scheme-value="{{ scheme_name }}" aria-label="{{ scheme_name | capitalize }} scheme" title="{{ scheme_name | capitalize }} scheme" aria-pressed="{{ 'true' if scheme_name == 'amber' else 'false' }}"></button>
+              {% endfor %}
             </div>
             <button type="button" class="theme-btn" id="density-toggle" aria-pressed="false" title="Toggle compact tables">Compact</button>
             <button type="button" class="theme-btn" id="theme-toggle" aria-label="Change colour theme" title="Change colour theme">

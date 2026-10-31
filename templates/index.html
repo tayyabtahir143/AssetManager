@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% from "_icons.html" import asset_icon %}
 {% block content %}
 <link rel="stylesheet" href="{{ url_for('static', filename='dashboard.css', v=app_version) }}">
 <div class="dashboard">
@@ -101,32 +102,9 @@
     </div>
     <div class="dashboard-categories" id="dashboard-category-list">
       {% for asset in assets %}
-      {% set gl = asset.label | lower %}
-      <a class="dashboard-category" href="{{ asset.url }}" data-category-label="{{ asset.label }}" data-quick-nav="{{ asset.label }}">
+      <a class="dashboard-category" href="{{ asset.url }}" data-category-label="{{ asset.label }}" data-quick-nav="{{ asset.label }}" data-icon="{{ asset.icon or '' }}">
         <span class="dashboard-category-glyph" aria-hidden="true">
-          {% if 'laptop' in gl or 'notebook' in gl %}
-          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M2 20h20"/></svg>
-          {% elif 'computer' in gl or 'desktop' in gl %}
-          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-          {% elif 'screen' in gl or 'monitor' in gl or 'display' in gl %}
-          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
-          {% elif 'keyboard' in gl or 'keys' in gl %}
-          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><line x1="6" y1="10" x2="6.01" y2="10"/><line x1="10" y1="10" x2="10.01" y2="10"/><line x1="14" y1="10" x2="14.01" y2="10"/><line x1="18" y1="10" x2="18.01" y2="10"/><line x1="8" y1="14" x2="16" y2="14"/></svg>
-          {% elif 'mouse' in gl %}
-          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="5"/><path d="M12 2v6"/></svg>
-          {% elif 'headset' in gl or 'headphone' in gl or 'audio' in gl %}
-          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14a8 8 0 0 1 16 0"/><rect x="2" y="14" width="4" height="7" rx="1.5"/><rect x="18" y="14" width="4" height="7" rx="1.5"/><path d="M20 21a3 3 0 0 1-3 3h-3"/></svg>
-          {% elif 'ram' in gl or 'memory' in gl %}
-          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10v4M9.5 10v4M13 10v4M16.5 10v4M19 10v4"/></svg>
-          {% elif 'network' in gl or 'switch' in gl or 'router' in gl or 'firewall' in gl %}
-          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg>
-          {% elif 'phone' in gl or 'mobile' in gl or 'tablet' in gl %}
-          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
-          {% elif 'cable' in gl or 'adapter' in gl or 'dock' in gl or 'charger' in gl %}
-          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h7l-1 8 10-12h-7z"/></svg>
-          {% else %}
-          <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8 12 3 3 8v8l9 5 9-5Z"/><path d="M3 8l9 5 9-5"/><path d="M12 13v8"/></svg>
-          {% endif %}
+          {{ asset_icon(asset.icon, asset.label, 22) }}
         </span>
         <span class="dashboard-category-body">
           <span class="dashboard-category-label">{{ asset.label }}</span>
@@ -413,6 +391,11 @@
   /* Re-render when theme toggles so colors match */
   document.getElementById('theme-toggle')?.addEventListener('click', () => {
     setTimeout(buildCharts, 80);
+  });
+
+  /* Re-render when the colour scheme changes so accent-tinted charts match */
+  document.querySelectorAll('[data-scheme-picker] [data-scheme-value]').forEach(btn => {
+    btn.addEventListener('click', () => setTimeout(buildCharts, 80));
   });
 })();
 </script>

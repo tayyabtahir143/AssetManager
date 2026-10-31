@@ -87,6 +87,34 @@ main { max-width: none; padding: 26px 28px; }
 [data-density="compact"] .card { padding: 16px; }
 [data-density="compact"] .table-wrap { margin-top: 10px; }
 
+/* ── Colour scheme picker: six enamel swatches on the command deck ─────── */
+.scheme-picker {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 6px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface);
+}
+.scheme-swatch {
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.35);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+[data-theme="light"] .scheme-swatch { border-color: rgba(58, 48, 26, 0.35); }
+.scheme-swatch.is-active { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--accent); }
+.scheme-swatch[data-scheme-value="amber"]   { background: #f59e0b; }
+.scheme-swatch[data-scheme-value="indigo"]  { background: #6366f1; }
+.scheme-swatch[data-scheme-value="emerald"] { background: #10b981; }
+.scheme-swatch[data-scheme-value="rose"]    { background: #f43f5e; }
+.scheme-swatch[data-scheme-value="ocean"]   { background: #0ea5e9; }
+.scheme-swatch[data-scheme-value="slate"]   { background: #64748b; }
+
 /* ── Asset editor: two-column work ticket with a pinned save bar ──────── */
 .asset-editor { max-width: 1000px; padding: 26px; position: relative; overflow: hidden; }
 .asset-editor::before {
@@ -132,6 +160,8 @@ main { max-width: none; padding: 26px 28px; }
   .topbar { padding: 0 16px; }
   main { padding: 22px 16px; }
   .topbar-right > a { display: none; }
+  /* Decorative shortcut hints yield their space to the scheme picker. */
+  .quick-nav-trigger .cmd-hint { display: none; }
 }
 @media (max-width: 700px) {
   .asset-editor { padding: 20px 16px; }
@@ -145,6 +175,9 @@ main { max-width: none; padding: 26px 28px; }
   main { padding: 20px 13px; }
   .page-title { font-size: 24px; }
   .page-footer { padding: 16px 14px; }
+  /* The picker stacks its swatches two-per-row to stay inside the deck. */
+  .scheme-picker { flex-wrap: wrap; width: 56px; gap: 4px; padding: 4px; border-radius: 8px; }
+  .scheme-swatch { width: 13px; height: 13px; }
 }
 
 /* Motion: one grammar — quick, mechanical, and off when asked. */
