@@ -70,7 +70,7 @@
         <div class="backup-danger">Replaces current configuration and role/group assignments. Asset records stay untouched.</div>
         <form method="post" action="{{ url_for('restore_config_backup') }}" enctype="multipart/form-data" class="backup-form-row">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input type="file" name="file" accept=".zip" required>
+          <input type="file" name="file" accept=".zip" aria-label="Backup .zip file" required>
           <button class="button" type="submit" onclick="return confirm('Restore configuration from this backup? This will replace current configuration.');">Restore Backup</button>
         </form>
       </div>
@@ -146,7 +146,7 @@
         <div class="backup-danger">Replaces all asset records. Configuration remains unchanged.</div>
         <form method="post" action="{{ url_for('restore_full_backup') }}" enctype="multipart/form-data" class="backup-form-row">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input type="file" name="file" accept=".zip" required>
+          <input type="file" name="file" accept=".zip" aria-label="Backup .zip file" required>
           <button class="button" type="submit" onclick="return confirm('Restore asset backup? This will replace all asset data.');">Restore Asset Backup</button>
         </form>
       </div>

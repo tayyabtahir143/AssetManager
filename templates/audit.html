@@ -120,7 +120,7 @@
     </div>
     <div class="filter-group">
       <label>Action</label>
-      <select name="action" style="min-width:130px;">
+      <select name="action" aria-label="Filter by action" style="min-width:130px;">
         <option value="">All actions</option>
         {% for act in ["create","update","delete","bulk","login","logout","sync","restore"] %}
           <option value="{{ act }}" {% if action_filter == act %}selected{% endif %}>{{ act | title }}</option>
@@ -129,11 +129,11 @@
     </div>
     <div class="filter-group">
       <label>From Date</label>
-      <input type="date" name="date_from" value="{{ date_from or '' }}">
+      <input type="date" name="date_from" aria-label="From date" value="{{ date_from or '' }}">
     </div>
     <div class="filter-group">
       <label>To Date</label>
-      <input type="date" name="date_to" value="{{ date_to or '' }}">
+      <input type="date" name="date_to" aria-label="To date" value="{{ date_to or '' }}">
     </div>
     <div style="display:flex; gap:6px; align-self:flex-end;">
       <button class="button" type="submit">Filter</button>

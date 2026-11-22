@@ -8,7 +8,7 @@
           <div class="page-subtitle">Shows the latest application logs. Auto-refreshes every 5 seconds.</div>
         </div>
         <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-          <input type="number" id="log-lines" min="50" max="2000" value="{{ lines }}">
+          <input type="number" id="log-lines" aria-label="Number of log lines" min="50" max="2000" value="{{ lines }}">
           <button class="button secondary" type="button" id="log-refresh">Refresh</button>
         </div>
       </div>

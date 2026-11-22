@@ -95,23 +95,23 @@
             {% set ep = request.endpoint %}
             <!-- Main nav -->
             <nav>
-              <a class="nav-link {{ 'active' if ep == 'index' }}" href="{{ url_for('index') }}">
+              <a class="nav-link {{ 'active' if ep == 'index' }}" href="{{ url_for('index') }}" aria-label="Dashboard" title="Dashboard">
                 <svg data-anim="grid" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>
                 <span class="nav-label">Dashboard</span>
               </a>
-              <a class="nav-link {{ 'active' if ep == 'free_inventory' }}" href="{{ url_for('free_inventory') }}">
+              <a class="nav-link {{ 'active' if ep == 'free_inventory' }}" href="{{ url_for('free_inventory') }}" aria-label="Available Assets" title="Available Assets">
                 <svg data-anim="package" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.91 8.84L8.56 2.23a1.93 1.93 0 0 0-1.81 0L3.1 4.13a2.12 2.12 0 0 0-.05 3.69l12.22 6.93a2 2 0 0 0 1.94 0L21 12.51a2.12 2.12 0 0 0-.09-3.67z"/><path d="M3.09 8.84L1.77 9.5A1.93 1.93 0 0 0 1 11.19v1.37a1.93 1.93 0 0 0 1.09 1.73l2.14 1.28"/><path d="M5 15.5L3.09 19.5"/><path d="M20.91 8.84l1.23.68A1.93 1.93 0 0 1 23 11.19v1.37a1.93 1.93 0 0 1-1.09 1.73l-2.14 1.28"/><path d="M19 15.5l1.91 4"/><path d="M12 11.5V21"/></svg>
                 <span class="nav-label">Available Assets</span>
               </a>
-              <a class="nav-link {{ 'active' if ep == 'user_assets' }}" href="{{ url_for('user_assets') }}">
+              <a class="nav-link {{ 'active' if ep == 'user_assets' }}" href="{{ url_for('user_assets') }}" aria-label="User Assets" title="User Assets">
                 <svg data-anim="users" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                 <span class="nav-label">User Assets</span>
               </a>
-              <a class="nav-link {{ 'active' if ep in ['reports','export_report'] }}" href="{{ url_for('reports') }}">
+              <a class="nav-link {{ 'active' if ep in ['reports','export_report'] }}" href="{{ url_for('reports') }}" aria-label="Reports" title="Reports">
                 <svg data-anim="bar-chart-2" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" x2="18" y1="20" y2="10"/><line x1="12" x2="12" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="14"/></svg>
                 <span class="nav-label">Reports</span>
               </a>
-              <a class="nav-link {{ 'active' if ep == 'mcp_settings' }}" href="{{ url_for('mcp_settings') }}">
+              <a class="nav-link {{ 'active' if ep == 'mcp_settings' }}" href="{{ url_for('mcp_settings') }}" aria-label="MCP" title="MCP">
                 <svg data-anim="cpu" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-9-9"/><path d="M12 3a9 9 0 0 1 9 9"/><circle cx="12" cy="12" r="3"/></svg>
                 <span class="nav-label">MCP</span>
               </a>
@@ -121,55 +121,55 @@
               <div class="nav-section-label">Administration</div>
               <nav>
                 {% if app_admin %}
-                  <a class="nav-link {{ 'active' if ep in ['list_users','add_user','edit_user'] }}" href="{{ url_for('list_users') }}">
+                  <a class="nav-link {{ 'active' if ep in ['list_users','add_user','edit_user'] }}" href="{{ url_for('list_users') }}" aria-label="Users" title="Users">
                     <svg data-anim="user" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                     <span class="nav-label">Users</span>
                   </a>
-                  <a class="nav-link {{ 'active' if ep in ['list_groups','add_group','edit_group'] }}" href="{{ url_for('list_groups') }}">
+                  <a class="nav-link {{ 'active' if ep in ['list_groups','add_group','edit_group'] }}" href="{{ url_for('list_groups') }}" aria-label="Groups" title="Groups">
                     <svg data-anim="users" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
                     <span class="nav-label">Groups</span>
                   </a>
-                  <a class="nav-link {{ 'active' if ep in ['list_roles','add_role','edit_role'] }}" href="{{ url_for('list_roles') }}">
+                  <a class="nav-link {{ 'active' if ep in ['list_roles','add_role','edit_role'] }}" href="{{ url_for('list_roles') }}" aria-label="Roles" title="Roles">
                     <svg data-anim="shield" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/></svg>
                     <span class="nav-label">Roles</span>
                   </a>
-                  <a class="nav-link {{ 'active' if ep in ['list_asset_types','add_asset_type','edit_asset_type','edit_builtin_asset_type'] }}" href="{{ url_for('list_asset_types') }}">
+                  <a class="nav-link {{ 'active' if ep in ['list_asset_types','add_asset_type','edit_asset_type','edit_builtin_asset_type'] }}" href="{{ url_for('list_asset_types') }}" aria-label="Asset Types" title="Asset Types">
                     <svg data-anim="layers" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7.5 12 2l10 5.5v9L12 22 2 16.5z"/><path d="M12 12v10"/><path d="M2 7.5l10 4.5 10-4.5"/></svg>
                     <span class="nav-label">Asset Types</span>
                   </a>
                 {% endif %}
                 {% if permissions.can_manage_depts %}
-                  <a class="nav-link {{ 'active' if ep == 'manage_departments' }}" href="{{ url_for('manage_departments') }}">
+                  <a class="nav-link {{ 'active' if ep == 'manage_departments' }}" href="{{ url_for('manage_departments') }}" aria-label="Departments" title="Departments">
                     <svg data-anim="briefcase" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"/><path d="M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"/><path d="M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"/><path d="M10 6h4"/><path d="M10 10h4"/><path d="M10 14h4"/><path d="M10 18h4"/></svg>
                     <span class="nav-label">Departments</span>
                   </a>
                 {% endif %}
                 {% if app_admin %}
-                  <a class="nav-link {{ 'active' if ep == 'security_settings' }}" href="{{ url_for('security_settings') }}">
+                  <a class="nav-link {{ 'active' if ep == 'security_settings' }}" href="{{ url_for('security_settings') }}" aria-label="Security" title="Security">
                     <svg data-anim="lock" data-anim-play="hover-reverse" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                     <span class="nav-label">Security</span>
                   </a>
-                  <a class="nav-link {{ 'active' if ep == 'branding_settings' }}" href="{{ url_for('branding_settings') }}">
+                  <a class="nav-link {{ 'active' if ep == 'branding_settings' }}" href="{{ url_for('branding_settings') }}" aria-label="Branding" title="Branding">
                     <svg data-anim="pen-tool" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/></svg>
                     <span class="nav-label">Branding</span>
                   </a>
-                  <a class="nav-link {{ 'active' if ep == 'ldap_settings' }}" href="{{ url_for('ldap_settings') }}">
+                  <a class="nav-link {{ 'active' if ep == 'ldap_settings' }}" href="{{ url_for('ldap_settings') }}" aria-label="LDAP" title="LDAP">
                     <svg data-anim="database" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></svg>
                     <span class="nav-label">LDAP</span>
                   </a>
-                  <a class="nav-link {{ 'active' if ep == 'smtp_settings' }}" href="{{ url_for('smtp_settings') }}">
+                  <a class="nav-link {{ 'active' if ep == 'smtp_settings' }}" href="{{ url_for('smtp_settings') }}" aria-label="SMTP" title="SMTP">
                     <svg data-anim="mail" data-anim-play="hover-reverse" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
                     <span class="nav-label">SMTP</span>
                   </a>
-                  <a class="nav-link {{ 'active' if ep == 'audit_log' }}" href="{{ url_for('audit_log') }}">
+                  <a class="nav-link {{ 'active' if ep == 'audit_log' }}" href="{{ url_for('audit_log') }}" aria-label="Audit Log" title="Audit Log">
                     <svg data-anim="file-text" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg>
                     <span class="nav-label">Audit Log</span>
                   </a>
-                  <a class="nav-link {{ 'active' if ep in ['view_logs','logs_tail'] }}" href="{{ url_for('view_logs') }}">
+                  <a class="nav-link {{ 'active' if ep in ['view_logs','logs_tail'] }}" href="{{ url_for('view_logs') }}" aria-label="Logs" title="Logs">
                     <svg data-anim="terminal" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 17 10 11 4 5"/><line x1="12" x2="20" y1="19" y2="19"/></svg>
                     <span class="nav-label">Logs</span>
                   </a>
-                  <a class="nav-link {{ 'active' if ep in ['backup_settings','backup_config_download','restore_config_backup'] }}" href="{{ url_for('backup_settings') }}">
+                  <a class="nav-link {{ 'active' if ep in ['backup_settings','backup_config_download','restore_config_backup'] }}" href="{{ url_for('backup_settings') }}" aria-label="Backups" title="Backups">
                     <svg data-anim="archive" data-anim-play="hover-reverse" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" x2="2" y1="12" y2="12"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><line x1="6" x2="6.01" y1="16" y2="16"/><line x1="10" x2="10.01" y1="16" y2="16"/></svg>
                     <span class="nav-label">Backups</span>
                   </a>
@@ -183,12 +183,12 @@
                 <span class="rail-label">Expand rail</span>
               </button>
               {% if update_status and update_status.available and (app_admin or current_user.role == 'admin') %}
-                <a class="update-btn" href="https://hub.docker.com/r/{{ dockerhub_repo }}" target="_blank" rel="noopener">
+                <a class="update-btn" href="https://hub.docker.com/r/{{ dockerhub_repo }}" target="_blank" rel="noopener" aria-label="Update available (opens Docker Hub)" title="Update available">
                   <svg data-anim="upload" data-anim-play="hover" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
                   <span>Update Available</span>
                 </a>
               {% endif %}
-              <a class="button secondary" href="{{ url_for('logout') }}" style="justify-content: center;">
+              <a class="button secondary" href="{{ url_for('logout') }}" style="justify-content: center;" aria-label="Sign out" title="Sign out">
                 <svg data-anim="log-out" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg>
                 <span>Sign out</span>
               </a>
@@ -404,16 +404,30 @@
             const q = (query || '').toLowerCase();
             const list = q ? opts.filter(u => u.toLowerCase().includes(q)) : opts;
             activeIdx = -1;
+            dd.replaceChildren();
             if (!list.length) {
-              dd.innerHTML = '<div class="ac-empty">No matches</div>';
+              const empty = document.createElement('div');
+              empty.className = 'ac-empty';
+              empty.textContent = 'No matches';
+              dd.appendChild(empty);
               return;
             }
-            dd.innerHTML = list.map((u, i) =>
-              `<div class="ac-item" data-val="${u}" data-i="${i}">` +
-              `<div class="ac-avatar">${initial(u)}</div>` +
-              `<span class="ac-name">${u}</span>` +
-              `</div>`
-            ).join('');
+            /* Usernames come from the DB / LDAP: build nodes with textContent,
+               never innerHTML, so a crafted name can't inject markup. */
+            list.forEach((u, i) => {
+              const item = document.createElement('div');
+              item.className = 'ac-item';
+              item.dataset.val = u;
+              item.dataset.i = String(i);
+              const avatar = document.createElement('div');
+              avatar.className = 'ac-avatar';
+              avatar.textContent = initial(u);
+              const name = document.createElement('span');
+              name.className = 'ac-name';
+              name.textContent = u;
+              item.append(avatar, name);
+              dd.appendChild(item);
+            });
             dd.querySelectorAll('.ac-item').forEach(item => {
               item.addEventListener('mousedown', e => {
                 e.preventDefault();
@@ -520,7 +534,8 @@
         : type === 'error'
           ? '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" x2="6" y1="6" y2="18"/><line x1="6" x2="18" y1="6" y2="18"/></svg>'
           : '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="16" y2="12"/><line x1="12" x2="12.01" y1="8" y2="8"/></svg>';
-      toast.innerHTML = `<span>${icon}</span><span style="flex:1;">${message}</span><button onclick="dismissToast(this.parentNode)" style="background:none;border:none;color:inherit;cursor:pointer;font-size:16px;padding:0;line-height:1;margin-left:auto;">×</button>`;
+      toast.innerHTML = `<span>${icon}</span><span style="flex:1;"></span><button type="button" aria-label="Dismiss notification" onclick="dismissToast(this.parentNode)" style="background:none;border:none;color:inherit;cursor:pointer;font-size:16px;padding:0;line-height:1;margin-left:auto;">×</button>`;
+      toast.children[1].textContent = String(message);  /* message is text, never markup */
       container.appendChild(toast);
       setTimeout(() => dismissToast(toast), 5000);
     };

@@ -267,3 +267,32 @@
     }
   });
 })();
+
+/* Narrow screens: a data table that would scroll sideways becomes a labelled
+   stack (one record per block), the same pattern the inventory lists use.
+   Only tables that actually overflow are restacked; inventory lists
+   (.list-table) keep their own layout. */
+(() => {
+  'use strict';
+  const NARROW = 720;
+  const stackTables = () => {
+    document.querySelectorAll('.table-wrap > table:not(.list-table)').forEach(table => {
+      const head = table.tHead && table.tHead.rows[0];
+      if (!head) return;
+      const labels = [...head.cells].map(cell => cell.textContent.replace(/[↑↓]/g, '').trim());
+      [...table.tBodies].forEach(body => [...body.rows].forEach(row => {
+        if (row.cells.length !== labels.length) return;
+        [...row.cells].forEach((cell, index) => {
+          if (!cell.hasAttribute('data-label') && labels[index]) cell.dataset.label = labels[index];
+        });
+      }));
+      table.classList.remove('is-stacked');
+      const wrap = table.parentElement;
+      if (window.innerWidth <= NARROW && wrap.scrollWidth > wrap.clientWidth + 2) table.classList.add('is-stacked');
+    });
+  };
+  let timer = null;
+  stackTables();
+  window.addEventListener('resize', () => { clearTimeout(timer); timer = setTimeout(stackTables, 120); });
+  window.addEventListener('load', stackTables);
+})();
