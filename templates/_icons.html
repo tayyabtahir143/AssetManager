@@ -61,5 +61,12 @@
 {%- else -%}
   {%- set inner = snippets["box"] -%}
 {%- endif -%}
-<svg xmlns="http://www.w3.org/2000/svg" width="{{ size }}" height="{{ size }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{{ inner | safe }}</svg>
+{#- Matching animated icon (static/vendor/useanimations/<id>.json); keys
+    without a close match stay static. -#}
+{%- set anims = {"desktop": "monitor", "monitor": "monitor", "headset": "headphones", "ram": "cpu",
+  "network": "server", "phone": "smartphone", "cable": "zap", "server": "server", "printer": "printer",
+  "camera": "camera", "tool": "tool", "vehicle": "truck", "tag": "tag", "box": "box"} -%}
+{%- set ns = namespace(anim="") -%}
+{%- for k, v in snippets.items() if v == inner and not ns.anim -%}{%- set ns.anim = anims.get(k, "") -%}{%- endfor -%}
+<svg {% if ns.anim %}data-anim="{{ ns.anim }}" {% endif %}xmlns="http://www.w3.org/2000/svg" width="{{ size }}" height="{{ size }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">{{ inner | safe }}</svg>
 {%- endmacro %}

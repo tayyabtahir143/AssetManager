@@ -16,7 +16,7 @@
       <div>
         <label>Quantity Tracking</label>
         <div class="checkbox-row">
-          <input id="has_quantity" name="has_quantity" type="checkbox" {% if asset_type.has_quantity %}checked{% endif %}>
+          <input id="has_quantity" name="has_quantity" type="checkbox" aria-label="Enable quantity tracking" {% if asset_type.has_quantity %}checked{% endif %}>
           <span class="muted">Enable total / assigned quantity fields for each item (like RAM)</span>
         </div>
       </div>
@@ -47,7 +47,7 @@
             <div style="display: grid; grid-template-columns: 1fr 1fr 160px; gap: 10px;">
               <input type="text" value="{{ field.name }}" disabled>
               <input name="field_label_{{ field.id }}" type="text" value="{{ field.label }}">
-              <select name="field_type_{{ field.id }}" class="field-type-select">
+              <select name="field_type_{{ field.id }}" class="field-type-select" aria-label="Field type">
                 <option value="text" {% if field.field_type == 'text' %}selected{% endif %}>Text</option>
                 <option value="checkbox" {% if field.field_type == 'checkbox' %}selected{% endif %}>Checkbox</option>
                 <option value="select" {% if field.field_type == 'select' %}selected{% endif %}>Select</option>
@@ -72,7 +72,7 @@
             <div style="display: grid; grid-template-columns: 1fr 1fr 160px; gap: 10px;">
               <input name="new_field_name_{{ idx }}" type="text" placeholder="field_name">
               <input name="new_field_label_{{ idx }}" type="text" placeholder="Field Label">
-              <select name="new_field_type_{{ idx }}" class="field-type-select">
+              <select name="new_field_type_{{ idx }}" class="field-type-select" aria-label="Field type">
                 <option value="text">Text</option>
                 <option value="checkbox">Checkbox</option>
                 <option value="select">Select</option>

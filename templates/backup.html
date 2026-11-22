@@ -70,7 +70,7 @@
         <div class="backup-danger">Replaces current configuration and role/group assignments. Asset records stay untouched.</div>
         <form method="post" action="{{ url_for('restore_config_backup') }}" enctype="multipart/form-data" class="backup-form-row">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input type="file" name="file" accept=".zip" required>
+          <input type="file" name="file" accept=".zip" aria-label="Backup .zip file" required>
           <button class="button" type="submit" onclick="return confirm('Restore configuration from this backup? This will replace current configuration.');">Restore Backup</button>
         </form>
       </div>
@@ -146,7 +146,7 @@
         <div class="backup-danger">Replaces all asset records. Configuration remains unchanged.</div>
         <form method="post" action="{{ url_for('restore_full_backup') }}" enctype="multipart/form-data" class="backup-form-row">
           <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-          <input type="file" name="file" accept=".zip" required>
+          <input type="file" name="file" accept=".zip" aria-label="Backup .zip file" required>
           <button class="button" type="submit" onclick="return confirm('Restore asset backup? This will replace all asset data.');">Restore Asset Backup</button>
         </form>
       </div>
@@ -214,7 +214,7 @@
         This is a point-in-time database snapshot suitable for migrations and recovery.
       </div>
       <a class="button secondary" href="{{ url_for('backup_sql_download') }}" onclick="return confirm('This will run pg_dump on the live database. Continue?');">
-        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+        <svg data-anim="database" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
         Download SQL Dump (.sql)
       </a>
     </div>
