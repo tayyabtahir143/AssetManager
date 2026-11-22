@@ -185,3 +185,11 @@ main { max-width: none; padding: 26px 28px; }
   .topbar::before { display: none !important; }
   .topbar { position: static; box-shadow: none !important; }
 }
+
+/* ── Animated icons (static/anim-icons.js, useAnimations MIT) ─────────── */
+/* Lottie SVGs are drawn black; recolour them from the surrounding text so
+   they follow every scheme and both shifts like the static icons do. */
+.ua-icon { display: inline-flex; flex: none; line-height: 0; vertical-align: middle; }
+.ua-icon > svg { width: 100% !important; height: 100% !important; display: block; overflow: visible; }
+.ua-icon path[stroke^="rgb"]:not([stroke="rgb(255,255,255)"]) { stroke: currentColor; stroke-width: var(--ua-stroke, 2); }
+.ua-icon path[fill="rgb(0,0,0)"] { fill: currentColor; }

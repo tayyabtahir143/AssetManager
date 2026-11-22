@@ -128,3 +128,42 @@ def test_dirty_editor_cannot_cancel_inactivity_logout(
     assert logout_requests == ['http://localhost/logout']
     with admin_client.session_transaction() as session:
         assert 'user_id' not in session
+
+
+def test_animated_icons_upgrade_under_csp(admin_client):
+    """useAnimations icons replace the static svg[data-anim] fallbacks, honour
+    the real CSP (no eval, same-origin fetch) and play on hover."""
+    with pw.sync_playwright() as playwright:
+        try:
+            browser = playwright.chromium.launch(headless=True)
+        except pw.Error as exc:
+            pytest.skip(f'Install Chromium with playwright install chromium: {exc}')
+        page = browser.new_page(viewport={'width': 1440, 'height': 1000})
+        problems = []
+        page.on('pageerror', lambda error: problems.append(str(error)))
+        page.on('console', lambda msg: problems.append(msg.text)
+                if msg.type == 'error' else None)
+
+        def serve(route):
+            url = urlparse(route.request.url)
+            if url.netloc != 'localhost':
+                route.fulfill(status=200, body='')
+                return
+            response = admin_client.get(url.path + ('?' + url.query if url.query else ''))
+            route.fulfill(status=response.status_code, body=response.data,
+                          content_type=response.content_type,
+                          headers={'Content-Security-Policy': response.headers.get('Content-Security-Policy', '')})
+        page.route('**/*', serve)
+        page.goto('http://localhost/')
+        page.wait_for_function("document.querySelectorAll('.ua-icon svg').length > 15")
+        page.wait_for_timeout(300)
+        assert page.locator('nav svg[data-anim]').count() == 0
+        icon = page.locator('.sidebar .nav-link .ua-icon').first
+        box = icon.bounding_box()
+        assert box and round(box['width']) == 16 and round(box['height']) == 16
+        before = icon.inner_html()
+        page.locator('.sidebar .nav-link').first.hover()
+        page.wait_for_timeout(250)
+        assert icon.inner_html() != before
+        assert not problems, problems
+        browser.close()
