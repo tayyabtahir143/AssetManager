@@ -155,9 +155,11 @@ def test_animated_icons_upgrade_under_csp(admin_client):
                           headers={'Content-Security-Policy': response.headers.get('Content-Security-Policy', '')})
         page.route('**/*', serve)
         page.goto('http://localhost/')
-        page.wait_for_function("document.querySelectorAll('.ua-icon svg').length > 15")
+        # Locator-based waits only: wait_for_function evaluates a string,
+        # which the app's CSP (no 'unsafe-eval') correctly blocks.
+        pw.expect(page.locator('.ua-icon svg').nth(15)).to_be_attached()
+        pw.expect(page.locator('nav svg[data-anim]')).to_have_count(0)
         page.wait_for_timeout(300)
-        assert page.locator('nav svg[data-anim]').count() == 0
         icon = page.locator('.sidebar .nav-link .ua-icon').first
         box = icon.bounding_box()
         assert box and round(box['width']) == 16 and round(box['height']) == 16
